@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, Search, User } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 
 export function Header() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export function Header() {
   const lastName = user?.user_metadata?.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || user?.email || 'Usuário';
   const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
+  const avatarUrl = user?.user_metadata?.avatar_url || 'https://uunyxyvfajrorqnatifn.supabase.co/storage/v1/object/public/crm/tom.jpeg';
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
@@ -73,8 +75,14 @@ export function Header() {
               aria-haspopup="true"
             >
               <span className="sr-only">Abrir menu do usuário</span>
-              <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                {initials}
+              <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold overflow-hidden relative">
+                <Image 
+                  src={avatarUrl} 
+                  alt={fullName} 
+                  fill 
+                  className="object-cover" 
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <span className="hidden lg:flex lg:items-center">
                 <span className="ml-4 text-sm font-semibold leading-6 text-gray-900" aria-hidden="true">

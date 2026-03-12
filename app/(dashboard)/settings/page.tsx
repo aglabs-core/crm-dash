@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { User, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
+import Image from 'next/image';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export default function Settings() {
   };
 
   const initials = `${formData.firstName?.[0] || ''}${formData.lastName?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
+  const avatarUrl = user?.user_metadata?.avatar_url || 'https://uunyxyvfajrorqnatifn.supabase.co/storage/v1/object/public/crm/tom.jpeg';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -62,8 +64,14 @@ export default function Settings() {
 
             <div className="border-t border-gray-200 pt-6">
               <div className="flex items-center gap-6">
-                <div className="h-24 w-24 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-2xl">
-                  {initials}
+                <div className="h-24 w-24 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-2xl overflow-hidden relative">
+                  <Image 
+                    src={avatarUrl} 
+                    alt="Avatar" 
+                    fill 
+                    className="object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div>
                   <button type="button" className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
