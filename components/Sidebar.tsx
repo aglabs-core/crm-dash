@@ -43,7 +43,7 @@ export function Sidebar() {
           <div className="bg-indigo-600 rounded-lg p-1.5">
             <Briefcase className="w-5 h-5 text-white" />
           </div>
-          Nexus CRM
+          CRM AG LABS
         </div>
       </div>
       <nav className="flex flex-1 flex-col px-4 py-6 overflow-y-auto">

@@ -190,9 +190,9 @@ function SearchContent() {
                   <div className="flex shrink-0 items-center gap-x-4">
                     <div className="hidden sm:flex sm:flex-col sm:items-end">
                       <p className="text-sm leading-6 text-gray-900 font-medium">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(deal.value) || 0)}
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(deal.amount) || 0)}
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-gray-500">{deal.status}</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">{deal.stage}</p>
                     </div>
                   </div>
                 </li>

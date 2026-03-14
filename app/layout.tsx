@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Modern CRM',
+  title: 'CRM AG LABS',
   description: 'Um sistema de CRM moderno e funcional.',
 };
 

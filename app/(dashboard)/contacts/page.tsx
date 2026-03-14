@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Filter, MoreHorizontal, Mail, Phone, Plus, Users, X, Loader2, Pencil } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Mail, Phone, Plus, Users, X, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Contact = {
@@ -50,6 +50,23 @@ export default function Contacts() {
       lp_url: contact.lp_url || ''
     });
     setIsModalOpen(true);
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setContacts(contacts.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      alert('Erro ao excluir contato.');
+    }
   };
 
   useEffect(() => {
@@ -123,6 +140,7 @@ export default function Contacts() {
         if (data) {
           setContacts([data[0], ...contacts]);
           setIsModalOpen(false);
+          setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '' });
         }
       }
     } catch (error) {
@@ -253,13 +271,22 @@ export default function Contacts() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => openEditContactModal(contact)}
-                        className="text-gray-400 hover:text-indigo-600 transition-colors"
-                        title="Editar contato"
-                      >
-                        <Pencil className="h-5 w-5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => openEditContactModal(contact)}
+                          className="text-gray-400 hover:text-indigo-600 transition-colors"
+                          title="Editar contato"
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteContact(contact.id)}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          title="Excluir contato"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

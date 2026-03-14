@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Task = {
@@ -43,6 +43,23 @@ export default function Tasks() {
       priority: task.priority || 'Média'
     });
     setIsModalOpen(true);
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setTasks(tasks.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Erro ao excluir tarefa.');
+    }
   };
 
   useEffect(() => {
@@ -113,6 +130,7 @@ export default function Tasks() {
         if (data) {
           setTasks([data[0], ...tasks]);
           setIsModalOpen(false);
+          setFormData({ title: '', description: '', due_date: '', priority: 'Média' });
         }
       }
     } catch (error) {
@@ -198,13 +216,22 @@ export default function Tasks() {
                             'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'}`}>
                           {task.priority}
                         </span>
-                        <button 
-                          onClick={() => openEditTaskModal(task)}
-                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
-                          title="Editar tarefa"
-                        >
-                          <Pencil className="h-5 w-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => openEditTaskModal(task)}
+                            className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
+                            title="Editar tarefa"
+                          >
+                            <Pencil className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
+                            title="Excluir tarefa"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                     {task.description && (
@@ -250,13 +277,22 @@ export default function Tasks() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-4">
                       <h3 className="text-sm font-semibold text-gray-500 line-through truncate">{task.title}</h3>
-                      <button 
-                        onClick={() => openEditTaskModal(task)}
-                        className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
-                        title="Editar tarefa"
-                      >
-                        <Pencil className="h-5 w-5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => openEditTaskModal(task)}
+                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
+                          title="Editar tarefa"
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
+                          title="Excluir tarefa"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
                     </div>
                     {task.description && (
                       <p className="mt-1 text-sm text-gray-400 line-clamp-1">{task.description}</p>

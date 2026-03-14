@@ -92,14 +92,14 @@ export default function Dashboard() {
         return current >= previous ? 'positive' : 'negative';
       };
 
-      const activeDeals = dealsData?.filter(d => d.status !== 'Ganho' && d.status !== 'Perdido') || [];
-      const wonDeals = dealsData?.filter(d => d.status === 'Ganho') || [];
+      const activeDeals = dealsData?.filter(d => d.stage !== 'Ganho' && d.stage !== 'Perdido') || [];
+      const wonDeals = dealsData?.filter(d => d.stage === 'Ganho') || [];
       
-      const totalRevenue = wonDeals.reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
+      const totalRevenue = wonDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
       const formattedRevenue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue);
 
-      const currentRevenue = wonDeals.filter(d => isCurrentMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
-      const previousRevenue = wonDeals.filter(d => isPreviousMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
+      const currentRevenue = wonDeals.filter(d => isCurrentMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+      const previousRevenue = wonDeals.filter(d => isPreviousMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
       const revenueChange = calculateChange(currentRevenue, previousRevenue);
       const revenueChangeType = getChangeType(currentRevenue, previousRevenue);
 
@@ -135,7 +135,7 @@ export default function Dashboard() {
       wonDeals.forEach(deal => {
         const date = new Date(deal.created_at);
         const monthName = months[date.getMonth()];
-        monthlyData[monthName] = (monthlyData[monthName] || 0) + (Number(deal.value) || 0);
+        monthlyData[monthName] = (monthlyData[monthName] || 0) + (Number(deal.amount) || 0);
       });
 
       const formattedChartData = Object.keys(monthlyData).map(month => ({
@@ -239,13 +239,13 @@ export default function Dashboard() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value || 0)}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.amount || 0)}
                   </p>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1
-                    ${deal.status === 'Ganho' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' : 
-                      deal.status === 'Perdido' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' : 
+                    ${deal.stage === 'Ganho' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' : 
+                      deal.stage === 'Perdido' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' : 
                       'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10'}`}>
-                    {deal.status}
+                    {deal.stage}
                   </span>
                 </div>
               </div>

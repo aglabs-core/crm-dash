@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Calendar, DollarSign, GripVertical, Loader2, X } from 'lucide-react';
+import { Plus, MoreHorizontal, Calendar, DollarSign, GripVertical, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/lib/supabase';
 
@@ -18,7 +18,7 @@ type Deal = {
   title: string;
   company: string;
   amount: number;
-  status: string;
+  stage: string;
   expected_close_date: string | null;
   priority?: string;
 };
@@ -29,14 +29,52 @@ export default function Deals() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
     company: '',
     amount: '',
-    status: 'Lead',
-    expected_close_date: ''
+    stage: 'Lead',
+    expected_close_date: '',
+    priority: 'Média'
   });
+
+  const openNewDealModal = (stage = 'Lead') => {
+    setEditingDeal(null);
+    setFormData({ title: '', company: '', amount: '', stage, expected_close_date: '', priority: 'Média' });
+    setIsModalOpen(true);
+  };
+
+  const openEditDealModal = (deal: Deal) => {
+    setEditingDeal(deal);
+    setFormData({
+      title: deal.title,
+      company: deal.company || '',
+      amount: deal.amount ? deal.amount.toString() : '',
+      stage: deal.stage || 'Lead',
+      expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
+      priority: deal.priority || 'Média'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteDeal = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este negócio?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('deals')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setDeals(deals.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      alert('Erro ao excluir negócio.');
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -60,7 +98,7 @@ export default function Deals() {
     }
   };
 
-  const handleCreateDeal = async (e: React.FormEvent) => {
+  const handleSaveDeal = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
@@ -68,30 +106,54 @@ export default function Deals() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
-        .from('deals')
-        .insert([
-          {
-            user_id: userData.user.id,
+      if (editingDeal) {
+        const { data, error } = await supabase
+          .from('deals')
+          .update({
             title: formData.title,
             company: formData.company,
             amount: parseFloat(formData.amount) || 0,
-            status: formData.status,
-            expected_close_date: formData.expected_close_date || null
-          }
-        ])
-        .select();
+            stage: formData.stage,
+            expected_close_date: formData.expected_close_date || null,
+            priority: formData.priority
+          })
+          .eq('id', editingDeal.id)
+          .select();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (data) {
-        setDeals([data[0], ...deals]);
-        setIsModalOpen(false);
-        setFormData({ title: '', company: '', amount: '', status: 'Lead', expected_close_date: '' });
+        if (data) {
+          setDeals(deals.map(d => d.id === editingDeal.id ? data[0] : d));
+          setIsModalOpen(false);
+          setEditingDeal(null);
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('deals')
+          .insert([
+            {
+              user_id: userData.user.id,
+              title: formData.title,
+              company: formData.company,
+              amount: parseFloat(formData.amount) || 0,
+              stage: formData.stage,
+              expected_close_date: formData.expected_close_date || null,
+              priority: formData.priority
+            }
+          ])
+          .select();
+
+        if (error) throw error;
+
+        if (data) {
+          setDeals([data[0], ...deals]);
+          setIsModalOpen(false);
+          setFormData({ title: '', company: '', amount: '', stage: 'Lead', expected_close_date: '', priority: 'Média' });
+        }
       }
     } catch (error) {
-      console.error('Error creating deal:', error);
-      alert('Erro ao criar negócio. Verifique se você está logado.');
+      console.error('Error saving deal:', error);
+      alert('Erro ao salvar negócio. Verifique se você está logado.');
     } finally {
       setIsSubmitting(false);
     }
@@ -114,12 +176,12 @@ export default function Deals() {
     
     if (draggedDealIndex !== -1) {
       const draggedDeal = newDeals[draggedDealIndex];
-      const previousStage = draggedDeal.status;
+      const previousStage = draggedDeal.stage;
       
       // Optimistic update
       newDeals[draggedDealIndex] = {
         ...draggedDeal,
-        status: destination.droppableId
+        stage: destination.droppableId
       };
       setDeals(newDeals);
 
@@ -127,7 +189,7 @@ export default function Deals() {
       try {
         const { error } = await supabase
           .from('deals')
-          .update({ status: destination.droppableId })
+          .update({ stage: destination.droppableId })
           .eq('id', draggableId);
 
         if (error) throw error;
@@ -137,7 +199,7 @@ export default function Deals() {
         const revertedDeals = Array.from(newDeals);
         revertedDeals[draggedDealIndex] = {
           ...draggedDeal,
-          status: previousStage
+          stage: previousStage
         };
         setDeals(revertedDeals);
         alert('Erro ao atualizar o estágio do negócio.');
@@ -154,7 +216,7 @@ export default function Deals() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Funil de Vendas</h1>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => openNewDealModal()}
           className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -171,7 +233,7 @@ export default function Deals() {
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex gap-6 h-full min-w-max items-start">
               {initialColumns.map((column) => {
-                const columnDeals = deals.filter(d => d.status === column.id);
+                const columnDeals = deals.filter(d => d.stage === column.id);
                 const columnTotal = columnDeals.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
                 return (
@@ -189,7 +251,7 @@ export default function Deals() {
                         </p>
                       </div>
                       <button 
-                        onClick={() => { setFormData({...formData, status: column.id}); setIsModalOpen(true); }}
+                        onClick={() => openNewDealModal(column.id)}
                         className="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-gray-200"
                       >
                         <Plus className="h-5 w-5" />
@@ -225,11 +287,20 @@ export default function Deals() {
                                         'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'}`}>
                                       {deal.priority || 'Normal'}
                                     </span>
-                                    <div className="flex items-center text-gray-400">
-                                      <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing mr-1" />
-                                      <button className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-600">
-                                        <MoreHorizontal className="h-4 w-4" />
+                                    <div className="flex items-center text-gray-400 gap-1">
+                                      <button 
+                                        onClick={() => openEditDealModal(deal)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
+                                      >
+                                        <Pencil className="h-4 w-4" />
                                       </button>
+                                      <button 
+                                        onClick={() => handleDeleteDeal(deal.id)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                      <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1" />
                                     </div>
                                   </div>
                                   <h4 className="text-sm font-semibold text-gray-900 mb-1">{deal.title}</h4>
@@ -268,7 +339,9 @@ export default function Deals() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">Novo Negócio</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingDeal ? 'Editar Negócio' : 'Novo Negócio'}
+              </h2>
               <button 
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -276,7 +349,7 @@ export default function Deals() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateDeal} className="p-4 space-y-4">
+            <form onSubmit={handleSaveDeal} className="p-4 space-y-4">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Título do Negócio *</label>
                 <input
@@ -313,11 +386,11 @@ export default function Deals() {
                 />
               </div>
               <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Estágio</label>
+                <label htmlFor="stage" className="block text-sm font-medium text-gray-700 mb-1">Estágio</label>
                 <select
-                  id="status"
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  id="stage"
+                  value={formData.stage}
+                  onChange={(e) => setFormData({...formData, stage: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
                   {initialColumns.map(col => (
@@ -334,6 +407,19 @@ export default function Deals() {
                   onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
+              </div>
+              <div>
+                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
+                <select
+                  id="priority"
+                  value={formData.priority}
+                  onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="Baixa">Baixa</option>
+                  <option value="Média">Média</option>
+                  <option value="Alta">Alta</option>
+                </select>
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button
