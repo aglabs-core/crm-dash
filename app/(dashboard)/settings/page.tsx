@@ -46,7 +46,7 @@ export default function Settings() {
   };
 
   const initials = `${formData.firstName?.[0] || ''}${formData.lastName?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
-  const avatarUrl = user?.user_metadata?.avatar_url || 'https://uunyxyvfajrorqnatifn.supabase.co/storage/v1/object/public/crm/tom.jpeg';
+  const avatarUrl = user?.user_metadata?.avatar_url || 'https://udcsokdtdqqdnoqozbxh.supabase.co/storage/v1/object/public/crm-dash/avatar%20leo.jpeg';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

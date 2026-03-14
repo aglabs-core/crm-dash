@@ -103,7 +103,7 @@ function SearchContent() {
           <Users className="h-8 w-8 text-gray-400" />
         </div>
         <h3 className="text-lg font-medium text-gray-900">Nenhum resultado encontrado</h3>
-        <p className="mt-1 text-gray-500">Não encontramos nada correspondente a "{query}".</p>
+        <p className="mt-1 text-gray-500">Não encontramos nada correspondente a &quot;{query}&quot;.</p>
       </div>
     );
   }
@@ -112,7 +112,7 @@ function SearchContent() {
     <div className="space-y-8">
       <div className="border-b border-gray-200 pb-5">
         <h3 className="text-base font-semibold leading-6 text-gray-900">
-          Resultados da busca para "{query}"
+          Resultados da busca para &quot;{query}&quot;
         </h3>
       </div>
 
@@ -192,7 +192,7 @@ function SearchContent() {
                       <p className="text-sm leading-6 text-gray-900 font-medium">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(deal.value) || 0)}
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-gray-500">{deal.stage}</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">{deal.status}</p>
                     </div>
                   </div>
                 </li>

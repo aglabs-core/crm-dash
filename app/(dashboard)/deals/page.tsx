@@ -6,11 +6,11 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { supabase } from '@/lib/supabase';
 
 const initialColumns = [
-  { id: 'lead', title: 'Lead' },
-  { id: 'contacted', title: 'Contatado' },
-  { id: 'proposal', title: 'Proposta' },
-  { id: 'negotiation', title: 'Negociação' },
-  { id: 'won', title: 'Ganhos' },
+  { id: 'Lead', title: 'Lead' },
+  { id: 'Contatado', title: 'Contatado' },
+  { id: 'Proposta', title: 'Proposta' },
+  { id: 'Negociação', title: 'Negociação' },
+  { id: 'Ganho', title: 'Ganho' },
 ];
 
 type Deal = {
@@ -18,7 +18,7 @@ type Deal = {
   title: string;
   company: string;
   amount: number;
-  stage: string;
+  status: string;
   expected_close_date: string | null;
   priority?: string;
 };
@@ -34,7 +34,7 @@ export default function Deals() {
     title: '',
     company: '',
     amount: '',
-    stage: 'lead',
+    status: 'Lead',
     expected_close_date: ''
   });
 
@@ -76,7 +76,7 @@ export default function Deals() {
             title: formData.title,
             company: formData.company,
             amount: parseFloat(formData.amount) || 0,
-            stage: formData.stage,
+            status: formData.status,
             expected_close_date: formData.expected_close_date || null
           }
         ])
@@ -87,7 +87,7 @@ export default function Deals() {
       if (data) {
         setDeals([data[0], ...deals]);
         setIsModalOpen(false);
-        setFormData({ title: '', company: '', amount: '', stage: 'lead', expected_close_date: '' });
+        setFormData({ title: '', company: '', amount: '', status: 'Lead', expected_close_date: '' });
       }
     } catch (error) {
       console.error('Error creating deal:', error);
@@ -114,12 +114,12 @@ export default function Deals() {
     
     if (draggedDealIndex !== -1) {
       const draggedDeal = newDeals[draggedDealIndex];
-      const previousStage = draggedDeal.stage;
+      const previousStage = draggedDeal.status;
       
       // Optimistic update
       newDeals[draggedDealIndex] = {
         ...draggedDeal,
-        stage: destination.droppableId
+        status: destination.droppableId
       };
       setDeals(newDeals);
 
@@ -127,7 +127,7 @@ export default function Deals() {
       try {
         const { error } = await supabase
           .from('deals')
-          .update({ stage: destination.droppableId })
+          .update({ status: destination.droppableId })
           .eq('id', draggableId);
 
         if (error) throw error;
@@ -137,7 +137,7 @@ export default function Deals() {
         const revertedDeals = Array.from(newDeals);
         revertedDeals[draggedDealIndex] = {
           ...draggedDeal,
-          stage: previousStage
+          status: previousStage
         };
         setDeals(revertedDeals);
         alert('Erro ao atualizar o estágio do negócio.');
@@ -171,7 +171,7 @@ export default function Deals() {
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex gap-6 h-full min-w-max items-start">
               {initialColumns.map((column) => {
-                const columnDeals = deals.filter(d => d.stage === column.id);
+                const columnDeals = deals.filter(d => d.status === column.id);
                 const columnTotal = columnDeals.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
                 return (
@@ -189,7 +189,7 @@ export default function Deals() {
                         </p>
                       </div>
                       <button 
-                        onClick={() => { setFormData({...formData, stage: column.id}); setIsModalOpen(true); }}
+                        onClick={() => { setFormData({...formData, status: column.id}); setIsModalOpen(true); }}
                         className="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded-md hover:bg-gray-200"
                       >
                         <Plus className="h-5 w-5" />
@@ -313,11 +313,11 @@ export default function Deals() {
                 />
               </div>
               <div>
-                <label htmlFor="stage" className="block text-sm font-medium text-gray-700 mb-1">Estágio</label>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Estágio</label>
                 <select
-                  id="stage"
-                  value={formData.stage}
-                  onChange={(e) => setFormData({...formData, stage: e.target.value})}
+                  id="status"
+                  value={formData.status}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
                   {initialColumns.map(col => (

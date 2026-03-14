@@ -54,9 +54,9 @@ export default function Reports() {
             monthlyData[monthName] = { won: 0, lost: 0 };
           }
           
-          if (deal.stage === 'Ganho') {
+          if (deal.status === 'Ganho') {
             monthlyData[monthName].won += Number(deal.value) || 0;
-          } else if (deal.stage === 'Perdido') {
+          } else if (deal.status === 'Perdido') {
             monthlyData[monthName].lost += Number(deal.value) || 0;
           }
         });
@@ -72,7 +72,7 @@ export default function Reports() {
         const conversionMonthlyData: Record<string, { won: number, totalClosed: number }> = {};
         
         deals.forEach(deal => {
-          if (deal.stage === 'Ganho' || deal.stage === 'Perdido') {
+          if (deal.status === 'Ganho' || deal.status === 'Perdido') {
             const date = new Date(deal.created_at);
             const monthName = months[date.getMonth()];
             
@@ -81,7 +81,7 @@ export default function Reports() {
             }
             
             conversionMonthlyData[monthName].totalClosed += 1;
-            if (deal.stage === 'Ganho') {
+            if (deal.status === 'Ganho') {
               conversionMonthlyData[monthName].won += 1;
             }
           }
@@ -97,8 +97,8 @@ export default function Reports() {
         setConversionData(formattedConversionData.length > 0 ? formattedConversionData : [{ name: 'Sem dados', rate: 0 }]);
 
         // Calculate Metrics
-        const wonDeals = deals.filter(d => d.stage === 'Ganho');
-        const closedDeals = deals.filter(d => d.stage === 'Ganho' || d.stage === 'Perdido');
+        const wonDeals = deals.filter(d => d.status === 'Ganho');
+        const closedDeals = deals.filter(d => d.status === 'Ganho' || d.status === 'Perdido');
         
         const totalWonValue = wonDeals.reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
         const avgSize = wonDeals.length > 0 ? totalWonValue / wonDeals.length : 0;

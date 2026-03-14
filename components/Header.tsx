@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Bell, Search, User } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -10,21 +9,12 @@ export function Header() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    const q = searchParams.get('q');
-    if (q) {
-      setSearchQuery(q);
-    } else {
-      setSearchQuery('');
-    }
-  }, [searchParams]);
-
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    const formData = new FormData(e.currentTarget);
+    const q = formData.get('search')?.toString() || '';
+    if (q.trim()) {
+      router.push(`/search?q=${encodeURIComponent(q.trim())}`);
     }
   };
 
@@ -32,7 +22,7 @@ export function Header() {
   const lastName = user?.user_metadata?.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || user?.email || 'Usuário';
   const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
-  const avatarUrl = user?.user_metadata?.avatar_url || 'https://uunyxyvfajrorqnatifn.supabase.co/storage/v1/object/public/crm/tom.jpeg';
+  const avatarUrl = user?.user_metadata?.avatar_url || 'https://udcsokdtdqqdnoqozbxh.supabase.co/storage/v1/object/public/crm-dash/avatar%20leo.jpeg';
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
@@ -51,8 +41,7 @@ export function Header() {
             placeholder="Buscar contatos, negócios, tarefas..."
             type="search"
             name="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            defaultValue={searchParams.get('q') || ''}
           />
         </form>
         <div className="flex items-center gap-x-4 lg:gap-x-6">
