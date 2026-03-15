@@ -35,6 +35,33 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    const dealsSubscription = supabase
+      .channel('deals-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    const contactsSubscription = supabase
+      .channel('contacts-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    const tasksSubscription = supabase
+      .channel('tasks-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dealsSubscription);
+      supabase.removeChannel(contactsSubscription);
+      supabase.removeChannel(tasksSubscription);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -98,15 +125,18 @@ export default function Dashboard() {
       const totalRevenue = wonDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
       const formattedRevenue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue);
 
+      const totalPipeline = activeDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+      const formattedPipeline = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPipeline);
+
       const currentRevenue = wonDeals.filter(d => isCurrentMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
       const previousRevenue = wonDeals.filter(d => isPreviousMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
       const revenueChange = calculateChange(currentRevenue, previousRevenue);
       const revenueChangeType = getChangeType(currentRevenue, previousRevenue);
 
-      const currentActiveDeals = activeDeals.filter(d => isCurrentMonth(d.created_at)).length;
-      const previousActiveDeals = activeDeals.filter(d => isPreviousMonth(d.created_at)).length;
-      const activeDealsChange = calculateChange(currentActiveDeals, previousActiveDeals);
-      const activeDealsChangeType = getChangeType(currentActiveDeals, previousActiveDeals);
+      const currentPipeline = activeDeals.filter(d => isCurrentMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+      const previousPipeline = activeDeals.filter(d => isPreviousMonth(d.created_at)).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+      const pipelineChange = calculateChange(currentPipeline, previousPipeline);
+      const pipelineChangeType = getChangeType(currentPipeline, previousPipeline);
 
       const currentContacts = contactsData?.filter(c => isCurrentMonth(c.created_at)).length || 0;
       const previousContacts = contactsData?.filter(c => isPreviousMonth(c.created_at)).length || 0;
@@ -121,29 +151,54 @@ export default function Dashboard() {
 
       setStats([
         { name: 'Receita Total', value: formattedRevenue, icon: DollarSign, change: revenueChange, changeType: revenueChangeType },
-        { name: 'Negócios Ativos', value: activeDeals.length.toString(), icon: Briefcase, change: activeDealsChange, changeType: activeDealsChangeType },
+        { name: 'Valor em Pipeline', value: formattedPipeline, icon: Briefcase, change: pipelineChange, changeType: pipelineChangeType },
         { name: 'Contatos', value: (contactsData?.length || 0).toString(), icon: Users, change: contactsChange, changeType: contactsChangeType },
         { name: 'Tarefas Concluídas', value: completedTasks.length.toString(), icon: CheckSquare, change: tasksChange, changeType: tasksChangeType },
       ]);
 
       setRecentDeals(dealsData?.slice(0, 4) || []);
 
-      // Process Chart Data (Revenue by Month)
-      const monthlyData: Record<string, number> = {};
+      // Process Chart Data (Revenue and Pipeline by Month)
+      const monthlyData: Record<string, { revenue: number, pipeline: number }> = {};
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       
+      // Initialize last 6 months to ensure chart always has some data points
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        monthlyData[months[d.getMonth()]] = { revenue: 0, pipeline: 0 };
+      }
+
       wonDeals.forEach(deal => {
         const date = new Date(deal.created_at);
         const monthName = months[date.getMonth()];
-        monthlyData[monthName] = (monthlyData[monthName] || 0) + (Number(deal.amount) || 0);
+        if (!monthlyData[monthName]) monthlyData[monthName] = { revenue: 0, pipeline: 0 };
+        monthlyData[monthName].revenue += (Number(deal.amount) || 0);
       });
 
-      const formattedChartData = Object.keys(monthlyData).map(month => ({
+      activeDeals.forEach(deal => {
+        const date = new Date(deal.created_at);
+        const monthName = months[date.getMonth()];
+        if (!monthlyData[monthName]) monthlyData[monthName] = { revenue: 0, pipeline: 0 };
+        monthlyData[monthName].pipeline += (Number(deal.amount) || 0);
+      });
+
+      // Sort months chronologically based on current month
+      const currentMonthIndex = new Date().getMonth();
+      const formattedChartData = Object.keys(monthlyData).sort((a, b) => {
+        const indexA = months.indexOf(a);
+        const indexB = months.indexOf(b);
+        // Adjust for year wrap-around
+        const adjA = indexA > currentMonthIndex ? indexA - 12 : indexA;
+        const adjB = indexB > currentMonthIndex ? indexB - 12 : indexB;
+        return adjA - adjB;
+      }).map(month => ({
         name: month,
-        revenue: monthlyData[month]
+        revenue: monthlyData[month].revenue,
+        pipeline: monthlyData[month].pipeline
       }));
 
-      setChartData(formattedChartData.length > 0 ? formattedChartData : [{ name: 'Sem dados', revenue: 0 }]);
+      setChartData(formattedChartData);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -209,6 +264,10 @@ export default function Dashboard() {
                     <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
                   </linearGradient>
+                  <linearGradient id="colorPipeline" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
@@ -216,9 +275,13 @@ export default function Dashboard() {
                 <Tooltip 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   itemStyle={{ color: '#111827', fontWeight: 600 }}
-                  formatter={(value: any) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), 'Receita']}
+                  formatter={(value: any, name: string | undefined) => [
+                    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), 
+                    name === 'revenue' ? 'Receita' : 'Pipeline'
+                  ]}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="revenue" name="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="pipeline" name="pipeline" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorPipeline)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
