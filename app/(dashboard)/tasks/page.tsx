@@ -64,6 +64,17 @@ export default function Tasks() {
 
   useEffect(() => {
     fetchTasks();
+
+    const tasksSubscription = supabase
+      .channel('tasks-page-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchTasks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tasksSubscription);
+    };
   }, []);
 
   const fetchTasks = async () => {

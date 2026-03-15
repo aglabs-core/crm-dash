@@ -71,6 +71,17 @@ export default function Contacts() {
 
   useEffect(() => {
     fetchContacts();
+
+    const contactsSubscription = supabase
+      .channel('contacts-page-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+        fetchContacts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(contactsSubscription);
+    };
   }, []);
 
   const fetchContacts = async () => {

@@ -79,6 +79,17 @@ export default function Deals() {
   useEffect(() => {
     setIsMounted(true);
     fetchDeals();
+
+    const dealsSubscription = supabase
+      .channel('deals-page-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
+        fetchDeals();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dealsSubscription);
+    };
   }, []);
 
   const fetchDeals = async () => {
@@ -90,7 +101,31 @@ export default function Deals() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDeals(data || []);
+      
+      // Normalize stages to ensure they appear in the funnel
+      const normalizedData = (data || []).map(deal => {
+        const stageStr = deal.stage || '';
+        // Try to find an exact or case-insensitive match
+        const matchedColumn = initialColumns.find(
+          col => col.id.toLowerCase() === stageStr.toLowerCase()
+        );
+        
+        // If it's "Perdido" (Lost), we might still want to keep it as "Perdido" 
+        // but the funnel doesn't have a "Perdido" column.
+        // Let's just map unknown stages to 'Lead' so they show up.
+        let finalStage = matchedColumn ? matchedColumn.id : 'Lead';
+        
+        if (stageStr.toLowerCase() === 'perdido') {
+           finalStage = 'Perdido'; // Keep it as Perdido if it's lost, though it won't show in funnel
+        }
+
+        return {
+          ...deal,
+          stage: finalStage
+        };
+      });
+      
+      setDeals(normalizedData);
     } catch (error) {
       console.error('Error fetching deals:', error);
     } finally {
