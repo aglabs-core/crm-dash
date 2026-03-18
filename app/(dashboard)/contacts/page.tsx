@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Filter, MoreHorizontal, Mail, Phone, Plus, Users, X, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Mail, Phone, Plus, Users, X, Loader2, Pencil, Trash2, CheckCircle2, Briefcase, Clock, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import Link from 'next/link';
 
 type Contact = {
   id: string;
@@ -63,9 +65,10 @@ export default function Contacts() {
 
       if (error) throw error;
       setContacts(contacts.filter(c => c.id !== id));
+      toast.success('Contato excluído com sucesso!');
     } catch (error) {
       console.error('Error deleting contact:', error);
-      alert('Erro ao excluir contato.');
+      toast.error('Erro ao excluir contato.');
     }
   };
 
@@ -129,6 +132,7 @@ export default function Contacts() {
           setContacts(contacts.map(c => c.id === editingContact.id ? data[0] : c));
           setIsModalOpen(false);
           setEditingContact(null);
+          toast.success('Contato atualizado com sucesso!');
         }
       } else {
         const { data, error } = await supabase
@@ -152,11 +156,12 @@ export default function Contacts() {
           setContacts([data[0], ...contacts]);
           setIsModalOpen(false);
           setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '' });
+          toast.success('Contato criado com sucesso!');
         }
       }
     } catch (error) {
       console.error('Error saving contact:', error);
-      alert('Erro ao salvar contato. Verifique se você está logado.');
+      toast.error('Erro ao salvar contato. Verifique se você está logado.');
     } finally {
       setIsSubmitting(false);
     }
@@ -166,6 +171,13 @@ export default function Contacts() {
     contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (contact.company && contact.company.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  // Calculate totals
+  const totalContacts = contacts.length;
+  const totalLeads = contacts.filter(c => c.status === 'Lead').length;
+  const totalContacted = contacts.filter(c => c.status === 'Contatado').length;
+  const totalNegotiation = contacts.filter(c => c.status === 'Negociação' || c.status === 'Proposta').length;
+  const totalWon = contacts.filter(c => c.status === 'Ganho' || c.status === 'Cliente').length;
 
   return (
     <div className="space-y-6 relative">
@@ -178,6 +190,30 @@ export default function Contacts() {
           <Plus className="h-4 w-4 mr-2" />
           Adicionar Contato
         </button>
+      </div>
+
+      {/* Totals Section */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Users className="w-4 h-4" /> Total</span>
+          <span className="text-2xl font-bold text-gray-900">{totalContacts}</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Clock className="w-4 h-4" /> Leads</span>
+          <span className="text-2xl font-bold text-gray-900">{totalLeads}</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Phone className="w-4 h-4" /> Contatados</span>
+          <span className="text-2xl font-bold text-gray-900">{totalContacted}</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Briefcase className="w-4 h-4" /> Em Negociação</span>
+          <span className="text-2xl font-bold text-gray-900">{totalNegotiation}</span>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Clientes</span>
+          <span className="text-2xl font-bold text-gray-900">{totalWon}</span>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -283,6 +319,13 @@ export default function Contacts() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/deals?new_deal_contact_id=${contact.id}`}
+                          className="text-gray-400 hover:text-emerald-600 transition-colors"
+                          title="Criar Negócio"
+                        >
+                          <DollarSign className="h-5 w-5" />
+                        </Link>
                         <button 
                           onClick={() => openEditContactModal(contact)}
                           className="text-gray-400 hover:text-indigo-600 transition-colors"

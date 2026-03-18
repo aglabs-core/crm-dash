@@ -5,6 +5,7 @@ import { User, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -36,10 +37,10 @@ export default function Settings() {
         }
       });
       if (error) throw error;
-      alert('Perfil atualizado com sucesso!');
+      toast.success('Perfil atualizado com sucesso!');
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Erro ao atualizar perfil.');
+      toast.error('Erro ao atualizar perfil.');
     } finally {
       setIsLoading(false);
     }

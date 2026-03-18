@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 type Task = {
   id: string;
@@ -56,9 +57,10 @@ export default function Tasks() {
 
       if (error) throw error;
       setTasks(tasks.filter(t => t.id !== id));
+      toast.success('Tarefa excluída com sucesso!');
     } catch (error) {
       console.error('Error deleting task:', error);
-      alert('Erro ao excluir tarefa.');
+      toast.error('Erro ao excluir tarefa.');
     }
   };
 
@@ -120,6 +122,7 @@ export default function Tasks() {
           setTasks(tasks.map(t => t.id === editingTask.id ? data[0] : t));
           setIsModalOpen(false);
           setEditingTask(null);
+          toast.success('Tarefa atualizada com sucesso!');
         }
       } else {
         const { data, error } = await supabase
@@ -142,11 +145,12 @@ export default function Tasks() {
           setTasks([data[0], ...tasks]);
           setIsModalOpen(false);
           setFormData({ title: '', description: '', due_date: '', priority: 'Média' });
+          toast.success('Tarefa criada com sucesso!');
         }
       }
     } catch (error) {
       console.error('Error saving task:', error);
-      alert('Erro ao salvar tarefa. Verifique se você está logado.');
+      toast.error('Erro ao salvar tarefa. Verifique se você está logado.');
     } finally {
       setIsSubmitting(false);
     }
@@ -173,7 +177,7 @@ export default function Tasks() {
       setTasks(tasks.map(task => 
         task.id === id ? { ...task, status: currentStatus } : task
       ));
-      alert('Erro ao atualizar o status da tarefa.');
+      toast.error('Erro ao atualizar o status da tarefa.');
     }
   };
 

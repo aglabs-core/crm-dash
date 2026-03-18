@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Plus, MoreHorizontal, Calendar, DollarSign, GripVertical, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 const initialColumns = [
   { id: 'Lead', title: 'Lead' },
@@ -21,10 +23,24 @@ type Deal = {
   stage: string;
   expected_close_date: string | null;
   priority?: string;
+  contact_id?: string | null;
+  contacts?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
-export default function Deals() {
+type Contact = {
+  id: string;
+  name: string;
+  company: string;
+};
+
+function DealsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,12 +53,13 @@ export default function Deals() {
     amount: '',
     stage: 'Lead',
     expected_close_date: '',
-    priority: 'Média'
+    priority: 'Média',
+    contact_id: ''
   });
 
-  const openNewDealModal = (stage = 'Lead') => {
+  const openNewDealModal = (stage = 'Lead', contactId = '') => {
     setEditingDeal(null);
-    setFormData({ title: '', company: '', amount: '', stage, expected_close_date: '', priority: 'Média' });
+    setFormData({ title: '', company: '', amount: '', stage, expected_close_date: '', priority: 'Média', contact_id: contactId });
     setIsModalOpen(true);
   };
 
@@ -54,7 +71,8 @@ export default function Deals() {
       amount: deal.amount ? deal.amount.toString() : '',
       stage: deal.stage || 'Lead',
       expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
-      priority: deal.priority || 'Média'
+      priority: deal.priority || 'Média',
+      contact_id: deal.contact_id || ''
     });
     setIsModalOpen(true);
   };
@@ -70,15 +88,17 @@ export default function Deals() {
 
       if (error) throw error;
       setDeals(deals.filter(d => d.id !== id));
+      toast.success('Negócio excluído com sucesso!');
     } catch (error) {
       console.error('Error deleting deal:', error);
-      alert('Erro ao excluir negócio.');
+      toast.error('Erro ao excluir negócio.');
     }
   };
 
   useEffect(() => {
     setIsMounted(true);
     fetchDeals();
+    fetchContacts();
 
     const dealsSubscription = supabase
       .channel('deals-page-changes')
@@ -92,12 +112,41 @@ export default function Deals() {
     };
   }, []);
 
+  useEffect(() => {
+    const contactId = searchParams.get('new_deal_contact_id');
+    if (contactId && contacts.length > 0) {
+      openNewDealModal('Lead', contactId);
+      // Remove query param
+      router.replace('/deals');
+    }
+  }, [searchParams, contacts, router]);
+
+  const fetchContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name, company')
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
   const fetchDeals = async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('deals')
-        .select('*')
+        .select(`
+          *,
+          contacts (
+            id,
+            name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -128,6 +177,7 @@ export default function Deals() {
       setDeals(normalizedData);
     } catch (error) {
       console.error('Error fetching deals:', error);
+      toast.error('Erro ao carregar negócios.');
     } finally {
       setIsLoading(false);
     }
@@ -150,10 +200,11 @@ export default function Deals() {
             amount: parseFloat(formData.amount) || 0,
             stage: formData.stage,
             expected_close_date: formData.expected_close_date || null,
-            priority: formData.priority
+            priority: formData.priority,
+            contact_id: formData.contact_id || null
           })
           .eq('id', editingDeal.id)
-          .select();
+          .select(`*, contacts(id, name)`);
 
         if (error) throw error;
 
@@ -161,6 +212,7 @@ export default function Deals() {
           setDeals(deals.map(d => d.id === editingDeal.id ? data[0] : d));
           setIsModalOpen(false);
           setEditingDeal(null);
+          toast.success('Negócio atualizado com sucesso!');
         }
       } else {
         const { data, error } = await supabase
@@ -173,22 +225,24 @@ export default function Deals() {
               amount: parseFloat(formData.amount) || 0,
               stage: formData.stage,
               expected_close_date: formData.expected_close_date || null,
-              priority: formData.priority
+              priority: formData.priority,
+              contact_id: formData.contact_id || null
             }
           ])
-          .select();
+          .select(`*, contacts(id, name)`);
 
         if (error) throw error;
 
         if (data) {
           setDeals([data[0], ...deals]);
           setIsModalOpen(false);
-          setFormData({ title: '', company: '', amount: '', stage: 'Lead', expected_close_date: '', priority: 'Média' });
+          setFormData({ title: '', company: '', amount: '', stage: 'Lead', expected_close_date: '', priority: 'Média', contact_id: '' });
+          toast.success('Negócio criado com sucesso!');
         }
       }
     } catch (error) {
       console.error('Error saving deal:', error);
-      alert('Erro ao salvar negócio. Verifique se você está logado.');
+      toast.error('Erro ao salvar negócio. Verifique se você está logado.');
     } finally {
       setIsSubmitting(false);
     }
@@ -237,7 +291,7 @@ export default function Deals() {
           stage: previousStage
         };
         setDeals(revertedDeals);
-        alert('Erro ao atualizar o estágio do negócio.');
+        toast.error('Erro ao atualizar o estágio do negócio.');
       }
     }
   };
@@ -339,7 +393,14 @@ export default function Deals() {
                                     </div>
                                   </div>
                                   <h4 className="text-sm font-semibold text-gray-900 mb-1">{deal.title}</h4>
-                                  <p className="text-xs text-gray-500 mb-4">{deal.company || '-'}</p>
+                                  <p className="text-xs text-gray-500 mb-4">
+                                    {deal.company || '-'}
+                                    {deal.contacts && (
+                                      <span className="block mt-1 text-indigo-600">
+                                        👤 {deal.contacts.name}
+                                      </span>
+                                    )}
+                                  </p>
                                   
                                   <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
                                     <div className="flex items-center gap-1 font-medium text-gray-700">
@@ -407,6 +468,22 @@ export default function Deals() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   placeholder="Nome da Empresa"
                 />
+              </div>
+              <div>
+                <label htmlFor="contact_id" className="block text-sm font-medium text-gray-700 mb-1">Contato (Lead)</label>
+                <select
+                  id="contact_id"
+                  value={formData.contact_id}
+                  onChange={(e) => setFormData({...formData, contact_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="">Selecione um contato</option>
+                  {contacts.map(contact => (
+                    <option key={contact.id} value={contact.id}>
+                      {contact.name} {contact.company ? `(${contact.company})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
@@ -481,5 +558,13 @@ export default function Deals() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Deals() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 text-indigo-500 animate-spin" /></div>}>
+      <DealsContent />
+    </Suspense>
   );
 }
