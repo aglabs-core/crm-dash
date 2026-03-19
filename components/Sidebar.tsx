@@ -39,9 +39,13 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
       <div className="flex h-16 shrink-0 items-center px-6 border-b border-gray-100">
-        <div className="flex items-center gap-2 font-semibold text-xl text-indigo-600">
-          <div className="bg-indigo-600 rounded-lg p-1.5">
-            <Briefcase className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-2 font-semibold text-xl text-gray-900">
+          <div className="relative w-8 h-8">
+            <img 
+              src="/logo.png" 
+              alt="AG Labs Logo" 
+              className="object-contain w-full h-full"
+            />
           </div>
           CRM AG LABS
         </div>

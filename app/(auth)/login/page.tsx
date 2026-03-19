@@ -59,8 +59,12 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-            <Briefcase className="h-6 w-6 text-white" />
+          <div className="mx-auto h-16 w-16 relative flex items-center justify-center">
+            <img 
+              src="/logo.png" 
+              alt="AG Labs Logo" 
+              className="object-contain w-full h-full"
+            />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900 tracking-tight">
             {isSignUp ? 'Crie sua conta' : 'Acesse sua conta'}
