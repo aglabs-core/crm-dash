@@ -20,6 +20,9 @@ export default function Reports() {
   const [isLoading, setIsLoading] = useState(true);
   const [salesData, setSalesData] = useState<any[]>([]);
   const [conversionData, setConversionData] = useState<any[]>([]);
+  const [productFilter, setProductFilter] = useState('Todos');
+  const [uniqueProducts, setUniqueProducts] = useState<string[]>([]);
+  const [allDeals, setAllDeals] = useState<any[]>([]);
   const [metrics, setMetrics] = useState({
     avgDealSize: 'R$ 0,00',
     winRate: '0%',
@@ -30,92 +33,119 @@ export default function Reports() {
     fetchReportData();
   }, []);
 
+  useEffect(() => {
+    if (allDeals.length > 0) {
+      processData(allDeals);
+    }
+  }, [productFilter, allDeals]);
+
   const fetchReportData = async () => {
     try {
       setIsLoading(true);
       
       const { data: deals, error } = await supabase
         .from('deals')
-        .select('*')
+        .select(`
+          *,
+          contacts (
+            produto
+          )
+        `)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
 
       if (deals) {
-        // Process Sales Data (Won vs Lost by Month)
-        const monthlyData: Record<string, { won: number, lost: number }> = {};
-        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        setAllDeals(deals);
         
-        deals.forEach(deal => {
-          const date = new Date(deal.created_at);
-          const monthName = months[date.getMonth()];
-          
-          if (!monthlyData[monthName]) {
-            monthlyData[monthName] = { won: 0, lost: 0 };
-          }
-          
-          if (deal.stage === 'Ganho') {
-            monthlyData[monthName].won += Number(deal.amount) || 0;
-          } else if (deal.stage === 'Perdido') {
-            monthlyData[monthName].lost += Number(deal.amount) || 0;
-          }
-        });
-
-        const formattedSalesData = Object.keys(monthlyData).map(month => ({
-          name: month,
-          won: monthlyData[month].won,
-          lost: monthlyData[month].lost
-        }));
-        setSalesData(formattedSalesData.length > 0 ? formattedSalesData : [{ name: 'Sem dados', won: 0, lost: 0 }]);
-
-        // Process Conversion Data (Real win rate by month)
-        const conversionMonthlyData: Record<string, { won: number, totalClosed: number }> = {};
+        // Extract unique products
+        const products = Array.from(new Set(deals.map(d => d.contacts?.produto).filter(Boolean)));
+        setUniqueProducts(products as string[]);
         
-        deals.forEach(deal => {
-          if (deal.stage === 'Ganho' || deal.stage === 'Perdido') {
-            const date = new Date(deal.created_at);
-            const monthName = months[date.getMonth()];
-            
-            if (!conversionMonthlyData[monthName]) {
-              conversionMonthlyData[monthName] = { won: 0, totalClosed: 0 };
-            }
-            
-            conversionMonthlyData[monthName].totalClosed += 1;
-            if (deal.stage === 'Ganho') {
-              conversionMonthlyData[monthName].won += 1;
-            }
-          }
-        });
-
-        const formattedConversionData = Object.keys(conversionMonthlyData).map(month => ({
-          name: month,
-          rate: conversionMonthlyData[month].totalClosed > 0 
-            ? Math.round((conversionMonthlyData[month].won / conversionMonthlyData[month].totalClosed) * 100) 
-            : 0
-        }));
-
-        setConversionData(formattedConversionData.length > 0 ? formattedConversionData : [{ name: 'Sem dados', rate: 0 }]);
-
-        // Calculate Metrics
-        const wonDeals = deals.filter(d => d.stage === 'Ganho');
-        const closedDeals = deals.filter(d => d.stage === 'Ganho' || d.stage === 'Perdido');
-        
-        const totalWonValue = wonDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
-        const avgSize = wonDeals.length > 0 ? totalWonValue / wonDeals.length : 0;
-        
-        const winRate = closedDeals.length > 0 ? (wonDeals.length / closedDeals.length) * 100 : 0;
-
-        setMetrics({
-          avgDealSize: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(avgSize),
-          winRate: `${winRate.toFixed(1)}%`,
-          salesCycle: '14 Dias' // Mocked as we need closed_date vs created_date
-        });
+        processData(deals);
       }
     } catch (error) {
       console.error('Error fetching report data:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const processData = (deals: any[]) => {
+    // Filter deals by product
+    const filteredDeals = deals.filter(deal => {
+      if (productFilter === 'Todos') return true;
+      return deal.contacts?.produto === productFilter;
+    });
+
+    // Process Sales Data (Won vs Lost by Month)
+    const monthlyData: Record<string, { won: number, lost: number }> = {};
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    
+    filteredDeals.forEach(deal => {
+      const date = new Date(deal.created_at);
+      const monthName = months[date.getMonth()];
+      
+      if (!monthlyData[monthName]) {
+        monthlyData[monthName] = { won: 0, lost: 0 };
+      }
+      
+      if (deal.stage === 'Ganho') {
+        monthlyData[monthName].won += Number(deal.amount) || 0;
+      } else if (deal.stage === 'Perdido') {
+        monthlyData[monthName].lost += Number(deal.amount) || 0;
+      }
+    });
+
+    const formattedSalesData = Object.keys(monthlyData).map(month => ({
+      name: month,
+      won: monthlyData[month].won,
+      lost: monthlyData[month].lost
+    }));
+    setSalesData(formattedSalesData.length > 0 ? formattedSalesData : [{ name: 'Sem dados', won: 0, lost: 0 }]);
+
+    // Process Conversion Data (Real win rate by month)
+    const conversionMonthlyData: Record<string, { won: number, totalClosed: number }> = {};
+    
+    filteredDeals.forEach(deal => {
+      if (deal.stage === 'Ganho' || deal.stage === 'Perdido') {
+        const date = new Date(deal.created_at);
+        const monthName = months[date.getMonth()];
+        
+        if (!conversionMonthlyData[monthName]) {
+          conversionMonthlyData[monthName] = { won: 0, totalClosed: 0 };
+        }
+        
+        conversionMonthlyData[monthName].totalClosed += 1;
+        if (deal.stage === 'Ganho') {
+          conversionMonthlyData[monthName].won += 1;
+        }
+      }
+    });
+
+    const formattedConversionData = Object.keys(conversionMonthlyData).map(month => ({
+      name: month,
+      rate: conversionMonthlyData[month].totalClosed > 0 
+        ? Math.round((conversionMonthlyData[month].won / conversionMonthlyData[month].totalClosed) * 100) 
+        : 0
+    }));
+
+    setConversionData(formattedConversionData.length > 0 ? formattedConversionData : [{ name: 'Sem dados', rate: 0 }]);
+
+    // Calculate Metrics
+    const wonDeals = filteredDeals.filter(d => d.stage === 'Ganho');
+    const closedDeals = filteredDeals.filter(d => d.stage === 'Ganho' || d.stage === 'Perdido');
+    
+    const totalWonValue = wonDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+    const avgSize = wonDeals.length > 0 ? totalWonValue / wonDeals.length : 0;
+    
+    const winRate = closedDeals.length > 0 ? (wonDeals.length / closedDeals.length) * 100 : 0;
+
+    setMetrics({
+      avgDealSize: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(avgSize),
+      winRate: `${winRate.toFixed(1)}%`,
+      salesCycle: '14 Dias' // Mocked as we need closed_date vs created_date
+    });
   };
 
   if (isLoading) {
@@ -130,14 +160,26 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Relatórios e Análises</h1>
-        <div className="flex items-center gap-2">
-          <button className="inline-flex items-center justify-center bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors">
-            <Calendar className="h-4 w-4 mr-2" />
-            Últimos 30 Dias
-          </button>
-          <button className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors">
-            Exportar PDF
-          </button>
+        <div className="flex items-center gap-4">
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          >
+            <option value="Todos">Todos os Produtos</option>
+            {uniqueProducts.map(product => (
+              <option key={product} value={product}>{product}</option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <button className="inline-flex items-center justify-center bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors">
+              <Calendar className="h-4 w-4 mr-2" />
+              Últimos 30 Dias
+            </button>
+            <button className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors">
+              Exportar PDF
+            </button>
+          </div>
         </div>
       </div>
 

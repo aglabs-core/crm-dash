@@ -27,6 +27,7 @@ type Deal = {
   contacts?: {
     id: string;
     name: string;
+    produto?: string;
   } | null;
 };
 
@@ -34,6 +35,7 @@ type Contact = {
   id: string;
   name: string;
   company: string;
+  produto?: string;
 };
 
 function DealsContent() {
@@ -41,6 +43,7 @@ function DealsContent() {
   const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [productFilter, setProductFilter] = useState('Todos');
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -125,7 +128,7 @@ function DealsContent() {
     try {
       const { data, error } = await supabase
         .from('contacts')
-        .select('id, name, company')
+        .select('id, name, company, produto')
         .order('name', { ascending: true });
       
       if (error) throw error;
@@ -144,7 +147,8 @@ function DealsContent() {
           *,
           contacts (
             id,
-            name
+            name,
+            produto
           )
         `)
         .order('created_at', { ascending: false });
@@ -204,7 +208,7 @@ function DealsContent() {
             contact_id: formData.contact_id || null
           })
           .eq('id', editingDeal.id)
-          .select(`*, contacts(id, name)`);
+          .select(`*, contacts(id, name, produto)`);
 
         if (error) throw error;
 
@@ -229,7 +233,7 @@ function DealsContent() {
               contact_id: formData.contact_id || null
             }
           ])
-          .select(`*, contacts(id, name)`);
+          .select(`*, contacts(id, name, produto)`);
 
         if (error) throw error;
 
@@ -300,17 +304,37 @@ function DealsContent() {
     return null; // Prevent hydration mismatch with dnd
   }
 
+  // Get unique products from deals' contacts
+  const uniqueProducts = Array.from(new Set(deals.map(d => d.contacts?.produto).filter(Boolean)));
+
+  const filteredDeals = deals.filter(deal => {
+    if (productFilter === 'Todos') return true;
+    return deal.contacts?.produto === productFilter;
+  });
+
   return (
     <div className="h-full flex flex-col space-y-6 relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Funil de Vendas</h1>
-        <button 
-          onClick={() => openNewDealModal()}
-          className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Negócio
-        </button>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          >
+            <option value="Todos">Todos os Produtos</option>
+            {uniqueProducts.map(product => (
+              <option key={product} value={product}>{product}</option>
+            ))}
+          </select>
+          <button 
+            onClick={() => openNewDealModal()}
+            className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Negócio
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-x-auto pb-4">
@@ -322,7 +346,7 @@ function DealsContent() {
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex gap-6 h-full min-w-max items-start">
               {initialColumns.map((column) => {
-                const columnDeals = deals.filter(d => d.stage === column.id);
+                const columnDeals = filteredDeals.filter(d => d.stage === column.id);
                 const columnTotal = columnDeals.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
                 return (

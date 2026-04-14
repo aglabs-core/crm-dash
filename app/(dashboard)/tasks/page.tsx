@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil, Trash2 } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil, Trash2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
@@ -13,10 +13,21 @@ type Task = {
   status: string;
   priority: string;
   user_id: string;
+  contact_id?: string | null;
+  contacts?: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+type Contact = {
+  id: string;
+  name: string;
 };
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,12 +37,13 @@ export default function Tasks() {
     title: '',
     description: '',
     due_date: '',
-    priority: 'Média'
+    priority: 'Média',
+    contact_id: ''
   });
 
   const openNewTaskModal = () => {
     setEditingTask(null);
-    setFormData({ title: '', description: '', due_date: '', priority: 'Média' });
+    setFormData({ title: '', description: '', due_date: '', priority: 'Média', contact_id: '' });
     setIsModalOpen(true);
   };
 
@@ -41,7 +53,8 @@ export default function Tasks() {
       title: task.title,
       description: task.description || '',
       due_date: task.due_date ? task.due_date.split('T')[0] : '', // Format for date input
-      priority: task.priority || 'Média'
+      priority: task.priority || 'Média',
+      contact_id: task.contact_id || ''
     });
     setIsModalOpen(true);
   };
@@ -66,6 +79,7 @@ export default function Tasks() {
 
   useEffect(() => {
     fetchTasks();
+    fetchContacts();
 
     const tasksSubscription = supabase
       .channel('tasks-page-changes')
@@ -79,12 +93,32 @@ export default function Tasks() {
     };
   }, []);
 
+  const fetchContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name')
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
   const fetchTasks = async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('tasks')
-        .select('*')
+        .select(`
+          *,
+          contacts (
+            id,
+            name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -112,9 +146,10 @@ export default function Tasks() {
             description: formData.description || null,
             due_date: formData.due_date || null,
             priority: formData.priority,
+            contact_id: formData.contact_id || null
           })
           .eq('id', editingTask.id)
-          .select();
+          .select(`*, contacts(id, name)`);
 
         if (error) throw error;
 
@@ -134,17 +169,18 @@ export default function Tasks() {
               description: formData.description || null,
               due_date: formData.due_date || null,
               priority: formData.priority,
-              status: 'pending'
+              status: 'pending',
+              contact_id: formData.contact_id || null
             }
           ])
-          .select();
+          .select(`*, contacts(id, name)`);
 
         if (error) throw error;
 
         if (data) {
           setTasks([data[0], ...tasks]);
           setIsModalOpen(false);
-          setFormData({ title: '', description: '', due_date: '', priority: 'Média' });
+          setFormData({ title: '', description: '', due_date: '', priority: 'Média', contact_id: '' });
           toast.success('Tarefa criada com sucesso!');
         }
       }
@@ -252,11 +288,17 @@ export default function Tasks() {
                     {task.description && (
                       <p className="mt-1 text-sm text-gray-500 line-clamp-2">{task.description}</p>
                     )}
-                    <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
                       {task.due_date && (
                         <div className="flex items-center gap-1.5 font-medium">
                           <Calendar className="h-4 w-4" />
                           {new Date(task.due_date).toLocaleDateString('pt-BR')}
+                        </div>
+                      )}
+                      {task.contacts && (
+                        <div className="flex items-center gap-1.5 font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                          <Users className="h-3 w-3" />
+                          {task.contacts.name}
                         </div>
                       )}
                     </div>
@@ -385,6 +427,20 @@ export default function Tasks() {
                   <option value="Baixa">Baixa</option>
                   <option value="Média">Média</option>
                   <option value="Alta">Alta</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="contact_id" className="block text-sm font-medium text-gray-700 mb-1">Contato Relacionado</label>
+                <select
+                  id="contact_id"
+                  value={formData.contact_id}
+                  onChange={(e) => setFormData({...formData, contact_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="">Nenhum contato</option>
+                  {contacts.map(contact => (
+                    <option key={contact.id} value={contact.id}>{contact.name}</option>
+                  ))}
                 </select>
               </div>
               <div className="pt-4 flex justify-end gap-3">

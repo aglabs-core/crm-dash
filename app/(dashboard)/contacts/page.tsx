@@ -15,10 +15,12 @@ type Contact = {
   phone: string;
   status: string;
   lp_url?: string;
+  produto?: string;
 };
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [productFilter, setProductFilter] = useState('Todos');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,12 +34,13 @@ export default function Contacts() {
     phone: '',
     company: '',
     status: 'Lead',
-    lp_url: ''
+    lp_url: '',
+    produto: ''
   });
 
   const openNewContactModal = () => {
     setEditingContact(null);
-    setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '' });
+    setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '', produto: '' });
     setIsModalOpen(true);
   };
 
@@ -49,7 +52,8 @@ export default function Contacts() {
       phone: contact.phone || '',
       company: contact.company || '',
       status: contact.status || 'Lead',
-      lp_url: contact.lp_url || ''
+      lp_url: contact.lp_url || '',
+      produto: contact.produto || ''
     });
     setIsModalOpen(true);
   };
@@ -121,7 +125,8 @@ export default function Contacts() {
             phone: formData.phone,
             company: formData.company,
             status: formData.status,
-            lp_url: formData.lp_url
+            lp_url: formData.lp_url,
+            produto: formData.produto
           })
           .eq('id', editingContact.id)
           .select();
@@ -145,7 +150,8 @@ export default function Contacts() {
               phone: formData.phone,
               company: formData.company,
               status: formData.status,
-              lp_url: formData.lp_url
+              lp_url: formData.lp_url,
+              produto: formData.produto
             }
           ])
           .select();
@@ -155,7 +161,7 @@ export default function Contacts() {
         if (data) {
           setContacts([data[0], ...contacts]);
           setIsModalOpen(false);
-          setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '' });
+          setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '', produto: '' });
           toast.success('Contato criado com sucesso!');
         }
       }
@@ -167,17 +173,24 @@ export default function Contacts() {
     }
   };
 
-  const filteredContacts = contacts.filter(contact => 
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (contact.company && contact.company.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredContacts = contacts.filter(contact => {
+    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (contact.company && contact.company.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesProduct = productFilter === 'Todos' || contact.produto === productFilter;
+    
+    return matchesSearch && matchesProduct;
+  });
 
-  // Calculate totals
-  const totalContacts = contacts.length;
-  const totalLeads = contacts.filter(c => c.status === 'Lead').length;
-  const totalContacted = contacts.filter(c => c.status === 'Contatado').length;
-  const totalNegotiation = contacts.filter(c => c.status === 'Negociação' || c.status === 'Proposta').length;
-  const totalWon = contacts.filter(c => c.status === 'Ganho' || c.status === 'Cliente').length;
+  // Calculate totals based on filtered contacts
+  const totalContacts = filteredContacts.length;
+  const totalLeads = filteredContacts.filter(c => c.status === 'Lead').length;
+  const totalContacted = filteredContacts.filter(c => c.status === 'Contatado').length;
+  const totalNegotiation = filteredContacts.filter(c => c.status === 'Negociação' || c.status === 'Proposta').length;
+  const totalWon = filteredContacts.filter(c => c.status === 'Ganho' || c.status === 'Cliente').length;
+
+  // Get unique products for filter
+  const uniqueProducts = Array.from(new Set(contacts.map(c => c.produto).filter(Boolean)));
 
   return (
     <div className="space-y-6 relative">
@@ -218,17 +231,29 @@ export default function Contacts() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative max-w-sm w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <div className="relative max-w-sm w-full">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Buscar contatos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <input
-              type="text"
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Buscar contatos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+            >
+              <option value="Todos">Todos os Produtos</option>
+              {uniqueProducts.map(product => (
+                <option key={product} value={product}>{product}</option>
+              ))}
+            </select>
           </div>
           <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             <Filter className="h-4 w-4 mr-2 text-gray-400" />
@@ -250,6 +275,9 @@ export default function Contacts() {
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Empresa
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produto
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Informações de Contato
@@ -283,6 +311,15 @@ export default function Contacts() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{contact.company || '-'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {contact.produto ? (
+                          <span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10">
+                            {contact.produto}
+                          </span>
+                        ) : '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-1 text-sm text-gray-500">
@@ -427,7 +464,10 @@ export default function Contacts() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
                   <option value="Lead">Lead</option>
-                  <option value="Prospect">Prospect</option>
+                  <option value="Contatado">Contatado</option>
+                  <option value="Negociação">Negociação</option>
+                  <option value="Proposta">Proposta</option>
+                  <option value="Ganho">Ganho</option>
                   <option value="Cliente">Cliente</option>
                   <option value="Inativo">Inativo</option>
                 </select>
@@ -441,6 +481,17 @@ export default function Contacts() {
                   onChange={(e) => setFormData({...formData, lp_url: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   placeholder="https://exemplo.com/lp"
+                />
+              </div>
+              <div>
+                <label htmlFor="produto" className="block text-sm font-medium text-gray-700 mb-1">Produto</label>
+                <input
+                  id="produto"
+                  type="text"
+                  value={formData.produto}
+                  onChange={(e) => setFormData({...formData, produto: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Ex: Consultoria Premium"
                 />
               </div>
               <div className="pt-4 flex justify-end gap-3">
