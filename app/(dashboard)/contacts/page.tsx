@@ -1,22 +1,52 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Search, Filter, MoreHorizontal, Mail, Phone, Plus, Users, X, Loader2, Pencil, Trash2, CheckCircle2, Briefcase, Clock, DollarSign } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Search,
+  Mail,
+  Phone,
+  Plus,
+  Users,
+  Pencil,
+  Trash2,
+  DollarSign,
+  ExternalLink,
+} from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import type { Contact, ContactStatus } from '@/lib/types';
+import { CONTACT_STATUSES, statusTone } from '@/lib/constants';
+import {
+  Card,
+  Button,
+  Badge,
+  Modal,
+  Field,
+  Input,
+  Select,
+  EmptyState,
+  PageLoader,
+} from '@/components/ui';
 
-type Contact = {
-  id: string;
-  name: string;
-  title?: string;
-  company: string;
-  email: string;
-  phone: string;
-  status: string;
-  lp_url?: string;
-  produto?: string;
+const emptyForm = {
+  name: '',
+  email: '',
+  phone: '',
+  company: '',
+  status: 'Lead' as ContactStatus,
+  lp_url: '',
+  produto: '',
 };
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <Card className="flex flex-col p-4">
+      <span className="text-sm font-medium text-muted">{label}</span>
+      <span className="mt-1 text-2xl font-bold text-fg">{value}</span>
+    </Card>
+  );
+}
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,21 +56,11 @@ export default function Contacts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
-    status: 'Lead',
-    lp_url: '',
-    produto: ''
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   const openNewContactModal = () => {
     setEditingContact(null);
-    setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '', produto: '' });
+    setFormData(emptyForm);
     setIsModalOpen(true);
   };
 
@@ -51,24 +71,19 @@ export default function Contacts() {
       email: contact.email || '',
       phone: contact.phone || '',
       company: contact.company || '',
-      status: contact.status || 'Lead',
+      status: contact.status,
       lp_url: contact.lp_url || '',
-      produto: contact.produto || ''
+      produto: contact.produto || '',
     });
     setIsModalOpen(true);
   };
 
   const handleDeleteContact = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este contato?')) return;
-    
     try {
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('contacts').delete().eq('id', id);
       if (error) throw error;
-      setContacts(contacts.filter(c => c.id !== id));
+      setContacts((prev) => prev.filter((c) => c.id !== id));
       toast.success('Contato excluído com sucesso!');
     } catch (error) {
       console.error('Error deleting contact:', error);
@@ -77,30 +92,25 @@ export default function Contacts() {
   };
 
   useEffect(() => {
-    fetchContacts();
-
-    const contactsSubscription = supabase
+    fetchContacts(true);
+    const sub = supabase
       .channel('contacts-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-        fetchContacts();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchContacts())
       .subscribe();
-
     return () => {
-      supabase.removeChannel(contactsSubscription);
+      supabase.removeChannel(sub);
     };
   }, []);
 
-  const fetchContacts = async () => {
+  const fetchContacts = async (showLoader = false) => {
     try {
-      setIsLoading(true);
+      if (showLoader) setIsLoading(true);
       const { data, error } = await supabase
         .from('contacts')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-      setContacts(data || []);
+      setContacts((data as Contact[]) || []);
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {
@@ -112,59 +122,43 @@ export default function Contacts() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
+
+      const payload = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        company: formData.company || null,
+        status: formData.status,
+        lp_url: formData.lp_url || null,
+        produto: formData.produto || null,
+      };
 
       if (editingContact) {
         const { data, error } = await supabase
           .from('contacts')
-          .update({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            company: formData.company,
-            status: formData.status,
-            lp_url: formData.lp_url,
-            produto: formData.produto
-          })
+          .update(payload)
           .eq('id', editingContact.id)
           .select();
-
         if (error) throw error;
-
         if (data) {
-          setContacts(contacts.map(c => c.id === editingContact.id ? data[0] : c));
-          setIsModalOpen(false);
-          setEditingContact(null);
+          setContacts((prev) => prev.map((c) => (c.id === editingContact.id ? (data[0] as Contact) : c)));
           toast.success('Contato atualizado com sucesso!');
         }
       } else {
         const { data, error } = await supabase
           .from('contacts')
-          .insert([
-            {
-              user_id: userData.user.id,
-              name: formData.name,
-              email: formData.email,
-              phone: formData.phone,
-              company: formData.company,
-              status: formData.status,
-              lp_url: formData.lp_url,
-              produto: formData.produto
-            }
-          ])
+          .insert([{ user_id: userData.user.id, ...payload }])
           .select();
-
         if (error) throw error;
-
         if (data) {
-          setContacts([data[0], ...contacts]);
-          setIsModalOpen(false);
-          setFormData({ name: '', email: '', phone: '', company: '', status: 'Lead', lp_url: '', produto: '' });
+          setContacts((prev) => [data[0] as Contact, ...prev]);
           toast.success('Contato criado com sucesso!');
         }
       }
+      setIsModalOpen(false);
+      setEditingContact(null);
     } catch (error) {
       console.error('Error saving contact:', error);
       toast.error('Erro ao salvar contato. Verifique se você está logado.');
@@ -173,207 +167,165 @@ export default function Contacts() {
     }
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (contact.company && contact.company.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesProduct = productFilter === 'Todos' || contact.produto === productFilter;
-    
-    return matchesSearch && matchesProduct;
-  });
+  const products = useMemo(
+    () => Array.from(new Set(contacts.map((c) => c.produto?.trim()).filter((p): p is string => !!p))).sort(),
+    [contacts],
+  );
 
-  // Calculate totals based on filtered contacts
-  const totalContacts = filteredContacts.length;
-  const totalLeads = filteredContacts.filter(c => c.status === 'Lead').length;
-  const totalContacted = filteredContacts.filter(c => c.status === 'Contatado').length;
-  const totalNegotiation = filteredContacts.filter(c => c.status === 'Negociação' || c.status === 'Proposta').length;
-  const totalWon = filteredContacts.filter(c => c.status === 'Ganho' || c.status === 'Cliente').length;
+  const filteredContacts = useMemo(
+    () =>
+      contacts.filter((contact) => {
+        const term = searchTerm.toLowerCase();
+        const matchesSearch =
+          contact.name.toLowerCase().includes(term) ||
+          (contact.company?.toLowerCase().includes(term) ?? false);
+        const matchesProduct = productFilter === 'Todos' || contact.produto === productFilter;
+        return matchesSearch && matchesProduct;
+      }),
+    [contacts, searchTerm, productFilter],
+  );
 
-  // Get unique products for filter
-  const uniqueProducts = Array.from(new Set(contacts.map(c => c.produto).filter(Boolean)));
+  const totals = useMemo(() => {
+    const f = filteredContacts;
+    return {
+      total: f.length,
+      leads: f.filter((c) => c.status === 'Lead').length,
+      contatados: f.filter((c) => c.status === 'Contatado').length,
+      negociacao: f.filter((c) => c.status === 'Negociação' || c.status === 'Proposta').length,
+      clientes: f.filter((c) => c.status === 'Ganho' || c.status === 'Cliente').length,
+    };
+  }, [filteredContacts]);
 
   return (
-    <div className="space-y-6 relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Contatos</h1>
-        <button 
-          onClick={openNewContactModal}
-          className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
+    <div className="relative space-y-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Contatos</h1>
+        <Button onClick={openNewContactModal}>
+          <Plus className="h-4 w-4" />
           Adicionar Contato
-        </button>
+        </Button>
       </div>
 
-      {/* Totals Section */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Users className="w-4 h-4" /> Total</span>
-          <span className="text-2xl font-bold text-gray-900">{totalContacts}</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Clock className="w-4 h-4" /> Leads</span>
-          <span className="text-2xl font-bold text-gray-900">{totalLeads}</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Phone className="w-4 h-4" /> Contatados</span>
-          <span className="text-2xl font-bold text-gray-900">{totalContacted}</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><Briefcase className="w-4 h-4" /> Em Negociação</span>
-          <span className="text-2xl font-bold text-gray-900">{totalNegotiation}</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Clientes</span>
-          <span className="text-2xl font-bold text-gray-900">{totalWon}</span>
-        </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <Stat label="Total" value={totals.total} />
+        <Stat label="Leads" value={totals.leads} />
+        <Stat label="Contatados" value={totals.contatados} />
+        <Stat label="Em Negociação" value={totals.negociacao} />
+        <Stat label="Clientes" value={totals.clientes} />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <div className="relative max-w-sm w-full">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Buscar contatos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <select
-              value={productFilter}
-              onChange={(e) => setProductFilter(e.target.value)}
-              className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            >
-              <option value="Todos">Todos os Produtos</option>
-              {uniqueProducts.map(product => (
-                <option key={product} value={product}>{product}</option>
-              ))}
-            </select>
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:items-center">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar contatos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            <Filter className="h-4 w-4 mr-2 text-gray-400" />
-            Filtros
-          </button>
+          <Select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="sm:w-48"
+          >
+            <option value="Todos">Todos os Produtos</option>
+            {products.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </Select>
         </div>
 
-        <div className="overflow-x-auto min-h-[400px]">
+        <div className="min-h-[300px] overflow-x-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-            </div>
+            <PageLoader />
+          ) : filteredContacts.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="Nenhum contato encontrado"
+              description="Ajuste a busca ou adicione um novo contato."
+            />
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Empresa
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Produto
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Informações de Contato
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    LP URL
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="relative px-6 py-3">
-                    <span className="sr-only">Ações</span>
-                  </th>
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-2/60">
+                <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
+                  <th className="px-6 py-3">Nome</th>
+                  <th className="px-6 py-3">Empresa</th>
+                  <th className="px-6 py-3">Produto</th>
+                  <th className="px-6 py-3">Contato</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {filteredContacts.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                            {contact.name?.split(' ').map(n => n?.[0] || '').slice(0, 2).join('').toUpperCase() || '?'}
-                          </div>
+                  <tr key={contact.id} className="transition-colors hover:bg-surface-2/50">
+                    <td className="px-6 py-4">
+                      <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
+                          {contact.name?.split(' ').map((n) => n?.[0] || '').slice(0, 2).join('').toUpperCase() || '?'}
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{contact.name}</div>
-                          {contact.title && <div className="text-sm text-gray-500">{contact.title}</div>}
-                        </div>
-                      </div>
+                        <span className="font-medium text-fg group-hover:text-brand">{contact.name}</span>
+                      </Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{contact.company || '-'}</div>
+                    <td className="px-6 py-4 text-muted">{contact.company || '—'}</td>
+                    <td className="px-6 py-4">
+                      {contact.produto ? <Badge tone="purple">{contact.produto}</Badge> : <span className="text-muted">—</span>}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {contact.produto ? (
-                          <span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10">
-                            {contact.produto}
-                          </span>
-                        ) : '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-1 text-sm text-gray-500">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1 text-muted">
                         {contact.email && (
-                          <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-2">
                             <Mail className="h-3.5 w-3.5" />
                             {contact.email}
-                          </div>
+                          </span>
                         )}
                         {contact.phone && (
-                          <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-2">
                             <Phone className="h-3.5 w-3.5" />
                             {contact.phone}
-                          </div>
+                          </span>
                         )}
-                        {!contact.email && !contact.phone && '-'}
+                        {!contact.email && !contact.phone && '—'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {contact.lp_url ? (
-                        <a href={contact.lp_url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:text-indigo-900 truncate max-w-[150px] inline-block">
-                          {contact.lp_url}
-                        </a>
-                      ) : (
-                        <span className="text-sm text-gray-500">-</span>
-                      )}
+                    <td className="px-6 py-4">
+                      <Badge tone={statusTone(contact.status)}>{contact.status}</Badge>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-                        ${contact.status === 'Cliente' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' : 
-                          'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-500/20'}`}>
-                        {contact.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2 text-muted">
+                        {contact.lp_url && (
+                          <a
+                            href={contact.lp_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="transition-colors hover:text-brand"
+                            title="Abrir Landing Page"
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                          </a>
+                        )}
                         <Link
                           href={`/deals?new_deal_contact_id=${contact.id}`}
-                          className="text-gray-400 hover:text-emerald-600 transition-colors"
+                          className="transition-colors hover:text-emerald-500"
                           title="Criar Negócio"
                         >
                           <DollarSign className="h-5 w-5" />
                         </Link>
-                        <button 
+                        <button
                           onClick={() => openEditContactModal(contact)}
-                          className="text-gray-400 hover:text-indigo-600 transition-colors"
-                          title="Editar contato"
+                          className="transition-colors hover:text-brand"
+                          title="Editar"
                         >
                           <Pencil className="h-5 w-5" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteContact(contact.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                          title="Excluir contato"
+                          className="transition-colors hover:text-red-500"
+                          title="Excluir"
                         >
                           <Trash2 className="h-5 w-5" />
                         </button>
@@ -385,139 +337,97 @@ export default function Contacts() {
             </table>
           )}
         </div>
-        {!isLoading && filteredContacts.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-semibold text-gray-900">Nenhum contato encontrado</h3>
-            <p className="mt-1 text-sm text-gray-500">Tente ajustar sua busca ou adicione um novo contato.</p>
-          </div>
-        )}
-      </div>
+      </Card>
 
-      {/* Modal de Novo Contato */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingContact ? 'Editar Contato' : 'Novo Contato'}
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveContact} className="p-4 space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
-                <input
-                  id="name"
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Ex: João Silva"
-                />
-              </div>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="joao@exemplo.com"
-                />
-              </div>
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="(11) 99999-9999"
-                />
-              </div>
-              <div>
-                <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-                <input
-                  id="company"
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({...formData, company: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Nome da Empresa"
-                />
-              </div>
-              <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  id="status"
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="Lead">Lead</option>
-                  <option value="Contatado">Contatado</option>
-                  <option value="Negociação">Negociação</option>
-                  <option value="Proposta">Proposta</option>
-                  <option value="Ganho">Ganho</option>
-                  <option value="Cliente">Cliente</option>
-                  <option value="Inativo">Inativo</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="lp_url" className="block text-sm font-medium text-gray-700 mb-1">LP URL</label>
-                <input
-                  id="lp_url"
-                  type="url"
-                  value={formData.lp_url}
-                  onChange={(e) => setFormData({...formData, lp_url: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="https://exemplo.com/lp"
-                />
-              </div>
-              <div>
-                <label htmlFor="produto" className="block text-sm font-medium text-gray-700 mb-1">Produto</label>
-                <input
-                  id="produto"
-                  type="text"
-                  value={formData.produto}
-                  onChange={(e) => setFormData({...formData, produto: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Ex: Consultoria Premium"
-                />
-              </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    editingContact ? 'Salvar Alterações' : 'Salvar Contato'
-                  )}
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingContact ? 'Editar Contato' : 'Novo Contato'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="contact-form" loading={isSubmitting}>
+              {editingContact ? 'Salvar' : 'Criar Contato'}
+            </Button>
+          </>
+        }
+      >
+        <form id="contact-form" onSubmit={handleSaveContact} className="space-y-4">
+          <Field label="Nome Completo" htmlFor="name" required>
+            <Input
+              id="name"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ex: João Silva"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Email" htmlFor="email">
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="joao@exemplo.com"
+              />
+            </Field>
+            <Field label="Telefone" htmlFor="phone">
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="(11) 99999-9999"
+              />
+            </Field>
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Empresa" htmlFor="company">
+              <Input
+                id="company"
+                value={formData.company}
+                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                placeholder="Nome da Empresa"
+              />
+            </Field>
+            <Field label="Status" htmlFor="status">
+              <Select
+                id="status"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as ContactStatus })}
+              >
+                {CONTACT_STATUSES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Produto" htmlFor="produto">
+              <Input
+                id="produto"
+                value={formData.produto}
+                onChange={(e) => setFormData({ ...formData, produto: e.target.value })}
+                placeholder="Ex: Consultoria Premium"
+              />
+            </Field>
+            <Field label="LP URL" htmlFor="lp_url">
+              <Input
+                id="lp_url"
+                type="url"
+                value={formData.lp_url}
+                onChange={(e) => setFormData({ ...formData, lp_url: e.target.value })}
+                placeholder="https://exemplo.com/lp"
+              />
+            </Field>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

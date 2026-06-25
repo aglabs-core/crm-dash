@@ -1,28 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Clock, MoreVertical, Plus, Calendar, Loader2, X, Pencil, Trash2, Users } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Circle, Plus, Calendar, Users, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import type { Task, Contact } from '@/lib/types';
+import { PRIORITIES, priorityTone } from '@/lib/constants';
+import { formatDate } from '@/lib/format';
+import { isTaskOverdue } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
+import { Card, CardHeader, CardTitle, Button, Modal, Field, Input, Textarea, Select, Badge, PageLoader } from '@/components/ui';
 
-type Task = {
-  id: string;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  status: string;
-  priority: string;
-  user_id: string;
-  contact_id?: string | null;
-  contacts?: {
-    id: string;
-    name: string;
-  } | null;
-};
+const TASK_SELECT = `*, contacts ( id, name )`;
 
-type Contact = {
-  id: string;
-  name: string;
+const emptyForm = {
+  title: '',
+  description: '',
+  due_date: '',
+  priority: 'Média',
+  contact_id: '',
 };
 
 export default function Tasks() {
@@ -32,18 +29,11 @@ export default function Tasks() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    due_date: '',
-    priority: 'Média',
-    contact_id: ''
-  });
+  const [formData, setFormData] = useState(emptyForm);
 
   const openNewTaskModal = () => {
     setEditingTask(null);
-    setFormData({ title: '', description: '', due_date: '', priority: 'Média', contact_id: '' });
+    setFormData(emptyForm);
     setIsModalOpen(true);
   };
 
@@ -52,24 +42,19 @@ export default function Tasks() {
     setFormData({
       title: task.title,
       description: task.description || '',
-      due_date: task.due_date ? task.due_date.split('T')[0] : '', // Format for date input
+      due_date: task.due_date ? task.due_date.split('T')[0] : '',
       priority: task.priority || 'Média',
-      contact_id: task.contact_id || ''
+      contact_id: task.contact_id || '',
     });
     setIsModalOpen(true);
   };
 
   const handleDeleteTask = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
-    
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
       if (error) throw error;
-      setTasks(tasks.filter(t => t.id !== id));
+      setTasks((prev) => prev.filter((t) => t.id !== id));
       toast.success('Tarefa excluída com sucesso!');
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -78,51 +63,31 @@ export default function Tasks() {
   };
 
   useEffect(() => {
-    fetchTasks();
+    fetchTasks(true);
     fetchContacts();
-
-    const tasksSubscription = supabase
+    const sub = supabase
       .channel('tasks-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetchTasks();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => fetchTasks())
       .subscribe();
-
     return () => {
-      supabase.removeChannel(tasksSubscription);
+      supabase.removeChannel(sub);
     };
   }, []);
 
   const fetchContacts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('id, name')
-        .order('name', { ascending: true });
-      
-      if (error) throw error;
-      setContacts(data || []);
-    } catch (error) {
-      console.error('Error fetching contacts:', error);
-    }
+    const { data } = await supabase.from('contacts').select('id, name').order('name', { ascending: true });
+    setContacts((data as Contact[]) || []);
   };
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (showLoader = false) => {
     try {
-      setIsLoading(true);
+      if (showLoader) setIsLoading(true);
       const { data, error } = await supabase
         .from('tasks')
-        .select(`
-          *,
-          contacts (
-            id,
-            name
-          )
-        `)
+        .select(TASK_SELECT)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-      setTasks(data || []);
+      setTasks((data as Task[]) || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -134,56 +99,41 @@ export default function Tasks() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
+
+      const payload = {
+        title: formData.title,
+        description: formData.description || null,
+        due_date: formData.due_date || null,
+        priority: formData.priority,
+        contact_id: formData.contact_id || null,
+      };
 
       if (editingTask) {
         const { data, error } = await supabase
           .from('tasks')
-          .update({
-            title: formData.title,
-            description: formData.description || null,
-            due_date: formData.due_date || null,
-            priority: formData.priority,
-            contact_id: formData.contact_id || null
-          })
+          .update(payload)
           .eq('id', editingTask.id)
-          .select(`*, contacts(id, name)`);
-
+          .select(TASK_SELECT);
         if (error) throw error;
-
         if (data) {
-          setTasks(tasks.map(t => t.id === editingTask.id ? data[0] : t));
-          setIsModalOpen(false);
-          setEditingTask(null);
+          setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? (data[0] as Task) : t)));
           toast.success('Tarefa atualizada com sucesso!');
         }
       } else {
         const { data, error } = await supabase
           .from('tasks')
-          .insert([
-            {
-              user_id: userData.user.id,
-              title: formData.title,
-              description: formData.description || null,
-              due_date: formData.due_date || null,
-              priority: formData.priority,
-              status: 'pending',
-              contact_id: formData.contact_id || null
-            }
-          ])
-          .select(`*, contacts(id, name)`);
-
+          .insert([{ user_id: userData.user.id, status: 'pending', ...payload }])
+          .select(TASK_SELECT);
         if (error) throw error;
-
         if (data) {
-          setTasks([data[0], ...tasks]);
-          setIsModalOpen(false);
-          setFormData({ title: '', description: '', due_date: '', priority: 'Média', contact_id: '' });
+          setTasks((prev) => [data[0] as Task, ...prev]);
           toast.success('Tarefa criada com sucesso!');
         }
       }
+      setIsModalOpen(false);
+      setEditingTask(null);
     } catch (error) {
       console.error('Error saving task:', error);
       toast.error('Erro ao salvar tarefa. Verifique se você está logado.');
@@ -194,279 +144,231 @@ export default function Tasks() {
 
   const toggleTaskStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-    
-    // Optimistic update
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, status: newStatus } : task
-    ));
-
-    try {
-      const { error } = await supabase
-        .from('tasks')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: newStatus as Task['status'] } : t)));
+    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', id);
+    if (error) {
       console.error('Error updating task status:', error);
-      // Revert on error
-      setTasks(tasks.map(task => 
-        task.id === id ? { ...task, status: currentStatus } : task
-      ));
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: currentStatus as Task['status'] } : t)));
       toast.error('Erro ao atualizar o status da tarefa.');
     }
   };
 
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  const pendingTasks = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.status === 'pending')
+        .sort((a, b) => {
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        }),
+    [tasks],
+  );
+  const completedTasks = useMemo(() => tasks.filter((t) => t.status === 'completed'), [tasks]);
+  const overdueCount = useMemo(() => pendingTasks.filter(isTaskOverdue).length, [pendingTasks]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Minhas Tarefas</h1>
-        <button 
-          onClick={openNewTaskModal}
-          className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
+    <div className="relative mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Minhas Tarefas</h1>
+        <Button onClick={openNewTaskModal}>
+          <Plus className="h-4 w-4" />
           Nova Tarefa
-        </button>
+        </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-        </div>
+        <PageLoader />
       ) : (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                Pendentes
-                <span className="bg-indigo-100 text-indigo-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                  {pendingTasks.length}
-                </span>
-              </h2>
+          {overdueCount > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400">
+              <AlertTriangle className="h-4 w-4" />
+              {overdueCount} {overdueCount === 1 ? 'tarefa vencida' : 'tarefas vencidas'} pendentes.
             </div>
-            <ul className="divide-y divide-gray-100">
-              {pendingTasks.map((task) => (
-                <li key={task.id} className="p-4 hover:bg-gray-50 transition-colors group flex items-start gap-4">
-                  <button 
-                    onClick={() => toggleTaskStatus(task.id, task.status)}
-                    className="mt-1 flex-shrink-0 text-gray-400 hover:text-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full"
-                  >
-                    <Circle className="h-6 w-6" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-4">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">{task.title}</h3>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                          ${task.priority === 'Alta' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' : 
-                            task.priority === 'Média' ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20' : 
-                            'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'}`}>
-                          {task.priority}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => openEditTaskModal(task)}
-                            className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
-                            title="Editar tarefa"
-                          >
-                            <Pencil className="h-5 w-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
-                            title="Excluir tarefa"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Pendentes
+                <Badge tone="indigo">{pendingTasks.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <ul className="divide-y divide-border">
+              {pendingTasks.map((task) => {
+                const overdue = isTaskOverdue(task);
+                return (
+                  <li key={task.id} className="group flex items-start gap-4 p-4 transition-colors hover:bg-surface-2/50">
+                    <button
+                      onClick={() => toggleTaskStatus(task.id, task.status)}
+                      className="mt-0.5 shrink-0 text-muted transition-colors hover:text-brand"
+                      aria-label="Concluir tarefa"
+                    >
+                      <Circle className="h-6 w-6" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className="truncate text-sm font-semibold text-fg">{task.title}</h3>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <Badge tone={priorityTone(task.priority)}>{task.priority || 'Média'}</Badge>
+                          <div className="flex items-center gap-2 text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                            <button onClick={() => openEditTaskModal(task)} className="hover:text-brand" aria-label="Editar">
+                              <Pencil className="h-5 w-5" />
+                            </button>
+                            <button onClick={() => handleDeleteTask(task.id)} className="hover:text-red-500" aria-label="Excluir">
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
+                      {task.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{task.description}</p>}
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+                        {task.due_date && (
+                          <span
+                            className={cn(
+                              'flex items-center gap-1.5 font-medium',
+                              overdue ? 'text-red-600 dark:text-red-400' : 'text-muted',
+                            )}
+                          >
+                            <Calendar className="h-4 w-4" />
+                            {formatDate(task.due_date)}
+                            {overdue && ' · Vencida'}
+                          </span>
+                        )}
+                        {task.contacts && (
+                          <Link
+                            href={`/contacts/${task.contacts.id}`}
+                            className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 font-medium text-brand hover:underline"
+                          >
+                            <Users className="h-3 w-3" />
+                            {task.contacts.name}
+                          </Link>
+                        )}
+                      </div>
                     </div>
-                    {task.description && (
-                      <p className="mt-1 text-sm text-gray-500 line-clamp-2">{task.description}</p>
-                    )}
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                      {task.due_date && (
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(task.due_date).toLocaleDateString('pt-BR')}
-                        </div>
-                      )}
-                      {task.contacts && (
-                        <div className="flex items-center gap-1.5 font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                          <Users className="h-3 w-3" />
-                          {task.contacts.name}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
               {pendingTasks.length === 0 && (
-                <li className="p-8 text-center text-gray-500 text-sm">
-                  Nenhuma tarefa pendente. Você está em dia!
-                </li>
+                <li className="p-8 text-center text-sm text-muted">Nenhuma tarefa pendente. Você está em dia!</li>
               )}
             </ul>
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden opacity-75">
-            <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Card className="opacity-80">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 Concluídas
-                <span className="bg-gray-200 text-gray-700 py-0.5 px-2.5 rounded-full text-xs font-medium">
-                  {completedTasks.length}
-                </span>
-              </h2>
-            </div>
-            <ul className="divide-y divide-gray-100">
+                <Badge tone="gray">{completedTasks.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <ul className="divide-y divide-border">
               {completedTasks.map((task) => (
-                <li key={task.id} className="p-4 hover:bg-gray-50 transition-colors group flex items-start gap-4">
-                  <button 
+                <li key={task.id} className="group flex items-start gap-4 p-4 transition-colors hover:bg-surface-2/50">
+                  <button
                     onClick={() => toggleTaskStatus(task.id, task.status)}
-                    className="mt-1 flex-shrink-0 text-emerald-500 hover:text-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full"
+                    className="mt-0.5 shrink-0 text-emerald-500 transition-colors hover:text-muted"
+                    aria-label="Reabrir tarefa"
                   >
                     <CheckCircle2 className="h-6 w-6" />
                   </button>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-4">
-                      <h3 className="text-sm font-semibold text-gray-500 line-through truncate">{task.title}</h3>
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => openEditTaskModal(task)}
-                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600"
-                          title="Editar tarefa"
-                        >
+                      <h3 className="truncate text-sm font-semibold text-muted line-through">{task.title}</h3>
+                      <div className="flex items-center gap-2 text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                        <button onClick={() => openEditTaskModal(task)} className="hover:text-brand" aria-label="Editar">
                           <Pencil className="h-5 w-5" />
                         </button>
-                        <button 
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
-                          title="Excluir tarefa"
-                        >
+                        <button onClick={() => handleDeleteTask(task.id)} className="hover:text-red-500" aria-label="Excluir">
                           <Trash2 className="h-5 w-5" />
                         </button>
                       </div>
                     </div>
-                    {task.description && (
-                      <p className="mt-1 text-sm text-gray-400 line-clamp-1">{task.description}</p>
-                    )}
                   </div>
                 </li>
               ))}
               {completedTasks.length === 0 && (
-                <li className="p-8 text-center text-gray-500 text-sm">
-                  Nenhuma tarefa concluída ainda.
-                </li>
+                <li className="p-8 text-center text-sm text-muted">Nenhuma tarefa concluída ainda.</li>
               )}
             </ul>
-          </div>
+          </Card>
         </>
       )}
 
-      {/* Modal de Nova Tarefa */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="task-form" loading={isSubmitting}>
+              {editingTask ? 'Salvar' : 'Criar Tarefa'}
+            </Button>
+          </>
+        }
+      >
+        <form id="task-form" onSubmit={handleSaveTask} className="space-y-4">
+          <Field label="Título da Tarefa" htmlFor="title" required>
+            <Input
+              id="title"
+              required
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Ex: Ligar para o cliente"
+            />
+          </Field>
+          <Field label="Descrição" htmlFor="description">
+            <Textarea
+              id="description"
+              rows={3}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Detalhes adicionais..."
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Vencimento" htmlFor="due_date">
+              <Input
+                id="due_date"
+                type="date"
+                value={formData.due_date}
+                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+              />
+            </Field>
+            <Field label="Prioridade" htmlFor="priority">
+              <Select
+                id="priority"
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveTask} className="p-4 space-y-4">
-              <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Título da Tarefa *</label>
-                <input
-                  id="title"
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Ex: Ligar para o cliente"
-                />
-              </div>
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-                <textarea
-                  id="description"
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Detalhes adicionais..."
-                />
-              </div>
-              <div>
-                <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
-                <input
-                  id="due_date"
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({...formData, due_date: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
-                <select
-                  id="priority"
-                  value={formData.priority}
-                  onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="Baixa">Baixa</option>
-                  <option value="Média">Média</option>
-                  <option value="Alta">Alta</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="contact_id" className="block text-sm font-medium text-gray-700 mb-1">Contato Relacionado</label>
-                <select
-                  id="contact_id"
-                  value={formData.contact_id}
-                  onChange={(e) => setFormData({...formData, contact_id: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="">Nenhum contato</option>
-                  {contacts.map(contact => (
-                    <option key={contact.id} value={contact.id}>{contact.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    editingTask ? 'Salvar Alterações' : 'Salvar Tarefa'
-                  )}
-                </button>
-              </div>
-            </form>
+                {PRIORITIES.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
-        </div>
-      )}
+          <Field label="Contato Relacionado" htmlFor="contact_id">
+            <Select
+              id="contact_id"
+              value={formData.contact_id}
+              onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
+            >
+              <option value="">Nenhum contato</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </form>
+      </Modal>
     </div>
   );
 }

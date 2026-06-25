@@ -1,271 +1,244 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Loader2 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend,
+import { useEffect, useMemo, useState } from 'react';
+import { BarChart3, TrendingUp, DollarSign, Timer, Download, CheckCircle2 } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
   LineChart,
-  Line
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Cell,
+  ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
+import type { Deal } from '@/lib/types';
+import { TONE_HEX } from '@/lib/constants';
+import {
+  avgDealSize,
+  winRate,
+  avgSalesCycleDays,
+  winLossCounts,
+  monthlySeries,
+  pipelineByStage,
+  revenueByProduct,
+  uniqueProducts,
+  filterDealsByPeriod,
+} from '@/lib/analytics';
+import { formatCurrency, formatCurrencyCompact, formatPercent, formatDate } from '@/lib/format';
+import { CHART_AXIS_TICK, CHART_GRID, chartTooltipStyle, chartTooltipItemStyle, chartTooltipLabelStyle } from '@/lib/chart';
+import { ChartCard, StatCard, Select, Button, PageLoader } from '@/components/ui';
+
+const PERIODS: { label: string; value: number | null }[] = [
+  { label: 'Últimos 30 dias', value: 30 },
+  { label: 'Últimos 90 dias', value: 90 },
+  { label: 'Último ano', value: 365 },
+  { label: 'Todo o período', value: null },
+];
+
+function csvCell(v: string | number | null | undefined): string {
+  const s = String(v ?? '');
+  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 export default function Reports() {
+  const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [conversionData, setConversionData] = useState<any[]>([]);
   const [productFilter, setProductFilter] = useState('Todos');
-  const [uniqueProducts, setUniqueProducts] = useState<string[]>([]);
-  const [allDeals, setAllDeals] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({
-    avgDealSize: 'R$ 0,00',
-    winRate: '0%',
-    salesCycle: '0 Dias'
-  });
+  const [periodDays, setPeriodDays] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchReportData();
+    (async () => {
+      const { data, error } = await supabase.from('deals').select('*').order('created_at', { ascending: true });
+      if (error) console.error('Error fetching report data:', error);
+      setAllDeals((data as Deal[]) || []);
+      setIsLoading(false);
+    })();
   }, []);
 
-  useEffect(() => {
-    if (allDeals.length > 0) {
-      processData(allDeals);
-    }
-  }, [productFilter, allDeals]);
+  const products = useMemo(() => uniqueProducts(allDeals), [allDeals]);
 
-  const fetchReportData = async () => {
-    try {
-      setIsLoading(true);
-      
-      const { data: deals, error } = await supabase
-        .from('deals')
-        .select(`
-          *,
-          contacts (
-            produto
-          )
-        `)
-        .order('created_at', { ascending: true });
+  const deals = useMemo(() => {
+    const byPeriod = filterDealsByPeriod(allDeals, periodDays);
+    return byPeriod.filter((d) => productFilter === 'Todos' || d.produto === productFilter);
+  }, [allDeals, productFilter, periodDays]);
 
-      if (error) throw error;
+  const monthsWindow = periodDays ? Math.min(12, Math.max(2, Math.round(periodDays / 30))) : 12;
 
-      if (deals) {
-        setAllDeals(deals);
-        
-        // Extract unique products
-        const products = Array.from(new Set(deals.map(d => d.contacts?.produto).filter(Boolean)));
-        setUniqueProducts(products as string[]);
-        
-        processData(deals);
-      }
-    } catch (error) {
-      console.error('Error fetching report data:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  const metrics = useMemo(() => {
+    const { won, lost } = winLossCounts(deals);
+    const cycle = avgSalesCycleDays(deals);
+    return {
+      avgDealSize: avgDealSize(deals),
+      winRate: winRate(deals),
+      salesCycle: cycle === null ? '—' : `${Math.round(cycle)} dias`,
+      closed: won + lost,
+      series: monthlySeries(deals, monthsWindow),
+      funnel: pipelineByStage(deals),
+      products: revenueByProduct(deals).slice(0, 8),
+    };
+  }, [deals, monthsWindow]);
+
+  const exportCSV = () => {
+    const headers = ['Título', 'Empresa', 'Produto', 'Estágio', 'Valor', 'Prioridade', 'Criado', 'Fechado'];
+    const rows = deals.map((d) => [
+      d.title,
+      d.company || '',
+      d.produto || '',
+      d.stage,
+      Number(d.amount) || 0,
+      d.priority || '',
+      d.created_at ? formatDate(d.created_at) : '',
+      d.closed_at ? formatDate(d.closed_at) : '',
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map(csvCell).join(';')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const processData = (deals: any[]) => {
-    // Filter deals by product
-    const filteredDeals = deals.filter(deal => {
-      if (productFilter === 'Todos') return true;
-      return deal.contacts?.produto === productFilter;
-    });
-
-    // Process Sales Data (Won vs Lost by Month)
-    const monthlyData: Record<string, { won: number, lost: number }> = {};
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    
-    filteredDeals.forEach(deal => {
-      const date = new Date(deal.created_at);
-      const monthName = months[date.getMonth()];
-      
-      if (!monthlyData[monthName]) {
-        monthlyData[monthName] = { won: 0, lost: 0 };
-      }
-      
-      if (deal.stage === 'Ganho') {
-        monthlyData[monthName].won += Number(deal.amount) || 0;
-      } else if (deal.stage === 'Perdido') {
-        monthlyData[monthName].lost += Number(deal.amount) || 0;
-      }
-    });
-
-    const formattedSalesData = Object.keys(monthlyData).map(month => ({
-      name: month,
-      won: monthlyData[month].won,
-      lost: monthlyData[month].lost
-    }));
-    setSalesData(formattedSalesData.length > 0 ? formattedSalesData : [{ name: 'Sem dados', won: 0, lost: 0 }]);
-
-    // Process Conversion Data (Real win rate by month)
-    const conversionMonthlyData: Record<string, { won: number, totalClosed: number }> = {};
-    
-    filteredDeals.forEach(deal => {
-      if (deal.stage === 'Ganho' || deal.stage === 'Perdido') {
-        const date = new Date(deal.created_at);
-        const monthName = months[date.getMonth()];
-        
-        if (!conversionMonthlyData[monthName]) {
-          conversionMonthlyData[monthName] = { won: 0, totalClosed: 0 };
-        }
-        
-        conversionMonthlyData[monthName].totalClosed += 1;
-        if (deal.stage === 'Ganho') {
-          conversionMonthlyData[monthName].won += 1;
-        }
-      }
-    });
-
-    const formattedConversionData = Object.keys(conversionMonthlyData).map(month => ({
-      name: month,
-      rate: conversionMonthlyData[month].totalClosed > 0 
-        ? Math.round((conversionMonthlyData[month].won / conversionMonthlyData[month].totalClosed) * 100) 
-        : 0
-    }));
-
-    setConversionData(formattedConversionData.length > 0 ? formattedConversionData : [{ name: 'Sem dados', rate: 0 }]);
-
-    // Calculate Metrics
-    const wonDeals = filteredDeals.filter(d => d.stage === 'Ganho');
-    const closedDeals = filteredDeals.filter(d => d.stage === 'Ganho' || d.stage === 'Perdido');
-    
-    const totalWonValue = wonDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
-    const avgSize = wonDeals.length > 0 ? totalWonValue / wonDeals.length : 0;
-    
-    const winRate = closedDeals.length > 0 ? (wonDeals.length / closedDeals.length) * 100 : 0;
-
-    setMetrics({
-      avgDealSize: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(avgSize),
-      winRate: `${winRate.toFixed(1)}%`,
-      salesCycle: '14 Dias' // Mocked as we need closed_date vs created_date
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-[400px]">
-        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Relatórios e Análises</h1>
-        <div className="flex items-center gap-4">
-          <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Relatórios e Análises</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-44">
             <option value="Todos">Todos os Produtos</option>
-            {uniqueProducts.map(product => (
-              <option key={product} value={product}>{product}</option>
+            {products.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
             ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <button className="inline-flex items-center justify-center bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors">
-              <Calendar className="h-4 w-4 mr-2" />
-              Últimos 30 Dias
-            </button>
-            <button className="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors">
-              Exportar PDF
-            </button>
-          </div>
+          </Select>
+          <Select
+            value={periodDays === null ? '' : String(periodDays)}
+            onChange={(e) => setPeriodDays(e.target.value === '' ? null : Number(e.target.value))}
+            className="sm:w-44"
+          >
+            {PERIODS.map((p) => (
+              <option key={p.label} value={p.value === null ? '' : p.value}>
+                {p.label}
+              </option>
+            ))}
+          </Select>
+          <Button variant="secondary" onClick={exportCSV}>
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
         </div>
       </div>
 
+      {/* Metrics */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={DollarSign} hint="negócios ganhos" />
+        <StatCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={TrendingUp} hint="negócios fechados" />
+        <StatCard label="Ciclo de Vendas" value={metrics.salesCycle} icon={Timer} hint="criação → fechamento" />
+        <StatCard label="Negócios Fechados" value={metrics.closed} icon={CheckCircle2} hint="ganhos + perdidos" />
+      </div>
+
+      {/* Sales performance + conversion */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Sales Performance */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Desempenho de Vendas</h2>
-              <p className="text-sm text-gray-500">Negócios Ganhos vs Perdidos ao longo do tempo</p>
-            </div>
-            <BarChart3 className="h-5 w-5 text-gray-400" />
-          </div>
+        <ChartCard title="Desempenho de Vendas" subtitle="Ganhos vs perdidos por mês" icon={BarChart3}>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
-                <Tooltip 
-                  cursor={{ fill: '#f3f4f6' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: any) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), '']}
+              <BarChart data={metrics.series} margin={{ top: 16, right: 12, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={68} />
+                <Tooltip
+                  cursor={{ fill: CHART_GRID }}
+                  contentStyle={chartTooltipStyle}
+                  itemStyle={chartTooltipItemStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  formatter={(value: any, name: any) => [formatCurrency(value), name === 'revenue' ? 'Ganhos' : 'Perdidos']}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
-                <Bar dataKey="won" name="Negócios Ganhos" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="lost" name="Negócios Perdidos" fill="#f87171" radius={[4, 4, 0, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => (v === 'revenue' ? 'Ganhos' : 'Perdidos')} />
+                <Bar dataKey="revenue" name="revenue" fill={TONE_HEX.emerald} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="lost" name="lost" fill={TONE_HEX.red} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </ChartCard>
 
-        {/* Conversion Rate */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Taxa de Conversão</h2>
-              <p className="text-sm text-gray-500">Tendência de conversão de lead para cliente</p>
-            </div>
-            <TrendingUp className="h-5 w-5 text-gray-400" />
-          </div>
+        <ChartCard title="Taxa de Conversão" subtitle="% de negócios ganhos entre os fechados" icon={TrendingUp}>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={conversionData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} tickFormatter={(value) => `${value}%`} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: any) => [`${value}%`, 'Taxa de Conversão']}
+              <LineChart data={metrics.series} margin={{ top: 16, right: 12, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => `${v}%`} domain={[0, 100]} width={44} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  itemStyle={chartTooltipItemStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  formatter={(value: any) => [value === null || value === undefined ? '—' : `${value}%`, 'Conversão']}
                 />
-                <Line type="monotone" dataKey="rate" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="rate" stroke={TONE_HEX.indigo} strokeWidth={3} connectNulls dot={{ r: 4, fill: TONE_HEX.indigo, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </ChartCard>
       </div>
 
-      {/* Key Metrics Summary */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Resumo das Principais Métricas</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
-          <div className="p-6 flex flex-col items-center text-center">
-            <div className="p-3 bg-indigo-50 rounded-full mb-4">
-              <DollarSign className="h-6 w-6 text-indigo-600" />
-            </div>
-            <p className="text-sm font-medium text-gray-500">Tamanho Médio do Negócio</p>
-            <p className="mt-2 text-3xl font-bold text-gray-900">{metrics.avgDealSize}</p>
+      {/* Funnel + product */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por estágio">
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={metrics.funnel} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} />
+                <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} width={78} />
+                <Tooltip
+                  cursor={{ fill: CHART_GRID }}
+                  contentStyle={chartTooltipStyle}
+                  itemStyle={chartTooltipItemStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} neg.`, 'Em aberto']}
+                />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {metrics.funnel.map((d) => (
+                    <Cell key={d.stage} fill={TONE_HEX[d.tone as keyof typeof TONE_HEX]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <div className="p-6 flex flex-col items-center text-center">
-            <div className="p-3 bg-emerald-50 rounded-full mb-4">
-              <TrendingUp className="h-6 w-6 text-emerald-600" />
-            </div>
-            <p className="text-sm font-medium text-gray-500">Taxa de Ganho</p>
-            <p className="mt-2 text-3xl font-bold text-gray-900">{metrics.winRate}</p>
+        </ChartCard>
+
+        <ChartCard title="Receita por Produto" subtitle="Negócios ganhos no período">
+          <div className="h-80 w-full">
+            {metrics.products.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted">Sem receita no período.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={metrics.products} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
+                  <XAxis dataKey="produto" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} interval={0} height={40} />
+                  <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={64} />
+                  <Tooltip
+                    cursor={{ fill: CHART_GRID }}
+                    contentStyle={chartTooltipStyle}
+                    itemStyle={chartTooltipItemStyle}
+                    labelStyle={chartTooltipLabelStyle}
+                    formatter={(value: any) => [formatCurrency(value), 'Receita']}
+                  />
+                  <Bar dataKey="revenue" fill={TONE_HEX.purple} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
-          <div className="p-6 flex flex-col items-center text-center">
-            <div className="p-3 bg-blue-50 rounded-full mb-4">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <p className="text-sm font-medium text-gray-500">Duração do Ciclo de Vendas</p>
-            <p className="mt-2 text-3xl font-bold text-gray-900">{metrics.salesCycle}</p>
-          </div>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );

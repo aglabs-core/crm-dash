@@ -2,22 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Briefcase, 
-  CheckSquare, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  CheckSquare,
+  Settings,
   BarChart3,
-  LogOut
+  LogOut,
+  X,
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -27,7 +23,13 @@ const navigation = [
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
 ];
 
-export function Sidebar() {
+const linkClass = (active: boolean) =>
+  cn(
+    'group flex items-center gap-x-3 rounded-md p-2 text-sm font-medium leading-6 transition-colors',
+    active ? 'bg-brand/10 text-brand' : 'text-fg/80 hover:bg-surface-2 hover:text-fg',
+  );
+
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -37,85 +39,65 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
-      <div className="flex h-16 shrink-0 items-center px-6 border-b border-gray-100">
-        <div className="flex items-center gap-2 font-semibold text-xl text-gray-900">
-          <div className="relative w-8 h-8">
-            <img 
-              src="/logo.png" 
-              alt="AG Labs Logo" 
-              className="object-contain w-full h-full"
-            />
+    <>
+      <div
+        className={cn('fixed inset-0 z-40 bg-black/50 lg:hidden', open ? 'block' : 'hidden')}
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-surface transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
+          <div className="flex items-center gap-2 text-xl font-semibold text-fg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="AG Labs" className="h-8 w-8 object-contain" />
+            CRM AG LABS
           </div>
-          CRM AG LABS
+          <button onClick={onClose} className="text-muted hover:text-fg lg:hidden" aria-label="Fechar menu">
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      </div>
-      <nav className="flex flex-1 flex-col px-4 py-6 overflow-y-auto">
-        <ul role="list" className="flex flex-1 flex-col gap-y-7">
-          <li>
-            <div className="text-xs font-semibold leading-6 text-gray-400 uppercase tracking-wider mb-2">
-              Menu
-            </div>
-            <ul role="list" className="-mx-2 space-y-1">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
-                return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        isActive
-                          ? 'bg-indigo-50 text-indigo-600'
-                          : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-50',
-                        'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-medium transition-colors'
-                      )}
-                    >
-                      <item.icon
-                        className={cn(
-                          isActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600',
-                          'h-5 w-5 shrink-0 transition-colors'
-                        )}
-                        aria-hidden="true"
-                      />
-                      {item.name}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </li>
-          <li className="mt-auto space-y-1">
-            <Link
-              href="/settings"
-              className={cn(
-                pathname === '/settings'
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-50',
-                'group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-medium leading-6 transition-colors'
-              )}
-            >
+        <nav className="flex flex-1 flex-col overflow-y-auto px-4 py-6">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Menu</div>
+          <ul className="space-y-1">
+            {navigation.map((item) => {
+              const isActive =
+                pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
+              return (
+                <li key={item.name}>
+                  <Link href={item.href} onClick={onClose} className={linkClass(isActive)}>
+                    <item.icon
+                      className={cn('h-5 w-5 shrink-0', isActive ? 'text-brand' : 'text-muted')}
+                      aria-hidden="true"
+                    />
+                    {item.name}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-auto space-y-1">
+            <Link href="/settings" onClick={onClose} className={linkClass(pathname === '/settings')}>
               <Settings
-                className={cn(
-                  pathname === '/settings' ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600',
-                  'h-5 w-5 shrink-0 transition-colors'
-                )}
+                className={cn('h-5 w-5 shrink-0', pathname === '/settings' ? 'text-brand' : 'text-muted')}
                 aria-hidden="true"
               />
               Configurações
             </Link>
             <button
               onClick={handleLogout}
-              className="w-full group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-medium leading-6 text-red-600 hover:bg-red-50 transition-colors"
+              className="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-medium leading-6 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
             >
-              <LogOut
-                className="h-5 w-5 shrink-0 text-red-500 group-hover:text-red-600 transition-colors"
-                aria-hidden="true"
-              />
+              <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
               Sair
             </button>
-          </li>
-        </ul>
-      </nav>
-    </div>
+          </div>
+        </nav>
+      </aside>
+    </>
   );
 }
