@@ -10,17 +10,35 @@ import {
   Settings,
   BarChart3,
   LogOut,
+  Magnet,
+  UserCheck,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Contatos', href: '/contacts', icon: Users },
-  { name: 'Negócios', href: '/deals', icon: Briefcase },
-  { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
-  { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+type NavItem = { name: string; href: string; icon: LucideIcon };
+type NavGroup = { label?: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  { items: [{ name: 'Dashboard', href: '/', icon: LayoutDashboard }] },
+  {
+    label: 'Funil',
+    items: [
+      { name: 'Leads', href: '/leads', icon: Magnet },
+      { name: 'Contatos', href: '/contacts', icon: Users },
+      { name: 'Negócios', href: '/deals', icon: Briefcase },
+      { name: 'Clientes', href: '/clients', icon: UserCheck },
+    ],
+  },
+  {
+    label: 'Gestão',
+    items: [
+      { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
+      { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+    ],
+  },
 ];
 
 const linkClass = (active: boolean) =>
@@ -62,25 +80,35 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           </button>
         </div>
         <nav className="flex flex-1 flex-col overflow-y-auto px-4 py-6">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Menu</div>
-          <ul className="space-y-1">
-            {navigation.map((item) => {
-              const isActive =
-                pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
-              return (
-                <li key={item.name}>
-                  <Link href={item.href} onClick={onClose} className={linkClass(isActive)}>
-                    <item.icon
-                      className={cn('h-5 w-5 shrink-0', isActive ? 'text-brand' : 'text-muted')}
-                      aria-hidden="true"
-                    />
-                    {item.name}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="mt-auto space-y-1">
+          <div className="space-y-5">
+            {navGroups.map((group, gi) => (
+              <div key={group.label ?? `group-${gi}`}>
+                {group.label && (
+                  <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                    {group.label}
+                  </div>
+                )}
+                <ul className="space-y-1">
+                  {group.items.map((item) => {
+                    const isActive =
+                      pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
+                    return (
+                      <li key={item.name}>
+                        <Link href={item.href} onClick={onClose} className={linkClass(isActive)}>
+                          <item.icon
+                            className={cn('h-5 w-5 shrink-0', isActive ? 'text-brand' : 'text-muted')}
+                            aria-hidden="true"
+                          />
+                          {item.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-auto space-y-1 pt-6">
             <Link href="/settings" onClick={onClose} className={linkClass(pathname === '/settings')}>
               <Settings
                 className={cn('h-5 w-5 shrink-0', pathname === '/settings' ? 'text-brand' : 'text-muted')}

@@ -7,6 +7,10 @@ import {
   Phone,
   Plus,
   Users,
+  UserPlus,
+  UserCheck,
+  Headset,
+  TrendingUp,
   Pencil,
   Trash2,
   DollarSign,
@@ -27,6 +31,7 @@ import {
   Select,
   EmptyState,
   PageLoader,
+  StatCard,
 } from '@/components/ui';
 
 const emptyForm = {
@@ -38,15 +43,6 @@ const emptyForm = {
   lp_url: '',
   produto: '',
 };
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <Card className="flex flex-col p-4">
-      <span className="text-sm font-medium text-muted">{label}</span>
-      <span className="mt-1 text-2xl font-bold text-fg">{value}</span>
-    </Card>
-  );
-}
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -185,14 +181,22 @@ export default function Contacts() {
     [contacts, searchTerm, productFilter],
   );
 
+  // Funnel-based, non-overlapping rollups. "Contatados" = everyone who left the
+  // top of the funnel (status ≠ Lead), so it no longer misses Proposta/Negociação.
   const totals = useMemo(() => {
     const f = filteredContacts;
+    const total = f.length;
+    const novos = f.filter((c) => c.status === 'Lead').length;
+    const emAndamento = f.filter(
+      (c) => c.status === 'Contatado' || c.status === 'Proposta' || c.status === 'Negociação',
+    ).length;
+    const clientes = f.filter((c) => c.status === 'Ganho' || c.status === 'Cliente').length;
     return {
-      total: f.length,
-      leads: f.filter((c) => c.status === 'Lead').length,
-      contatados: f.filter((c) => c.status === 'Contatado').length,
-      negociacao: f.filter((c) => c.status === 'Negociação' || c.status === 'Proposta').length,
-      clientes: f.filter((c) => c.status === 'Ganho' || c.status === 'Cliente').length,
+      total,
+      novos,
+      emAndamento,
+      clientes,
+      conversao: total ? `${((clientes / total) * 100).toFixed(1)}%` : '—',
     };
   }, [filteredContacts]);
 
@@ -207,11 +211,11 @@ export default function Contacts() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <Stat label="Total" value={totals.total} />
-        <Stat label="Leads" value={totals.leads} />
-        <Stat label="Contatados" value={totals.contatados} />
-        <Stat label="Em Negociação" value={totals.negociacao} />
-        <Stat label="Clientes" value={totals.clientes} />
+        <StatCard label="Total" value={totals.total} icon={Users} hint="na carteira" />
+        <StatCard label="Novos" value={totals.novos} icon={UserPlus} hint="ainda não contatados" />
+        <StatCard label="Em atendimento" value={totals.emAndamento} icon={Headset} hint="contatado → negociação" />
+        <StatCard label="Clientes" value={totals.clientes} icon={UserCheck} hint="fecharam negócio" />
+        <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="clientes / total" />
       </div>
 
       <Card className="overflow-hidden">

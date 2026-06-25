@@ -4,7 +4,7 @@
 //  - month buckets keyed by year+month (no more collapsing Jan/25 into Jan/26)
 //  - win-rate and sales-cycle computed from real closed deals
 
-import type { Deal, Task } from './types';
+import type { Deal, Task, Contact } from './types';
 import { OPEN_STAGES } from './constants';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -14,6 +14,12 @@ const amount = (d: Deal) => Number(d.amount) || 0;
 export const isWon = (d: Deal) => d.stage === 'Ganho';
 export const isLost = (d: Deal) => d.stage === 'Perdido';
 export const isOpen = (d: Deal) => d.stage !== 'Ganho' && d.stage !== 'Perdido';
+export const isArchived = (d: Deal) => d.archived === true;
+
+/** Drop archived deals — they should never feed the board or analytics. */
+export function activeDeals(deals: Deal[]): Deal[] {
+  return deals.filter((d) => !d.archived);
+}
 
 export function totalRevenue(deals: Deal[]): number {
   return deals.filter(isWon).reduce((s, d) => s + amount(d), 0);
@@ -162,6 +168,119 @@ export function winLossCounts(deals: Deal[]): { won: number; lost: number } {
 /** Distinct, non-empty product names across deals (for filters). */
 export function uniqueProducts(deals: Pick<Deal, 'produto'>[]): string[] {
   return Array.from(new Set(deals.map((d) => d.produto?.trim()).filter((p): p is string => !!p))).sort();
+}
+
+export type ProductPerf = {
+  produto: string;
+  deals: number; // total deals for the product
+  open: number; // open count
+  openValue: number; // open pipeline value
+  won: number; // won count
+  wonValue: number; // won revenue
+  lost: number; // lost count
+  rate: number | null; // win-rate % over closed
+};
+
+/**
+ * Full per-product performance across the funnel — the data behind the
+ * "leads/negócios por produto" report. Sorted by won revenue, then volume.
+ */
+export function productPerformance(deals: Deal[]): ProductPerf[] {
+  const map = new Map<string, ProductPerf>();
+  for (const d of deals) {
+    const key = d.produto?.trim() || 'Sem produto';
+    const cur =
+      map.get(key) ??
+      { produto: key, deals: 0, open: 0, openValue: 0, won: 0, wonValue: 0, lost: 0, rate: null };
+    cur.deals += 1;
+    if (isWon(d)) {
+      cur.won += 1;
+      cur.wonValue += amount(d);
+    } else if (isLost(d)) {
+      cur.lost += 1;
+    } else {
+      cur.open += 1;
+      cur.openValue += amount(d);
+    }
+    map.set(key, cur);
+  }
+  const rows = [...map.values()];
+  for (const r of rows) {
+    const closed = r.won + r.lost;
+    r.rate = closed ? Math.round((r.won / closed) * 100) : null;
+  }
+  return rows.sort((a, b) => b.wonValue - a.wonValue || b.deals - a.deals);
+}
+
+/** Count of leads (contacts) per product — top of funnel, by volume. */
+export function leadsByProduct(contacts: Pick<Contact, 'produto'>[]): { produto: string; count: number }[] {
+  const map = new Map<string, number>();
+  for (const c of contacts) {
+    const key = c.produto?.trim() || 'Sem produto';
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([produto, count]) => ({ produto, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// ---- Clients --------------------------------------------------------------
+
+export type ClientRow = {
+  contact: Contact;
+  wonRevenue: number;
+  wonCount: number;
+  openValue: number;
+  openCount: number;
+  products: string[];
+  lastWonAt: string | null;
+};
+
+const isClientStatus = (s: string | undefined) => s === 'Ganho' || s === 'Cliente';
+
+/**
+ * A "client" is a contact with at least one won deal, or one explicitly marked
+ * Cliente/Ganho. Aggregates their deals so the Clients screen is self-contained.
+ */
+export function buildClients(contacts: Contact[], deals: Deal[]): ClientRow[] {
+  const byContact = new Map<string, Deal[]>();
+  for (const d of deals) {
+    if (!d.contact_id) continue;
+    const arr = byContact.get(d.contact_id) ?? [];
+    arr.push(d);
+    byContact.set(d.contact_id, arr);
+  }
+
+  const rows: ClientRow[] = [];
+  for (const contact of contacts) {
+    const cDeals = byContact.get(contact.id) ?? [];
+    const won = cDeals.filter(isWon);
+    if (won.length === 0 && !isClientStatus(contact.status)) continue;
+
+    const products = Array.from(
+      new Set(
+        [contact.produto, ...cDeals.map((d) => d.produto)]
+          .map((p) => p?.trim())
+          .filter((p): p is string => !!p),
+      ),
+    );
+    const open = cDeals.filter(isOpen);
+    const lastWonAt = won
+      .map((d) => d.closed_at || d.updated_at || d.created_at || null)
+      .filter((x): x is string => !!x)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+
+    rows.push({
+      contact,
+      wonRevenue: won.reduce((s, d) => s + amount(d), 0),
+      wonCount: won.length,
+      openValue: open.reduce((s, d) => s + amount(d), 0),
+      openCount: open.length,
+      products,
+      lastWonAt,
+    });
+  }
+  return rows.sort((a, b) => b.wonRevenue - a.wonRevenue);
 }
 
 // ---- Tasks ----------------------------------------------------------------

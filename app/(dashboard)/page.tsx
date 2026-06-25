@@ -106,7 +106,8 @@ export default function Dashboard() {
         supabase.from('deals').select('*, contacts ( id, name )').order('created_at', { ascending: false }),
         supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
       ]);
-      setDeals((dealsRes.data as Deal[]) || []);
+      // Archived deals never feed the dashboard.
+      setDeals(((dealsRes.data as Deal[]) || []).filter((d) => !d.archived));
       setTasks((tasksRes.data as Task[]) || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

@@ -2,7 +2,7 @@
 // priorities and activity types. Reused by badges, the Kanban, contact totals,
 // dashboards and reports so colors/labels never drift between screens.
 
-import type { DealStage, ContactStatus, Priority, ActivityType } from './types';
+import type { DealStage, ContactStatus, Priority, ActivityType, LeadStatus } from './types';
 
 export type Tone =
   | 'gray'
@@ -88,6 +88,19 @@ export const PRIORITIES: { id: Priority; label: string; tone: Tone }[] = [
 const PRIORITY_TONE = new Map(PRIORITIES.map((p) => [p.id, p.tone]));
 export function priorityTone(priority: string | null | undefined): Tone {
   return PRIORITY_TONE.get((priority as Priority) ?? 'Média') ?? 'amber';
+}
+
+/** Handling status of inbound (web-captured) institutional leads. */
+export const LEAD_STATUSES: { id: LeadStatus; label: string; tone: Tone }[] = [
+  { id: 'novo', label: 'Novo', tone: 'blue' },
+  { id: 'contatado', label: 'Contatado', tone: 'amber' },
+  { id: 'convertido', label: 'Convertido', tone: 'emerald' },
+  { id: 'descartado', label: 'Descartado', tone: 'gray' },
+];
+
+const LEAD_STATUS_TONE = new Map(LEAD_STATUSES.map((s) => [s.id, s.tone]));
+export function leadStatusTone(status: string | null | undefined): Tone {
+  return LEAD_STATUS_TONE.get((status as LeadStatus) ?? 'novo') ?? 'blue';
 }
 
 export type ActivityMeta = { label: string; tone: Tone; icon: string };

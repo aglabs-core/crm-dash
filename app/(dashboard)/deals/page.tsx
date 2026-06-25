@@ -1,7 +1,18 @@
 'use client';
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
-import { Plus, Calendar, GripVertical, Pencil, Trash2, User as UserIcon, DollarSign } from 'lucide-react';
+import {
+  Plus,
+  Calendar,
+  GripVertical,
+  Pencil,
+  Trash2,
+  User as UserIcon,
+  DollarSign,
+  Archive,
+  ArchiveRestore,
+  Kanban,
+} from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -11,7 +22,8 @@ import type { Deal, Contact, DealStage } from '@/lib/types';
 import { DEAL_STAGES, PRIORITIES, TONE_HEX, stageTone, priorityTone } from '@/lib/constants';
 import { uniqueProducts } from '@/lib/analytics';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { Button, Modal, Field, Input, Select, Badge, PageLoader } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Button, Modal, Field, Input, Select, Badge, PageLoader, EmptyState } from '@/components/ui';
 
 const DEAL_SELECT = `*, contacts ( id, name, produto )`;
 
@@ -33,6 +45,7 @@ function DealsContent() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [productFilter, setProductFilter] = useState('Todos');
+  const [view, setView] = useState<'board' | 'archived'>('board');
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,6 +93,18 @@ function DealsContent() {
       console.error('Error deleting deal:', error);
       toast.error('Erro ao excluir negócio.');
     }
+  };
+
+  const setArchived = async (deal: Deal, archived: boolean) => {
+    setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, archived } : d)));
+    const { error } = await supabase.from('deals').update({ archived }).eq('id', deal.id);
+    if (error) {
+      console.error('Error archiving deal:', error);
+      setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, archived: !archived } : d)));
+      toast.error('Erro ao atualizar. Rode a migration mais recente.');
+      return;
+    }
+    toast.success(archived ? 'Negócio arquivado.' : 'Negócio restaurado.');
   };
 
   useEffect(() => {
@@ -207,9 +232,17 @@ function DealsContent() {
   };
 
   const products = useMemo(() => uniqueProducts(deals), [deals]);
+  const archivedDealsList = useMemo(() => deals.filter((d) => d.archived), [deals]);
+  const byProduct = (d: Deal) => productFilter === 'Todos' || d.produto === productFilter;
   const filteredDeals = useMemo(
-    () => deals.filter((d) => productFilter === 'Todos' || d.produto === productFilter),
+    () => deals.filter((d) => !d.archived && byProduct(d)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [deals, productFilter],
+  );
+  const filteredArchived = useMemo(
+    () => archivedDealsList.filter(byProduct),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [archivedDealsList, productFilter],
   );
 
   if (!isMounted) return null; // avoid dnd hydration mismatch
@@ -217,7 +250,34 @@ function DealsContent() {
   return (
     <div className="relative flex h-full flex-col space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-fg">Funil de Vendas</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Funil de Vendas</h1>
+          <div className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5 text-sm">
+            <button
+              onClick={() => setView('board')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors',
+                view === 'board' ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+              )}
+            >
+              <Kanban className="h-4 w-4" />
+              Funil
+            </button>
+            <button
+              onClick={() => setView('archived')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors',
+                view === 'archived' ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+              )}
+            >
+              <Archive className="h-4 w-4" />
+              Arquivados
+              {archivedDealsList.length > 0 && (
+                <span className="rounded-full bg-border px-1.5 text-xs text-fg">{archivedDealsList.length}</span>
+              )}
+            </button>
+          </div>
+        </div>
         <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
           <Select
             value={productFilter}
@@ -241,6 +301,48 @@ function DealsContent() {
       <div className="flex-1 overflow-x-auto pb-4">
         {isLoading ? (
           <PageLoader />
+        ) : view === 'archived' ? (
+          filteredArchived.length === 0 ? (
+            <EmptyState
+              icon={Archive}
+              title="Nenhum negócio arquivado"
+              description="Arquive negócios parados ou perdidos para limpar o funil sem apagá-los."
+            />
+          ) : (
+            <div className="space-y-2">
+              {filteredArchived.map((deal) => (
+                <div
+                  key={deal.id}
+                  className="flex items-center gap-4 rounded-lg border border-border bg-surface p-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_HEX[stageTone(deal.stage)] }} />
+                      <p className="truncate text-sm font-semibold text-fg">{deal.title}</p>
+                      <Badge tone={stageTone(deal.stage)}>{deal.stage}</Badge>
+                      {deal.produto && <Badge tone="purple">{deal.produto}</Badge>}
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted">
+                      {deal.company || '—'} · {formatCurrency(deal.amount)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => setArchived(deal, false)}>
+                      <ArchiveRestore className="h-4 w-4" />
+                      Restaurar
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteDeal(deal.id)}
+                      className="p-1 text-muted transition-colors hover:text-red-500"
+                      aria-label="Excluir"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex h-full min-w-max items-start gap-5">
@@ -306,6 +408,14 @@ function DealsContent() {
                                         aria-label="Editar"
                                       >
                                         <Pencil className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => setArchived(deal, true)}
+                                        className="opacity-0 transition-opacity hover:text-amber-500 group-hover:opacity-100"
+                                        aria-label="Arquivar"
+                                        title="Arquivar"
+                                      >
+                                        <Archive className="h-4 w-4" />
                                       </button>
                                       <button
                                         onClick={() => handleDeleteDeal(deal.id)}
