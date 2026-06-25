@@ -29,40 +29,49 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const avatarUrl: string | undefined = user?.user_metadata?.avatar_url;
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:gap-4 sm:px-6">
+    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
       <button onClick={onMenuClick} className="text-muted hover:text-fg lg:hidden" aria-label="Abrir menu">
         <Menu className="h-6 w-6" />
       </button>
 
-      <form className="relative flex max-w-md flex-1" onSubmit={handleSearch}>
-        <Search className="pointer-events-none absolute inset-y-0 left-0 h-full w-5 text-muted" aria-hidden="true" />
+      <form
+        className="relative flex w-full max-w-xs items-center rounded-lg bg-surface-2/60 px-3 lg:max-w-sm"
+        onSubmit={handleSearch}
+      >
+        <Search className="pointer-events-none h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
         <input
-          className="block h-full w-full bg-transparent pl-7 text-sm text-fg outline-none placeholder:text-muted"
-          placeholder="Buscar contatos, negócios, tarefas..."
+          className="h-9 w-full bg-transparent px-2 text-sm text-fg outline-none placeholder:text-muted"
+          placeholder="Buscar..."
           type="search"
           name="search"
           defaultValue={searchParams.get('q') || ''}
         />
       </form>
 
-      <button onClick={toggle} className="text-muted transition-colors hover:text-fg" aria-label="Alternar tema">
-        {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-      </button>
+      <div className="ml-auto flex items-center gap-1 sm:gap-2">
+        <button
+          onClick={toggle}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          aria-label="Alternar tema"
+        >
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </button>
 
-      <NotificationsBell />
+        <NotificationsBell />
 
-      <div className="hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+        <div className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
 
-      <div className="flex items-center gap-2">
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt={fullName} className="h-8 w-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
-            {initials}
-          </div>
-        )}
-        <span className="hidden text-sm font-semibold text-fg lg:block">{fullName}</span>
+        <div className="flex items-center gap-2 pl-1">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt={fullName} className="h-8 w-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
+              {initials}
+            </div>
+          )}
+          <span className="hidden text-sm font-semibold text-fg lg:block">{fullName}</span>
+        </div>
       </div>
     </header>
   );

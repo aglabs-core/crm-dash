@@ -7,12 +7,12 @@
 /* Values live on :root/.dark so they switch at runtime; @theme inline maps
    them to Tailwind utilities (bg-surface, text-muted, border-border, ...). */
 :root {
-  --bg: #f6f7f9;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-2: #f3f4f6;
-  --border: #e5e7eb;
-  --fg: #0f172a;
-  --muted: #64748b;
+  --surface-2: #f4f4f5;
+  --border: #e8e8ea;
+  --fg: #18181b;
+  --muted: #71717a;
   --brand: #4f46e5;
   --brand-strong: #4338ca;
   --brand-contrast: #ffffff;
@@ -20,16 +20,16 @@
 }
 
 .dark {
-  --bg: #0b1120;
-  --surface: #0f172a;
-  --surface-2: #1e293b;
-  --border: #1e293b;
-  --fg: #e2e8f0;
-  --muted: #94a3b8;
+  --bg: #0a0a0b;
+  --surface: #161618;
+  --surface-2: #232326;
+  --border: #2a2a2e;
+  --fg: #f4f4f5;
+  --muted: #a1a1aa;
   --brand: #6366f1;
   --brand-strong: #818cf8;
   --brand-contrast: #ffffff;
-  --ring: #818cf8;
+  --ring: #6366f1;
 }
 
 @theme inline {

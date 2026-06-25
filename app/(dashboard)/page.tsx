@@ -3,15 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Users,
   Briefcase,
   DollarSign,
   TrendingUp,
+  Sparkles,
   Plus,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
   AlertTriangle,
   CalendarClock,
   PauseCircle,
-  ArrowRight,
+  ChevronRight,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -29,25 +33,26 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import type { Deal, Task, Contact } from '@/lib/types';
+import type { Deal, Task } from '@/lib/types';
 import {
   totalRevenue,
   pipelineValue,
   openDealsCount,
   winRate,
   isWon,
+  isOpen,
   monthlySeries,
   pipelineByStage,
   revenueByProduct,
   winLossCounts,
   isTaskOverdue,
   dealsClosingSoon,
-  isOpen,
 } from '@/lib/analytics';
-import { TONE_HEX, stageTone } from '@/lib/constants';
-import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, formatDate } from '@/lib/format';
+import { TONE_HEX } from '@/lib/constants';
+import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, type Change } from '@/lib/format';
 import { CHART_AXIS_TICK, CHART_GRID, chartTooltipStyle, chartTooltipItemStyle, chartTooltipLabelStyle } from '@/lib/chart';
-import { Card, CardHeader, CardTitle, CardBody, ChartCard, StatCard, Button, Badge, PageLoader, EmptyState } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Card, CardHeader, CardTitle, ChartCard, Button, Sparkline, PageLoader } from '@/components/ui';
 
 const STALE_DAYS = 14;
 
@@ -57,15 +62,33 @@ function inMonth(dateStr: string | null | undefined, month: number, year: number
   return d.getMonth() === month && d.getFullYear() === year;
 }
 
+function Trend({ change, hint }: { change?: Change | null; hint?: string }) {
+  if (change) {
+    const Icon = change.type === 'positive' ? ArrowUpRight : change.type === 'negative' ? ArrowDownRight : Minus;
+    const cls =
+      change.type === 'positive'
+        ? 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400'
+        : change.type === 'negative'
+          ? 'text-red-600 bg-red-500/10 dark:text-red-400'
+          : 'text-muted bg-surface-2';
+    return (
+      <span className={cn('inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium', cls)}>
+        <Icon className="h-3 w-3" />
+        {change.text}
+      </span>
+    );
+  }
+  return <span className="text-xs text-muted">{hint ?? '—'}</span>;
+}
+
 export default function Dashboard() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchData(true);
-    const channels = ['deals', 'contacts', 'tasks', 'activities'].map((table) =>
+    const channels = ['deals', 'tasks', 'activities'].map((table) =>
       supabase
         .channel(`dash-${table}`)
         .on('postgres_changes', { event: '*', schema: 'public', table }, () => fetchData())
@@ -79,14 +102,12 @@ export default function Dashboard() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const [dealsRes, tasksRes, contactsRes] = await Promise.all([
+      const [dealsRes, tasksRes] = await Promise.all([
         supabase.from('deals').select('*, contacts ( id, name )').order('created_at', { ascending: false }),
         supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
-        supabase.from('contacts').select('id, created_at'),
       ]);
       setDeals((dealsRes.data as Deal[]) || []);
       setTasks((tasksRes.data as Task[]) || []);
-      setContacts((contactsRes.data as Contact[]) || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -99,18 +120,17 @@ export default function Dashboard() {
     const curM = now.getMonth();
     const curY = now.getFullYear();
     const prev = new Date(curY, curM - 1, 1);
-    const prevM = prev.getMonth();
-    const prevY = prev.getFullYear();
 
     const won = deals.filter(isWon);
     const revThis = won.filter((d) => inMonth(d.closed_at, curM, curY)).reduce((s, d) => s + (Number(d.amount) || 0), 0);
-    const revPrev = won.filter((d) => inMonth(d.closed_at, prevM, prevY)).reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const revPrev = won
+      .filter((d) => inMonth(d.closed_at, prev.getMonth(), prev.getFullYear()))
+      .reduce((s, d) => s + (Number(d.amount) || 0), 0);
 
-    const contactsThis = contacts.filter((c) => inMonth(c.created_at, curM, curY)).length;
-    const contactsPrev = contacts.filter((c) => inMonth(c.created_at, prevM, prevY)).length;
+    const series = monthlySeries(deals, 6);
+    const last = series[series.length - 1];
+    const prevPoint = series[series.length - 2];
 
-    const overdue = tasks.filter(isTaskOverdue);
-    const closing = dealsClosingSoon(deals, 30);
     const stalled = deals
       .filter((d) => isOpen(d) && d.updated_at && Date.now() - new Date(d.updated_at).getTime() > STALE_DAYS * 86_400_000)
       .sort((a, b) => new Date(a.updated_at as string).getTime() - new Date(b.updated_at as string).getTime());
@@ -121,20 +141,36 @@ export default function Dashboard() {
       pipeline: pipelineValue(deals),
       openCount: openDealsCount(deals),
       winRate: winRate(deals),
-      contactsTotal: contacts.length,
-      contactsChange: formatChange(contactsThis, contactsPrev),
-      series: monthlySeries(deals, 6),
+      newThis: last?.newCount ?? 0,
+      newChange: formatChange(last?.newCount ?? 0, prevPoint?.newCount ?? 0),
+      series,
+      sparkRevenue: series.map((p) => p.revenue),
+      sparkPipeline: series.map((p) => p.pipeline),
+      sparkRate: series.map((p) => p.rate ?? 0),
+      sparkNew: series.map((p) => p.newCount),
       funnel: pipelineByStage(deals),
       products: revenueByProduct(deals).slice(0, 6),
       winLoss: winLossCounts(deals),
-      overdue,
-      closing,
+      overdue: tasks.filter(isTaskOverdue),
+      closing: dealsClosingSoon(deals, 30),
       stalled,
-      recent: deals.slice(0, 5),
     };
-  }, [deals, tasks, contacts]);
+  }, [deals, tasks]);
 
   if (isLoading) return <PageLoader />;
+
+  const kpis: { id: string; label: string; value: React.ReactNode; icon: LucideIcon; color: string; spark: number[]; change?: Change | null; hint?: string }[] = [
+    { id: 'sp-rev', label: 'Receita Ganha', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
+    { id: 'sp-pipe', label: 'Em Pipeline', value: formatCurrency(m.pipeline), icon: Briefcase, color: TONE_HEX.emerald, spark: m.sparkPipeline, hint: `${m.openCount} abertos` },
+    { id: 'sp-rate', label: 'Taxa de Ganho', value: formatPercent(m.winRate), icon: TrendingUp, color: TONE_HEX.amber, spark: m.sparkRate, hint: 'fechados' },
+    { id: 'sp-new', label: 'Novos Negócios', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
+  ];
+
+  const attn = [
+    { label: 'Tarefas vencidas', icon: AlertTriangle, color: TONE_HEX.red, count: m.overdue.length, sub: m.overdue[0]?.title ?? '', href: '/tasks' },
+    { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0]?.title ?? '', href: '/deals' },
+    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0]?.title ?? '', href: '/deals' },
+  ];
 
   const winLossData = [
     { name: 'Ganhos', value: m.winLoss.won, color: TONE_HEX.emerald },
@@ -143,8 +179,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-fg">Dashboard</h1>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted">Resumo do seu funil de vendas</p>
+        </div>
         <Link href="/deals">
           <Button>
             <Plus className="h-4 w-4" />
@@ -153,48 +192,32 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Receita Ganha" value={formatCurrency(m.revenue)} icon={DollarSign} change={m.revenueChange} hint="vs. mês passado" />
-        <StatCard label="Em Pipeline" value={formatCurrency(m.pipeline)} icon={Briefcase} hint={`${m.openCount} negócios abertos`} />
-        <StatCard label="Taxa de Ganho" value={formatPercent(m.winRate)} icon={TrendingUp} hint="negócios fechados" />
-        <StatCard label="Contatos" value={m.contactsTotal} icon={Users} change={m.contactsChange} hint="vs. mês passado" />
-      </div>
+      {/* KPI strip */}
+      <Card className="grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
+        {kpis.map((k) => (
+          <div key={k.id} className="bg-surface p-5">
+            <div className="flex items-center gap-2 text-muted">
+              <k.icon className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase tracking-wide">{k.label}</span>
+            </div>
+            <div className="mt-2 flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold tracking-tight text-fg">{k.value}</span>
+              <Trend change={k.change} hint={k.hint} />
+            </div>
+            <div className="mt-3 -mb-1">
+              <Sparkline id={k.id} data={k.spark} color={k.color} />
+            </div>
+          </div>
+        ))}
+      </Card>
 
-      {/* Attention */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <AttentionCard
-          icon={AlertTriangle}
-          tone="red"
-          title="Tarefas Vencidas"
-          count={m.overdue.length}
-          href="/tasks"
-          items={m.overdue.slice(0, 3).map((t) => ({ id: t.id, label: t.title, meta: formatDate(t.due_date) }))}
-          empty="Nenhuma tarefa vencida."
-        />
-        <AttentionCard
-          icon={CalendarClock}
-          tone="amber"
-          title="Fechando em 30 dias"
-          count={m.closing.length}
-          href="/deals"
-          items={m.closing.slice(0, 3).map((d) => ({ id: d.id, label: d.title, meta: formatCurrency(d.amount) }))}
-          empty="Nada previsto para fechar."
-        />
-        <AttentionCard
-          icon={PauseCircle}
-          tone="gray"
-          title={`Parados (+${STALE_DAYS}d)`}
-          count={m.stalled.length}
-          href="/deals"
-          items={m.stalled.slice(0, 3).map((d) => ({ id: d.id, label: d.title, meta: `sem movimentação` }))}
-          empty="Nenhum negócio parado."
-        />
-      </div>
-
-      {/* Revenue + Funnel */}
+      {/* Revenue + Attention */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <ChartCard title="Receita e Pipeline" subtitle="Últimos 6 meses (receita por data de fechamento)" className="lg:col-span-2">
+        <ChartCard
+          title="Receita e Pipeline"
+          subtitle="Últimos 6 meses · receita por data de fechamento"
+          className="lg:col-span-2"
+        >
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={m.series} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -224,8 +247,39 @@ export default function Dashboard() {
           </div>
         </ChartCard>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Precisa de Atenção</CardTitle>
+          </CardHeader>
+          <div className="divide-y divide-border">
+            {attn.map((a) => (
+              <Link
+                key={a.label}
+                href={a.href}
+                className="flex items-center gap-3 p-4 transition-colors hover:bg-surface-2/50"
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: `${a.color}1f`, color: a.color }}
+                >
+                  <a.icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-fg">{a.label}</p>
+                  <p className="truncate text-xs text-muted">{a.count > 0 ? a.sub || `${a.count} item(ns)` : 'Tudo em dia'}</p>
+                </div>
+                <span className="text-lg font-bold text-fg">{a.count}</span>
+                <ChevronRight className="h-4 w-4 text-muted" />
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Funnel + Win/Loss + Product */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por estágio">
-          <div className="h-72 w-full">
+          <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={m.funnel} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
@@ -247,10 +301,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </ChartCard>
-      </div>
 
-      {/* Win/Loss + Products + Recent */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <ChartCard title="Ganhos vs Perdidos" subtitle="Negócios fechados">
           <div className="flex h-64 w-full items-center justify-center">
             {m.winLoss.won + m.winLoss.lost === 0 ? (
@@ -258,7 +309,7 @@ export default function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={winLossData} dataKey="value" nameKey="name" innerRadius={56} outerRadius={88} paddingAngle={2}>
+                  <Pie data={winLossData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
                     {winLossData.map((d) => (
                       <Cell key={d.name} fill={d.color} />
                     ))}
@@ -288,93 +339,13 @@ export default function Dashboard() {
                     labelStyle={chartTooltipLabelStyle}
                     formatter={(value: any) => [formatCurrency(value), 'Receita']}
                   />
-                  <Bar dataKey="revenue" fill={TONE_HEX.indigo} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" fill={TONE_HEX.purple} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </ChartCard>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Negócios Recentes</CardTitle>
-            <Link href="/deals" className="text-sm font-medium text-brand hover:underline">
-              Ver todos
-            </Link>
-          </CardHeader>
-          <CardBody className="space-y-1">
-            {m.recent.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted">Nenhum negócio recente.</p>
-            ) : (
-              m.recent.map((deal) => (
-                <Link
-                  key={deal.id}
-                  href={deal.contacts ? `/contacts/${deal.contacts.id}` : '/deals'}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-fg">{deal.title}</p>
-                    <p className="truncate text-xs text-muted">{deal.company || deal.contacts?.name || '—'}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="text-sm font-semibold text-fg">{formatCurrency(deal.amount)}</span>
-                    <Badge tone={stageTone(deal.stage)}>{deal.stage}</Badge>
-                  </div>
-                </Link>
-              ))
-            )}
-          </CardBody>
-        </Card>
       </div>
     </div>
-  );
-}
-
-function AttentionCard({
-  icon: Icon,
-  tone,
-  title,
-  count,
-  href,
-  items,
-  empty,
-}: {
-  icon: typeof AlertTriangle;
-  tone: keyof typeof TONE_HEX;
-  title: string;
-  count: number;
-  href: string;
-  items: { id: string; label: string; meta: string }[];
-  empty: string;
-}) {
-  return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${TONE_HEX[tone]}1f`, color: TONE_HEX[tone] }}>
-            <Icon className="h-4 w-4" />
-          </span>
-          <span className="text-sm font-semibold text-fg">{title}</span>
-        </div>
-        <span className="text-2xl font-bold text-fg">{count}</span>
-      </div>
-      <div className="mt-3 space-y-1">
-        {items.length === 0 ? (
-          <p className="text-xs text-muted">{empty}</p>
-        ) : (
-          items.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-2 text-xs">
-              <span className="truncate text-fg">{it.label}</span>
-              <span className="shrink-0 text-muted">{it.meta}</span>
-            </div>
-          ))
-        )}
-      </div>
-      {count > 0 && (
-        <Link href={href} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-          Ver todos <ArrowRight className="h-3 w-3" />
-        </Link>
-      )}
-    </Card>
   );
 }

@@ -7,3 +7,4 @@ export { Field, Input, Textarea, Select } from './Field';
 export { EmptyState } from './EmptyState';
 export { Spinner, PageLoader } from './Spinner';
 export { ChartCard } from './ChartCard';
+export { Sparkline } from './Sparkline';

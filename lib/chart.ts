@@ -2,8 +2,8 @@
 // light and dark cards; the tooltip is an HTML element so it can use tokens.
 import type { CSSProperties } from 'react';
 
-export const CHART_AXIS_TICK = { fill: '#94a3b8', fontSize: 12 } as const;
-export const CHART_GRID = 'rgba(148,163,184,0.18)';
+export const CHART_AXIS_TICK = { fill: '#a1a1aa', fontSize: 12 } as const;
+export const CHART_GRID = 'rgba(161,161,170,0.18)';
 
 export const chartTooltipStyle: CSSProperties = {
   background: 'var(--surface)',

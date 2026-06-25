@@ -55,7 +55,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           <div className="flex items-center gap-2 text-xl font-semibold text-fg">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="AG Labs" className="h-8 w-8 object-contain" />
-            CRM AG LABS
+            CRM
           </div>
           <button onClick={onClose} className="text-muted hover:text-fg lg:hidden" aria-label="Fechar menu">
             <X className="h-5 w-5" />

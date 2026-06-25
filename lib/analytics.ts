@@ -59,6 +59,7 @@ export type MonthPoint = {
   revenue: number; // won value, by closed_at
   lost: number; // lost value, by closed_at
   pipeline: number; // open value, by created_at
+  newCount: number; // deals created in the month
   wonCount: number;
   lostCount: number;
   rate: number | null; // win-rate % for the month
@@ -67,53 +68,55 @@ export type MonthPoint = {
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
 const monthLabel = (d: Date) => `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
 
-/** Year-aware monthly series seeded with the last `months` months. */
+/**
+ * Year-aware monthly series, strictly bounded to the last `months` months
+ * (rolling window) so the chart length matches its label.
+ */
 export function monthlySeries(deals: Deal[], months = 6): MonthPoint[] {
   const buckets = new Map<string, MonthPoint>();
+  const order: string[] = [];
   const now = new Date();
-
-  const blank = (d: Date): MonthPoint => ({
-    key: monthKey(d),
-    name: monthLabel(d),
-    revenue: 0,
-    lost: 0,
-    pipeline: 0,
-    wonCount: 0,
-    lostCount: 0,
-    rate: null,
-  });
 
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    buckets.set(monthKey(d), blank(d));
-  }
-  const ensure = (d: Date) => {
     const k = monthKey(d);
-    let b = buckets.get(k);
-    if (!b) {
-      b = blank(d);
-      buckets.set(k, b);
-    }
-    return b;
+    order.push(k);
+    buckets.set(k, {
+      key: k,
+      name: monthLabel(d),
+      revenue: 0,
+      lost: 0,
+      pipeline: 0,
+      newCount: 0,
+      wonCount: 0,
+      lostCount: 0,
+      rate: null,
+    });
+  }
+
+  const at = (dateStr: string | null | undefined, fn: (b: MonthPoint) => void) => {
+    if (!dateStr) return;
+    const b = buckets.get(monthKey(new Date(dateStr)));
+    if (b) fn(b);
   };
 
   for (const deal of deals) {
-    if (isWon(deal) && deal.closed_at) {
-      const b = ensure(new Date(deal.closed_at));
-      b.revenue += amount(deal);
-      b.wonCount += 1;
-    } else if (isLost(deal) && deal.closed_at) {
-      const b = ensure(new Date(deal.closed_at));
-      b.lost += amount(deal);
-      b.lostCount += 1;
+    if (isWon(deal)) {
+      at(deal.closed_at, (b) => {
+        b.revenue += amount(deal);
+        b.wonCount += 1;
+      });
+    } else if (isLost(deal)) {
+      at(deal.closed_at, (b) => {
+        b.lost += amount(deal);
+        b.lostCount += 1;
+      });
     }
-    if (isOpen(deal) && deal.created_at) {
-      const b = ensure(new Date(deal.created_at));
-      b.pipeline += amount(deal);
-    }
+    if (isOpen(deal)) at(deal.created_at, (b) => (b.pipeline += amount(deal)));
+    at(deal.created_at, (b) => (b.newCount += 1));
   }
 
-  const points = [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const points = order.map((k) => buckets.get(k) as MonthPoint);
   for (const p of points) {
     const closed = p.wonCount + p.lostCount;
     p.rate = closed ? Math.round((p.wonCount / closed) * 100) : null;
