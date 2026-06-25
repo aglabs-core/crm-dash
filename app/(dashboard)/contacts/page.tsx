@@ -7,19 +7,30 @@ import {
   Phone,
   Plus,
   Users,
-  UserPlus,
   UserCheck,
   Headset,
   TrendingUp,
   Pencil,
   Trash2,
   ExternalLink,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
-import { CONTACT_STATUSES, ORIGINS, statusTone, statusLabel, originTone, originLabel } from '@/lib/constants';
+import {
+  CONTACT_STATUSES,
+  ORIGINS,
+  statusTone,
+  statusLabel,
+  originTone,
+  originLabel,
+  isActiveStatus,
+  isClientStatus,
+  isArchivedStatus,
+} from '@/lib/constants';
 import {
   Card,
   Button,
@@ -48,6 +59,8 @@ const emptyForm = {
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
+  const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados'>('Todos');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -182,37 +195,100 @@ export default function Contacts() {
     [contacts],
   );
 
+  // Scoped only by product — the stat cards always reflect the true split,
+  // independent of the text search or the situação filter.
+  const productScoped = useMemo(
+    () => contacts.filter((c) => productFilter === 'Todos' || c.produto === productFilter),
+    [contacts, productFilter],
+  );
+
   const filteredContacts = useMemo(
     () =>
-      contacts.filter((contact) => {
+      productScoped.filter((contact) => {
         const term = searchTerm.toLowerCase();
         const matchesSearch =
           contact.name.toLowerCase().includes(term) ||
           (contact.company?.toLowerCase().includes(term) ?? false);
-        const matchesProduct = productFilter === 'Todos' || contact.produto === productFilter;
-        return matchesSearch && matchesProduct;
+        const matchesSituacao =
+          situacao === 'Todos'
+            ? true
+            : situacao === 'pipeline'
+              ? isActiveStatus(contact.status)
+              : situacao === 'clientes'
+                ? isClientStatus(contact.status)
+                : isArchivedStatus(contact.status);
+        return matchesSearch && matchesSituacao;
       }),
-    [contacts, searchTerm, productFilter],
+    [productScoped, searchTerm, situacao],
   );
 
-  // Funnel-based, non-overlapping rollups. "Contatados" = everyone who left the
-  // top of the funnel (status ≠ Lead), so it no longer misses Proposta/Negociação.
+  // Honest, non-overlapping rollups so "em pipeline" (the active funnel) is clearly
+  // separate from "arquivados" (out of the funnel) and "clientes" (closed).
   const totals = useMemo(() => {
-    const f = filteredContacts;
+    const f = productScoped;
     const total = f.length;
-    const novos = f.filter((c) => c.status === 'Lead').length;
-    const emAndamento = f.filter(
-      (c) => c.status === 'Contatado' || c.status === 'Proposta' || c.status === 'Negociação',
-    ).length;
-    const clientes = f.filter((c) => c.status === 'Cliente' || c.status === 'Inativo').length;
+    const emPipeline = f.filter((c) => isActiveStatus(c.status)).length;
+    const clientes = f.filter((c) => isClientStatus(c.status)).length;
+    const arquivados = f.filter((c) => isArchivedStatus(c.status)).length;
+    const fechados = clientes + arquivados;
     return {
       total,
-      novos,
-      emAndamento,
+      emPipeline,
       clientes,
-      conversao: total ? `${((clientes / total) * 100).toFixed(1)}%` : '—',
+      arquivados,
+      conversao: fechados ? `${((clientes / fechados) * 100).toFixed(1)}%` : '—',
     };
-  }, [filteredContacts]);
+  }, [productScoped]);
+
+  const allSelected = filteredContacts.length > 0 && filteredContacts.every((c) => selected.has(c.id));
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleSelectAll = () =>
+    setSelected((prev) =>
+      filteredContacts.every((c) => prev.has(c.id))
+        ? new Set()
+        : new Set(filteredContacts.map((c) => c.id)),
+    );
+
+  const bulkSetStatus = async (status: ContactStatus) => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status } : c)));
+    setSelected(new Set());
+    const { error } = await supabase.from('contacts').update({ status }).in('id', ids);
+    if (error) {
+      console.error('Bulk update error:', error);
+      toast.error('Erro ao atualizar em massa. Rode a migration mais recente.');
+      fetchContacts();
+      return;
+    }
+    toast.success(`${ids.length} contato(s) atualizados.`);
+  };
+
+  const bulkDelete = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Excluir ${ids.length} contato(s)`,
+      description: 'Os contatos e seus históricos serão removidos. Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+    });
+    if (!ok) return;
+    setSelected(new Set());
+    const { error } = await supabase.from('contacts').delete().in('id', ids);
+    if (error) {
+      toast.error('Erro ao excluir em massa.');
+      fetchContacts();
+      return;
+    }
+    setContacts((prev) => prev.filter((c) => !ids.includes(c.id)));
+    toast.success(`${ids.length} contato(s) excluídos.`);
+  };
 
   return (
     <div className="relative space-y-6">
@@ -226,10 +302,10 @@ export default function Contacts() {
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <StatCard label="Total" value={totals.total} icon={Users} hint="na carteira" />
-        <StatCard label="Novos" value={totals.novos} icon={UserPlus} hint="ainda não contatados" />
-        <StatCard label="Em atendimento" value={totals.emAndamento} icon={Headset} hint="contatado → negociação" />
+        <StatCard label="Em pipeline" value={totals.emPipeline} icon={Headset} hint="em atendimento" />
         <StatCard label="Clientes" value={totals.clientes} icon={UserCheck} hint="fecharam negócio" />
-        <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="clientes / total" />
+        <StatCard label="Arquivados" value={totals.arquivados} icon={Archive} hint="fora do funil" />
+        <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="ganhos / fechados" />
       </div>
 
       <Card className="overflow-hidden">
@@ -243,6 +319,12 @@ export default function Contacts() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <Select value={situacao} onChange={(e) => setSituacao(e.target.value as typeof situacao)} className="sm:w-44">
+            <option value="Todos">Todas as situações</option>
+            <option value="pipeline">Em pipeline</option>
+            <option value="clientes">Clientes</option>
+            <option value="arquivados">Arquivados</option>
+          </Select>
           <Select
             value={productFilter}
             onChange={(e) => setProductFilter(e.target.value)}
@@ -257,6 +339,27 @@ export default function Contacts() {
           </Select>
         </div>
 
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-2/60 px-4 py-3">
+            <span className="text-sm font-medium text-fg">{selected.size} selecionado(s)</span>
+            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Arquivado')}>
+              <Archive className="h-4 w-4" />
+              Arquivar
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Lead')}>
+              <ArchiveRestore className="h-4 w-4" />
+              Mover p/ Lead
+            </Button>
+            <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={bulkDelete}>
+              <Trash2 className="h-4 w-4" />
+              Excluir
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="ml-auto text-sm text-muted hover:text-fg">
+              Limpar
+            </button>
+          </div>
+        )}
+
         <div className="min-h-[300px] overflow-x-auto">
           {isLoading ? (
             <PageLoader />
@@ -270,6 +373,15 @@ export default function Contacts() {
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="bg-surface-2/60">
                 <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 cursor-pointer rounded border-border accent-brand"
+                    />
+                  </th>
                   <th className="px-6 py-3">Nome</th>
                   <th className="px-6 py-3">Empresa</th>
                   <th className="px-6 py-3">Produto</th>
@@ -280,7 +392,19 @@ export default function Contacts() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredContacts.map((contact) => (
-                  <tr key={contact.id} className="transition-colors hover:bg-surface-2/50">
+                  <tr
+                    key={contact.id}
+                    className={`transition-colors hover:bg-surface-2/50 ${selected.has(contact.id) ? 'bg-brand/5' : ''}`}
+                  >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`Selecionar ${contact.name}`}
+                        checked={selected.has(contact.id)}
+                        onChange={() => toggleSelect(contact.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-border accent-brand"
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
