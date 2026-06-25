@@ -41,7 +41,7 @@ relatórios — construído com **Next.js 15 (App Router)**, **React 19**,
    ```bash
    supabase db push
    ```
-   Ou tb cole o conteúdo dos arquivos `.sql` no **SQL Editor** do painel do Supabase,
+   Ou cole o conteúdo dos arquivos `.sql` no **SQL Editor** do painel do Supabase,
    em ordem cronológica. A migration `..._professional_upgrade.sql` é idempotente
    e pode ser reaplicada com segurança.
 4. Rode o app:
