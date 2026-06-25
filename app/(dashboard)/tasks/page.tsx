@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/format';
 import { isTaskOverdue } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, Button, Modal, Field, Input, Textarea, Select, Badge, PageLoader } from '@/components/ui';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const TASK_SELECT = `*, contacts ( id, name )`;
 
@@ -30,6 +31,7 @@ export default function Tasks() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const confirm = useConfirm();
 
   const openNewTaskModal = () => {
     setEditingTask(null);
@@ -50,7 +52,12 @@ export default function Tasks() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+    const ok = await confirm({
+      title: 'Excluir tarefa',
+      description: 'Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+    });
+    if (!ok) return;
     try {
       const { error } = await supabase.from('tasks').delete().eq('id', id);
       if (error) throw error;

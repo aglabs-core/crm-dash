@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search, UserCheck, DollarSign, Briefcase, Trophy, Building2 } from 'lucide-react';
+import { Search, UserCheck, DollarSign, Trophy, Building2, Power } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Contact, Deal } from '@/lib/types';
+import type { Contact } from '@/lib/types';
 import { buildClients } from '@/lib/analytics';
 import { formatCurrency, formatRelative } from '@/lib/format';
-import { Card, Badge, Input, Select, EmptyState, PageLoader, StatCard } from '@/components/ui';
+import { Card, Badge, Button, Input, Select, EmptyState, PageLoader, StatCard } from '@/components/ui';
 
 export default function ClientsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
@@ -20,7 +20,6 @@ export default function ClientsPage() {
     fetchData(true);
     const sub = supabase
       .channel('clients-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchData())
       .subscribe();
     return () => {
@@ -31,12 +30,9 @@ export default function ClientsPage() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const [contactsRes, dealsRes] = await Promise.all([
-        supabase.from('contacts').select('*'),
-        supabase.from('deals').select('*'),
-      ]);
-      setContacts((contactsRes.data as Contact[]) || []);
-      setDeals((dealsRes.data as Deal[]) || []);
+      const { data, error } = await supabase.from('contacts').select('*');
+      if (error) throw error;
+      setContacts((data as Contact[]) || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
     } finally {
@@ -44,12 +40,21 @@ export default function ClientsPage() {
     }
   };
 
-  const clients = useMemo(() => buildClients(contacts, deals), [contacts, deals]);
+  const toggleActive = async (id: string, makeActive: boolean) => {
+    const status = makeActive ? 'Cliente' : 'Inativo';
+    setContacts((p) => p.map((c) => (c.id === id ? { ...c, status } : c)));
+    const { error } = await supabase.from('contacts').update({ status }).eq('id', id);
+    if (error) {
+      toast.error('Erro ao atualizar cliente.');
+      fetchData();
+      return;
+    }
+    toast.success(makeActive ? 'Cliente reativado.' : 'Cliente marcado como inativo.');
+  };
 
-  const products = useMemo(
-    () => Array.from(new Set(clients.flatMap((c) => c.products))).sort(),
-    [clients],
-  );
+  const clients = useMemo(() => buildClients(contacts), [contacts]);
+
+  const products = useMemo(() => Array.from(new Set(clients.flatMap((c) => c.products))).sort(), [clients]);
 
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -64,19 +69,12 @@ export default function ClientsPage() {
 
   const totals = useMemo(() => {
     const revenue = clients.reduce((s, c) => s + c.wonRevenue, 0);
-    const wonDeals = clients.reduce((s, c) => s + c.wonCount, 0);
-    const now = new Date();
-    const newThisMonth = clients.filter(
-      (c) =>
-        c.lastWonAt &&
-        new Date(c.lastWonAt).getMonth() === now.getMonth() &&
-        new Date(c.lastWonAt).getFullYear() === now.getFullYear(),
-    ).length;
+    const ativos = clients.filter((c) => c.active).length;
     return {
       count: clients.length,
+      ativos,
       revenue,
-      ticket: wonDeals ? revenue / wonDeals : 0,
-      newThisMonth,
+      ticket: clients.length ? revenue / clients.length : 0,
     };
   }, [clients]);
 
@@ -86,14 +84,14 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-fg">Clientes</h1>
-        <p className="mt-0.5 text-sm text-muted">Contatos que fecharam negócio · carteira ativa</p>
+        <p className="mt-0.5 text-sm text-muted">Contatos que fecharam negócio · carteira ativa e inativa</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Clientes" value={totals.count} icon={UserCheck} />
+        <StatCard label="Clientes" value={totals.count} icon={UserCheck} hint={`${totals.ativos} ativos`} />
         <StatCard label="Receita total" value={formatCurrency(totals.revenue)} icon={DollarSign} hint="negócios ganhos" />
-        <StatCard label="Ticket médio" value={formatCurrency(totals.ticket)} icon={Trophy} hint="por negócio ganho" />
-        <StatCard label="Fecharam no mês" value={totals.newThisMonth} icon={Briefcase} />
+        <StatCard label="Ticket médio" value={formatCurrency(totals.ticket)} icon={Trophy} hint="por cliente" />
+        <StatCard label="Ativos" value={totals.ativos} icon={Power} hint="relacionamento em dia" />
       </div>
 
       <Card className="overflow-hidden">
@@ -122,7 +120,7 @@ export default function ClientsPage() {
             <EmptyState
               icon={UserCheck}
               title="Nenhum cliente ainda"
-              description="Quando um negócio for marcado como Ganho, o contato aparece aqui."
+              description="Quando um contato for marcado como Cliente (ganho), ele aparece aqui."
             />
           ) : (
             <table className="min-w-full divide-y divide-border text-sm">
@@ -130,14 +128,14 @@ export default function ClientsPage() {
                 <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
                   <th className="px-6 py-3">Cliente</th>
                   <th className="px-6 py-3">Produtos</th>
-                  <th className="px-6 py-3 text-right">Ganhos</th>
+                  <th className="px-6 py-3">Situação</th>
                   <th className="px-6 py-3 text-right">Receita</th>
-                  <th className="px-6 py-3 text-right">Em aberto</th>
-                  <th className="px-6 py-3">Último fechamento</th>
+                  <th className="px-6 py-3">Fechou</th>
+                  <th className="px-6 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map(({ contact, products: prods, wonCount, wonRevenue, openValue, lastWonAt }) => (
+                {filtered.map(({ contact, products: prods, wonRevenue, active, lastWonAt }) => (
                   <tr key={contact.id} className="transition-colors hover:bg-surface-2/50">
                     <td className="px-6 py-4">
                       <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
@@ -168,14 +166,19 @@ export default function ClientsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium text-fg">{wonCount}</td>
+                    <td className="px-6 py-4">
+                      <Badge tone={active ? 'emerald' : 'gray'}>{active ? 'Ativo' : 'Inativo'}</Badge>
+                    </td>
                     <td className="px-6 py-4 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(wonRevenue)}
                     </td>
-                    <td className="px-6 py-4 text-right text-muted">
-                      {openValue > 0 ? formatCurrency(openValue) : '—'}
-                    </td>
                     <td className="px-6 py-4 text-muted">{lastWonAt ? formatRelative(lastWonAt) : '—'}</td>
+                    <td className="px-6 py-4 text-right">
+                      <Button size="sm" variant="ghost" onClick={() => toggleActive(contact.id, !active)}>
+                        <Power className="h-4 w-4" />
+                        {active ? 'Inativar' : 'Reativar'}
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

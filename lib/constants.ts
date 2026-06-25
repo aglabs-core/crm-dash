@@ -2,7 +2,7 @@
 // priorities and activity types. Reused by badges, the Kanban, contact totals,
 // dashboards and reports so colors/labels never drift between screens.
 
-import type { DealStage, ContactStatus, Priority, ActivityType, LeadStatus } from './types';
+import type { ContactStatus, ContactOrigin, Priority, ActivityType, LeadStatus } from './types';
 
 export type Tone =
   | 'gray'
@@ -35,48 +35,56 @@ export const TONE_HEX: Record<Tone, string> = {
   purple: '#a855f7',
 };
 
-export type StageMeta = {
-  id: DealStage;
-  label: string;
-  tone: Tone;
-  isOpen: boolean;
-  isWon: boolean;
-  isLost: boolean;
-};
+// ---- Contact lifecycle — single source of truth for the funnel ------------
+// One field (`contacts.status`) drives everything:
+//   active funnel (Kanban) -> Lead · Contatado · Proposta · Negociação
+//   won                    -> Cliente (active) · Inativo (inactive client)
+//   lost / didn't close    -> Arquivado (leaves the Kanban, stays separate)
 
-export const DEAL_STAGES: StageMeta[] = [
-  { id: 'Lead', label: 'Lead', tone: 'gray', isOpen: true, isWon: false, isLost: false },
-  { id: 'Contatado', label: 'Contatado', tone: 'blue', isOpen: true, isWon: false, isLost: false },
-  { id: 'Proposta', label: 'Proposta', tone: 'indigo', isOpen: true, isWon: false, isLost: false },
-  { id: 'Negociação', label: 'Negociação', tone: 'amber', isOpen: true, isWon: false, isLost: false },
-  { id: 'Ganho', label: 'Ganho', tone: 'emerald', isOpen: false, isWon: true, isLost: false },
-  { id: 'Perdido', label: 'Perdido', tone: 'red', isOpen: false, isWon: false, isLost: true },
+export type StatusGroup = 'active' | 'client' | 'archived';
+
+export type StatusMeta = { id: ContactStatus; label: string; tone: Tone; group: StatusGroup };
+
+export const CONTACT_STATUSES: StatusMeta[] = [
+  { id: 'Lead', label: 'Lead', tone: 'gray', group: 'active' },
+  { id: 'Contatado', label: 'Contatado', tone: 'blue', group: 'active' },
+  { id: 'Proposta', label: 'Proposta', tone: 'indigo', group: 'active' },
+  { id: 'Negociação', label: 'Negociação', tone: 'amber', group: 'active' },
+  { id: 'Cliente', label: 'Cliente', tone: 'emerald', group: 'client' },
+  { id: 'Inativo', label: 'Cliente inativo', tone: 'gray', group: 'client' },
+  { id: 'Arquivado', label: 'Arquivado', tone: 'red', group: 'archived' },
 ];
 
-/** Open stages, in pipeline order (used for the funnel chart). */
-export const OPEN_STAGES = DEAL_STAGES.filter((s) => s.isOpen);
+/** Active funnel stages, in order — the Kanban columns. */
+export const KANBAN_STATUSES = CONTACT_STATUSES.filter((s) => s.group === 'active');
 
-const STAGE_BY_ID = new Map(DEAL_STAGES.map((s) => [s.id, s]));
-export function stageMeta(stage: string): StageMeta {
-  return STAGE_BY_ID.get(stage as DealStage) ?? DEAL_STAGES[0];
+const STATUS_BY_ID = new Map(CONTACT_STATUSES.map((s) => [s.id, s]));
+export function statusMeta(status: string): StatusMeta {
+  return STATUS_BY_ID.get(status as ContactStatus) ?? CONTACT_STATUSES[0];
 }
-export function stageTone(stage: string): Tone {
-  return stageMeta(stage).tone;
-}
-
-export const CONTACT_STATUSES: { id: ContactStatus; label: string; tone: Tone }[] = [
-  { id: 'Lead', label: 'Lead', tone: 'gray' },
-  { id: 'Contatado', label: 'Contatado', tone: 'blue' },
-  { id: 'Proposta', label: 'Proposta', tone: 'indigo' },
-  { id: 'Negociação', label: 'Negociação', tone: 'amber' },
-  { id: 'Ganho', label: 'Ganho', tone: 'emerald' },
-  { id: 'Cliente', label: 'Cliente', tone: 'emerald' },
-  { id: 'Inativo', label: 'Inativo', tone: 'gray' },
-];
-
-const STATUS_TONE = new Map(CONTACT_STATUSES.map((s) => [s.id, s.tone]));
 export function statusTone(status: string): Tone {
-  return STATUS_TONE.get(status as ContactStatus) ?? 'gray';
+  return statusMeta(status).tone;
+}
+export function statusLabel(status: string): string {
+  return statusMeta(status).label;
+}
+export const isActiveStatus = (s: string | null | undefined) => statusMeta(s ?? '').group === 'active';
+export const isClientStatus = (s: string | null | undefined) => statusMeta(s ?? '').group === 'client';
+export const isArchivedStatus = (s: string | null | undefined) => statusMeta(s ?? '').group === 'archived';
+
+// ---- Origin — where the contact came from ---------------------------------
+export const ORIGINS: { id: ContactOrigin; label: string; tone: Tone }[] = [
+  { id: 'web', label: 'Web', tone: 'indigo' },
+  { id: 'prospeccao', label: 'Prospecção', tone: 'blue' },
+  { id: 'whatsapp', label: 'WhatsApp', tone: 'emerald' },
+  { id: 'manual', label: 'Manual', tone: 'gray' },
+];
+const ORIGIN_TONE = new Map(ORIGINS.map((o) => [o.id, o.tone]));
+export function originTone(origin: string | null | undefined): Tone {
+  return ORIGIN_TONE.get((origin as ContactOrigin) ?? 'prospeccao') ?? 'gray';
+}
+export function originLabel(origin: string | null | undefined): string {
+  return ORIGINS.find((o) => o.id === origin)?.label ?? 'Prospecção';
 }
 
 export const PRIORITIES: { id: Priority; label: string; tone: Tone }[] = [

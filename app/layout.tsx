@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css'; // Global styles
 import { AuthProvider } from '@/components/AuthProvider';
 import { ThemeProvider, themeInitScript } from '@/components/ThemeProvider';
+import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { Toaster } from 'sonner';
 
 const inter = Inter({
@@ -27,7 +28,9 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <body className="font-sans bg-bg text-fg antialiased">
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <ConfirmProvider>
+              {children}
+            </ConfirmProvider>
           </AuthProvider>
           <Toaster position="top-right" richColors />
         </ThemeProvider>

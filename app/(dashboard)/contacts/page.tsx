@@ -13,14 +13,13 @@ import {
   TrendingUp,
   Pencil,
   Trash2,
-  DollarSign,
   ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Contact, ContactStatus } from '@/lib/types';
-import { CONTACT_STATUSES, statusTone } from '@/lib/constants';
+import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
+import { CONTACT_STATUSES, ORIGINS, statusTone, statusLabel, originTone, originLabel } from '@/lib/constants';
 import {
   Card,
   Button,
@@ -33,6 +32,7 @@ import {
   PageLoader,
   StatCard,
 } from '@/components/ui';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const emptyForm = {
   name: '',
@@ -40,6 +40,7 @@ const emptyForm = {
   phone: '',
   company: '',
   status: 'Lead' as ContactStatus,
+  origin: 'prospeccao' as ContactOrigin,
   lp_url: '',
   produto: '',
 };
@@ -53,6 +54,7 @@ export default function Contacts() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const confirm = useConfirm();
 
   const openNewContactModal = () => {
     setEditingContact(null);
@@ -68,6 +70,7 @@ export default function Contacts() {
       phone: contact.phone || '',
       company: contact.company || '',
       status: contact.status,
+      origin: (contact.origin as ContactOrigin) || 'prospeccao',
       lp_url: contact.lp_url || '',
       produto: contact.produto || '',
     });
@@ -75,7 +78,12 @@ export default function Contacts() {
   };
 
   const handleDeleteContact = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este contato?')) return;
+    const ok = await confirm({
+      title: 'Excluir contato',
+      description: 'O contato e seu histórico serão removidos. Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+    });
+    if (!ok) return;
     try {
       const { error } = await supabase.from('contacts').delete().eq('id', id);
       if (error) throw error;
@@ -127,6 +135,7 @@ export default function Contacts() {
         phone: formData.phone || null,
         company: formData.company || null,
         status: formData.status,
+        origin: formData.origin,
         lp_url: formData.lp_url || null,
         produto: formData.produto || null,
       };
@@ -155,9 +164,14 @@ export default function Contacts() {
       }
       setIsModalOpen(false);
       setEditingContact(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving contact:', error);
-      toast.error('Erro ao salvar contato. Verifique se você está logado.');
+      const code = (error as { code?: string })?.code;
+      toast.error(
+        code === '23505'
+          ? 'Já existe um contato com esse telefone ou email.'
+          : 'Erro ao salvar contato. Verifique se você está logado.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -190,7 +204,7 @@ export default function Contacts() {
     const emAndamento = f.filter(
       (c) => c.status === 'Contatado' || c.status === 'Proposta' || c.status === 'Negociação',
     ).length;
-    const clientes = f.filter((c) => c.status === 'Ganho' || c.status === 'Cliente').length;
+    const clientes = f.filter((c) => c.status === 'Cliente' || c.status === 'Inativo').length;
     return {
       total,
       novos,
@@ -297,7 +311,10 @@ export default function Contacts() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge tone={statusTone(contact.status)}>{contact.status}</Badge>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
+                        <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2 text-muted">
@@ -312,13 +329,6 @@ export default function Contacts() {
                             <ExternalLink className="h-5 w-5" />
                           </a>
                         )}
-                        <Link
-                          href={`/deals?new_deal_contact_id=${contact.id}`}
-                          className="transition-colors hover:text-emerald-500"
-                          title="Criar Negócio"
-                        >
-                          <DollarSign className="h-5 w-5" />
-                        </Link>
                         <button
                           onClick={() => openEditContactModal(contact)}
                           className="transition-colors hover:text-brand"
@@ -410,6 +420,22 @@ export default function Contacts() {
                 ))}
               </Select>
             </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Origem" htmlFor="origin">
+              <Select
+                id="origin"
+                value={formData.origin}
+                onChange={(e) => setFormData({ ...formData, origin: e.target.value as ContactOrigin })}
+              >
+                {ORIGINS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Produto" htmlFor="produto">

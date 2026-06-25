@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, AlertTriangle, CalendarClock, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Task, Deal } from '@/lib/types';
-import { isTaskOverdue, dealsClosingSoon } from '@/lib/analytics';
+import type { Task, Contact } from '@/lib/types';
+import { isTaskOverdue, closingSoon } from '@/lib/analytics';
 import { formatDate } from '@/lib/format';
 
 type Item = { id: string; label: string; meta: string };
@@ -47,17 +47,17 @@ function Section({
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [overdue, setOverdue] = useState<Task[]>([]);
-  const [closing, setClosing] = useState<Deal[]>([]);
+  const [closing, setClosing] = useState<Contact[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
-      const [tasksRes, dealsRes] = await Promise.all([
+      const [tasksRes, contactsRes] = await Promise.all([
         supabase.from('tasks').select('id, title, due_date, status').eq('status', 'pending'),
-        supabase.from('deals').select('id, title, expected_close_date, stage'),
+        supabase.from('contacts').select('id, name, expected_close_date, status'),
       ]);
       setOverdue(((tasksRes.data as Task[]) || []).filter(isTaskOverdue));
-      setClosing(dealsClosingSoon((dealsRes.data as Deal[]) || [], 7));
+      setClosing(closingSoon((contactsRes.data as Contact[]) || [], 7));
     })();
   }, []);
 
@@ -107,7 +107,7 @@ export function NotificationsBell() {
                   href="/deals"
                   items={closing
                     .slice(0, 4)
-                    .map((d) => ({ id: d.id, label: d.title, meta: formatDate(d.expected_close_date) }))}
+                    .map((c) => ({ id: c.id, label: c.name, meta: formatDate(c.expected_close_date) }))}
                   onNav={() => setOpen(false)}
                 />
               )}

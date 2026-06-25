@@ -1,21 +1,19 @@
 // Domain types — single source of truth, replacing the per-file `any[]` usage.
 
-export type DealStage =
-  | 'Lead'
-  | 'Contatado'
-  | 'Proposta'
-  | 'Negociação'
-  | 'Ganho'
-  | 'Perdido';
-
+// The funnel lives on the contact now (one flow per contact):
+//   active (Kanban) -> Lead · Contatado · Proposta · Negociação
+//   won             -> Cliente · Inativo (inactive client)
+//   lost            -> Arquivado
 export type ContactStatus =
   | 'Lead'
   | 'Contatado'
   | 'Proposta'
   | 'Negociação'
-  | 'Ganho'
   | 'Cliente'
-  | 'Inativo';
+  | 'Inativo'
+  | 'Arquivado';
+
+export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'manual';
 
 export type Priority = 'Baixa' | 'Média' | 'Alta';
 
@@ -32,6 +30,8 @@ export type ActivityType =
   | 'stage_change'
   | 'task';
 
+// A Contact is now the pipeline unit: it carries the funnel position (`status`)
+// AND the deal economics (amount, expected_close_date, closed_at, …).
 export type Contact = {
   id: string;
   user_id?: string;
@@ -40,27 +40,14 @@ export type Contact = {
   phone?: string | null;
   company?: string | null;
   status: ContactStatus;
+  origin?: ContactOrigin | null;
   produto?: string | null;
   lp_url?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type Deal = {
-  id: string;
-  user_id?: string;
-  title: string;
-  company?: string | null;
-  amount: number;
-  stage: DealStage;
+  amount?: number | null;
   priority?: Priority | null;
-  produto?: string | null;
-  archived?: boolean | null;
   expected_close_date?: string | null;
   closed_at?: string | null;
   lost_reason?: string | null;
-  contact_id?: string | null;
-  contacts?: Pick<Contact, 'id' | 'name' | 'produto'> | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -99,7 +86,6 @@ export type Activity = {
   id: string;
   user_id?: string;
   contact_id?: string | null;
-  deal_id?: string | null;
   type: ActivityType;
   content?: string | null;
   created_at: string;

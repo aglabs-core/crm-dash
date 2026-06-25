@@ -7,42 +7,53 @@ import {
   GripVertical,
   Pencil,
   Trash2,
-  User as UserIcon,
   DollarSign,
   Archive,
   ArchiveRestore,
+  Trophy,
   Kanban,
+  Building2,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Deal, Contact, DealStage } from '@/lib/types';
-import { DEAL_STAGES, PRIORITIES, TONE_HEX, stageTone, priorityTone } from '@/lib/constants';
+import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
+import {
+  KANBAN_STATUSES,
+  CONTACT_STATUSES,
+  PRIORITIES,
+  ORIGINS,
+  TONE_HEX,
+  statusTone,
+  priorityTone,
+  originTone,
+  originLabel,
+} from '@/lib/constants';
 import { uniqueProducts } from '@/lib/analytics';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button, Modal, Field, Input, Select, Badge, PageLoader, EmptyState } from '@/components/ui';
-
-const DEAL_SELECT = `*, contacts ( id, name, produto )`;
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const emptyForm = {
-  title: '',
+  name: '',
   company: '',
-  amount: '',
-  stage: 'Lead' as DealStage,
+  email: '',
+  phone: '',
   produto: '',
+  amount: '',
   expected_close_date: '',
   priority: 'Média',
-  contact_id: '',
+  origin: 'prospeccao' as ContactOrigin,
+  status: 'Lead' as ContactStatus,
   lost_reason: '',
 };
 
-function DealsContent() {
+function PipelineContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [productFilter, setProductFilter] = useState('Todos');
   const [view, setView] = useState<'board' | 'archived'>('board');
@@ -50,117 +61,99 @@ function DealsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [editing, setEditing] = useState<Contact | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const confirm = useConfirm();
 
-  const openNewDealModal = (stage: DealStage = 'Lead', contactId = '') => {
-    const contact = contacts.find((c) => c.id === contactId);
-    setEditingDeal(null);
-    setFormData({
-      ...emptyForm,
-      stage,
-      contact_id: contactId,
-      company: contact?.company || '',
-      produto: contact?.produto || '',
-    });
+  const openNew = (status: ContactStatus = 'Lead') => {
+    setEditing(null);
+    setFormData({ ...emptyForm, status });
     setIsModalOpen(true);
   };
 
-  const openEditDealModal = (deal: Deal) => {
-    setEditingDeal(deal);
+  const openEdit = (c: Contact) => {
+    setEditing(c);
     setFormData({
-      title: deal.title,
-      company: deal.company || '',
-      amount: deal.amount ? deal.amount.toString() : '',
-      stage: deal.stage,
-      produto: deal.produto || '',
-      expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
-      priority: deal.priority || 'Média',
-      contact_id: deal.contact_id || '',
-      lost_reason: deal.lost_reason || '',
+      name: c.name,
+      company: c.company || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      produto: c.produto || '',
+      amount: c.amount ? String(c.amount) : '',
+      expected_close_date: c.expected_close_date ? c.expected_close_date.split('T')[0] : '',
+      priority: c.priority || 'Média',
+      origin: (c.origin as ContactOrigin) || 'prospeccao',
+      status: c.status,
+      lost_reason: c.lost_reason || '',
     });
     setIsModalOpen(true);
-  };
-
-  const handleDeleteDeal = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este negócio?')) return;
-    try {
-      const { error } = await supabase.from('deals').delete().eq('id', id);
-      if (error) throw error;
-      setDeals((prev) => prev.filter((d) => d.id !== id));
-      toast.success('Negócio excluído com sucesso!');
-    } catch (error) {
-      console.error('Error deleting deal:', error);
-      toast.error('Erro ao excluir negócio.');
-    }
-  };
-
-  const setArchived = async (deal: Deal, archived: boolean) => {
-    setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, archived } : d)));
-    const { error } = await supabase.from('deals').update({ archived }).eq('id', deal.id);
-    if (error) {
-      console.error('Error archiving deal:', error);
-      setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, archived: !archived } : d)));
-      toast.error('Erro ao atualizar. Rode a migration mais recente.');
-      return;
-    }
-    toast.success(archived ? 'Negócio arquivado.' : 'Negócio restaurado.');
   };
 
   useEffect(() => {
     setIsMounted(true);
-    fetchDeals(true);
-    fetchContacts();
-
+    fetchContacts(true);
     const sub = supabase
-      .channel('deals-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => fetchDeals())
+      .channel('pipeline-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchContacts())
       .subscribe();
-
     return () => {
       supabase.removeChannel(sub);
     };
   }, []);
 
   useEffect(() => {
-    const contactId = searchParams.get('new_deal_contact_id');
-    if (contactId && contacts.length > 0) {
-      openNewDealModal('Lead', contactId);
+    if (searchParams.get('new')) {
+      openNew('Lead');
       router.replace('/deals');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, contacts, router]);
+  }, [searchParams, router]);
 
-  const fetchContacts = async () => {
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('id, name, company, produto')
-      .order('name', { ascending: true });
-    if (error) {
-      console.error('Error fetching contacts:', error);
-      return;
-    }
-    setContacts((data as Contact[]) || []);
-  };
-
-  const fetchDeals = async (showLoader = false) => {
+  const fetchContacts = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
       const { data, error } = await supabase
-        .from('deals')
-        .select(DEAL_SELECT)
-        .order('created_at', { ascending: false });
+        .from('contacts')
+        .select('*')
+        .order('updated_at', { ascending: false });
       if (error) throw error;
-      setDeals((data as Deal[]) || []);
+      setContacts((data as Contact[]) || []);
     } catch (error) {
-      console.error('Error fetching deals:', error);
-      toast.error('Erro ao carregar negócios.');
+      console.error('Error fetching pipeline:', error);
+      toast.error('Erro ao carregar o funil.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSaveDeal = async (e: React.FormEvent) => {
+  const handleDelete = async (id: string) => {
+    const ok = await confirm({
+      title: 'Excluir contato',
+      description: 'O contato e seu histórico serão removidos. Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+    });
+    if (!ok) return;
+    const { error } = await supabase.from('contacts').delete().eq('id', id);
+    if (error) {
+      toast.error('Erro ao excluir.');
+      return;
+    }
+    setContacts((prev) => prev.filter((c) => c.id !== id));
+    toast.success('Contato excluído.');
+  };
+
+  const setStatus = async (c: Contact, status: ContactStatus, msg: string) => {
+    const prev = c.status;
+    setContacts((p) => p.map((x) => (x.id === c.id ? { ...x, status } : x)));
+    const { error } = await supabase.from('contacts').update({ status }).eq('id', c.id);
+    if (error) {
+      setContacts((p) => p.map((x) => (x.id === c.id ? { ...x, status: prev } : x)));
+      toast.error('Erro ao atualizar. Rode a migration mais recente.');
+      return;
+    }
+    toast.success(msg);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
@@ -168,44 +161,39 @@ function DealsContent() {
       if (!userData.user) throw new Error('User not authenticated');
 
       const payload = {
-        title: formData.title,
-        company: formData.company,
-        amount: parseFloat(formData.amount) || 0,
-        stage: formData.stage,
+        name: formData.name,
+        company: formData.company || null,
+        email: formData.email || null,
+        phone: formData.phone || null,
         produto: formData.produto || null,
+        amount: parseFloat(formData.amount) || 0,
         expected_close_date: formData.expected_close_date || null,
         priority: formData.priority,
-        contact_id: formData.contact_id || null,
-        lost_reason: formData.stage === 'Perdido' ? formData.lost_reason || null : null,
+        origin: formData.origin,
+        status: formData.status,
+        lost_reason: formData.status === 'Arquivado' ? formData.lost_reason || null : null,
       };
 
-      if (editingDeal) {
-        const { data, error } = await supabase
-          .from('deals')
-          .update(payload)
-          .eq('id', editingDeal.id)
-          .select(DEAL_SELECT);
+      if (editing) {
+        const { data, error } = await supabase.from('contacts').update(payload).eq('id', editing.id).select();
         if (error) throw error;
-        if (data) {
-          setDeals((prev) => prev.map((d) => (d.id === editingDeal.id ? (data[0] as Deal) : d)));
-          toast.success('Negócio atualizado com sucesso!');
-        }
+        if (data) setContacts((p) => p.map((c) => (c.id === editing.id ? (data[0] as Contact) : c)));
+        toast.success('Contato atualizado.');
       } else {
         const { data, error } = await supabase
-          .from('deals')
+          .from('contacts')
           .insert([{ user_id: userData.user.id, ...payload }])
-          .select(DEAL_SELECT);
+          .select();
         if (error) throw error;
-        if (data) {
-          setDeals((prev) => [data[0] as Deal, ...prev]);
-          toast.success('Negócio criado com sucesso!');
-        }
+        if (data) setContacts((p) => [data[0] as Contact, ...p]);
+        toast.success('Contato criado.');
       }
       setIsModalOpen(false);
-      setEditingDeal(null);
-    } catch (error) {
-      console.error('Error saving deal:', error);
-      toast.error('Erro ao salvar negócio. Verifique se você está logado.');
+      setEditing(null);
+    } catch (error: unknown) {
+      console.error('Error saving contact:', error);
+      const code = (error as { code?: string })?.code;
+      toast.error(code === '23505' ? 'Já existe um contato com esse telefone ou email.' : 'Erro ao salvar.');
     } finally {
       setIsSubmitting(false);
     }
@@ -216,33 +204,25 @@ function DealsContent() {
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    const target = deals.find((d) => d.id === draggableId);
+    const target = contacts.find((c) => c.id === draggableId);
     if (!target) return;
-    const previousStage = target.stage;
-    const nextStage = destination.droppableId as DealStage;
+    const previous = target.status;
+    const next = destination.droppableId as ContactStatus;
 
-    setDeals((prev) => prev.map((d) => (d.id === draggableId ? { ...d, stage: nextStage } : d)));
-
-    const { error } = await supabase.from('deals').update({ stage: nextStage }).eq('id', draggableId);
+    setContacts((prev) => prev.map((c) => (c.id === draggableId ? { ...c, status: next } : c)));
+    const { error } = await supabase.from('contacts').update({ status: next }).eq('id', draggableId);
     if (error) {
-      console.error('Error updating deal stage:', error);
-      setDeals((prev) => prev.map((d) => (d.id === draggableId ? { ...d, stage: previousStage } : d)));
-      toast.error('Erro ao atualizar o estágio do negócio.');
+      setContacts((prev) => prev.map((c) => (c.id === draggableId ? { ...c, status: previous } : c)));
+      toast.error('Erro ao mover o contato.');
     }
   };
 
-  const products = useMemo(() => uniqueProducts(deals), [deals]);
-  const archivedDealsList = useMemo(() => deals.filter((d) => d.archived), [deals]);
-  const byProduct = (d: Deal) => productFilter === 'Todos' || d.produto === productFilter;
-  const filteredDeals = useMemo(
-    () => deals.filter((d) => !d.archived && byProduct(d)),
+  const products = useMemo(() => uniqueProducts(contacts), [contacts]);
+  const byProduct = (c: Contact) => productFilter === 'Todos' || c.produto === productFilter;
+  const archivedList = useMemo(
+    () => contacts.filter((c) => c.status === 'Arquivado' && byProduct(c)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deals, productFilter],
-  );
-  const filteredArchived = useMemo(
-    () => archivedDealsList.filter(byProduct),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [archivedDealsList, productFilter],
+    [contacts, productFilter],
   );
 
   if (!isMounted) return null; // avoid dnd hydration mismatch
@@ -272,18 +252,14 @@ function DealsContent() {
             >
               <Archive className="h-4 w-4" />
               Arquivados
-              {archivedDealsList.length > 0 && (
-                <span className="rounded-full bg-border px-1.5 text-xs text-fg">{archivedDealsList.length}</span>
+              {archivedList.length > 0 && (
+                <span className="rounded-full bg-border px-1.5 text-xs text-fg">{archivedList.length}</span>
               )}
             </button>
           </div>
         </div>
         <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-          <Select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="sm:w-48"
-          >
+          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
@@ -291,9 +267,9 @@ function DealsContent() {
               </option>
             ))}
           </Select>
-          <Button onClick={() => openNewDealModal()}>
+          <Button onClick={() => openNew()}>
             <Plus className="h-4 w-4" />
-            Novo Negócio
+            Novo Lead
           </Button>
         </div>
       </div>
@@ -302,37 +278,34 @@ function DealsContent() {
         {isLoading ? (
           <PageLoader />
         ) : view === 'archived' ? (
-          filteredArchived.length === 0 ? (
+          archivedList.length === 0 ? (
             <EmptyState
               icon={Archive}
-              title="Nenhum negócio arquivado"
-              description="Arquive negócios parados ou perdidos para limpar o funil sem apagá-los."
+              title="Nenhum contato arquivado"
+              description="Arquive contatos que não fecharam para limpar o funil sem perdê-los."
             />
           ) : (
             <div className="space-y-2">
-              {filteredArchived.map((deal) => (
-                <div
-                  key={deal.id}
-                  className="flex items-center gap-4 rounded-lg border border-border bg-surface p-4"
-                >
+              {archivedList.map((c) => (
+                <div key={c.id} className="flex items-center gap-4 rounded-lg border border-border bg-surface p-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_HEX[stageTone(deal.stage)] }} />
-                      <p className="truncate text-sm font-semibold text-fg">{deal.title}</p>
-                      <Badge tone={stageTone(deal.stage)}>{deal.stage}</Badge>
-                      {deal.produto && <Badge tone="purple">{deal.produto}</Badge>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-fg">{c.name}</p>
+                      {c.produto && <Badge tone="purple">{c.produto}</Badge>}
+                      <Badge tone={originTone(c.origin)}>{originLabel(c.origin)}</Badge>
                     </div>
                     <p className="mt-1 truncate text-xs text-muted">
-                      {deal.company || '—'} · {formatCurrency(deal.amount)}
+                      {c.company || '—'} · {formatCurrency(c.amount)}
+                      {c.lost_reason ? ` · ${c.lost_reason}` : ''}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setArchived(deal, false)}>
+                    <Button size="sm" variant="secondary" onClick={() => setStatus(c, 'Lead', 'Contato restaurado.')}>
                       <ArchiveRestore className="h-4 w-4" />
                       Restaurar
                     </Button>
                     <button
-                      onClick={() => handleDeleteDeal(deal.id)}
+                      onClick={() => handleDelete(c.id)}
                       className="p-1 text-muted transition-colors hover:text-red-500"
                       aria-label="Excluir"
                     >
@@ -346,9 +319,9 @@ function DealsContent() {
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex h-full min-w-max items-start gap-5">
-              {DEAL_STAGES.map((stage) => {
-                const columnDeals = filteredDeals.filter((d) => d.stage === stage.id);
-                const columnTotal = columnDeals.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+              {KANBAN_STATUSES.map((stage) => {
+                const columnContacts = contacts.filter((c) => c.status === stage.id && byProduct(c));
+                const columnTotal = columnContacts.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
                 return (
                   <div
                     key={stage.id}
@@ -357,21 +330,18 @@ function DealsContent() {
                     <div className="flex shrink-0 items-center justify-between rounded-t-xl border-b border-border p-4">
                       <div>
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{ background: TONE_HEX[stage.tone] }}
-                          />
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ background: TONE_HEX[stage.tone] }} />
                           {stage.label}
                           <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted">
-                            {columnDeals.length}
+                            {columnContacts.length}
                           </span>
                         </h3>
                         <p className="mt-1 text-xs font-medium text-muted">{formatCurrency(columnTotal)}</p>
                       </div>
                       <button
-                        onClick={() => openNewDealModal(stage.id)}
+                        onClick={() => openNew(stage.id)}
                         className="rounded-md p-1 text-muted transition-colors hover:bg-surface-2 hover:text-brand"
-                        aria-label={`Novo negócio em ${stage.label}`}
+                        aria-label={`Novo em ${stage.label}`}
                       >
                         <Plus className="h-5 w-5" />
                       </button>
@@ -386,8 +356,8 @@ function DealsContent() {
                             snapshot.isDraggingOver ? 'bg-brand/5' : ''
                           }`}
                         >
-                          {columnDeals.map((deal, index) => (
-                            <Draggable key={deal.id} draggableId={deal.id} index={index}>
+                          {columnContacts.map((c, index) => (
+                            <Draggable key={c.id} draggableId={c.id} index={index}>
                               {(prov, snap) => (
                                 <div
                                   ref={prov.innerRef}
@@ -400,61 +370,63 @@ function DealsContent() {
                                   }`}
                                 >
                                   <div className="mb-2 flex items-start justify-between gap-2">
-                                    <Badge tone={priorityTone(deal.priority)}>{deal.priority || 'Média'}</Badge>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Badge tone={priorityTone(c.priority)}>{c.priority || 'Média'}</Badge>
+                                      <Badge tone={originTone(c.origin)}>{originLabel(c.origin)}</Badge>
+                                    </div>
                                     <div className="flex items-center gap-1 text-muted">
                                       <button
-                                        onClick={() => openEditDealModal(deal)}
+                                        onClick={() => setStatus(c, 'Cliente', 'Ganho! Virou cliente. 🎉')}
+                                        className="opacity-0 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
+                                        aria-label="Marcar como cliente"
+                                        title="Ganhou (vira Cliente)"
+                                      >
+                                        <Trophy className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => openEdit(c)}
                                         className="opacity-0 transition-opacity hover:text-brand group-hover:opacity-100"
                                         aria-label="Editar"
                                       >
                                         <Pencil className="h-4 w-4" />
                                       </button>
                                       <button
-                                        onClick={() => setArchived(deal, true)}
+                                        onClick={() => setStatus(c, 'Arquivado', 'Contato arquivado.')}
                                         className="opacity-0 transition-opacity hover:text-amber-500 group-hover:opacity-100"
                                         aria-label="Arquivar"
-                                        title="Arquivar"
+                                        title="Arquivar (não fechou)"
                                       >
                                         <Archive className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteDeal(deal.id)}
-                                        className="opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                                        aria-label="Excluir"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
                                       </button>
                                       <GripVertical className="ml-1 h-4 w-4 cursor-grab opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing" />
                                     </div>
                                   </div>
-                                  <h4 className="mb-1 text-sm font-semibold text-fg">{deal.title}</h4>
-                                  <p className="mb-1 text-xs text-muted">{deal.company || '—'}</p>
-                                  {deal.contacts && (
-                                    <Link
-                                      href={`/contacts/${deal.contacts.id}`}
-                                      className="mb-2 inline-flex items-center gap-1 text-xs text-brand hover:underline"
-                                    >
-                                      <UserIcon className="h-3 w-3" />
-                                      {deal.contacts.name}
-                                    </Link>
+                                  <Link
+                                    href={`/contacts/${c.id}`}
+                                    className="mb-1 block text-sm font-semibold text-fg hover:text-brand"
+                                  >
+                                    {c.name}
+                                  </Link>
+                                  {c.company && (
+                                    <p className="mb-1 flex items-center gap-1 text-xs text-muted">
+                                      <Building2 className="h-3 w-3" />
+                                      {c.company}
+                                    </p>
                                   )}
-                                  {deal.produto && (
+                                  {c.produto && (
                                     <div className="mb-2">
-                                      <Badge tone="purple">{deal.produto}</Badge>
+                                      <Badge tone="purple">{c.produto}</Badge>
                                     </div>
-                                  )}
-                                  {deal.stage === 'Perdido' && deal.lost_reason && (
-                                    <p className="mb-2 text-xs italic text-red-500">{deal.lost_reason}</p>
                                   )}
                                   <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
                                     <span className="flex items-center gap-1 font-medium text-fg">
                                       <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                                      {formatCurrency(deal.amount)}
+                                      {formatCurrency(c.amount)}
                                     </span>
-                                    {deal.expected_close_date && (
+                                    {c.expected_close_date && (
                                       <span className="flex items-center gap-1">
                                         <Calendar className="h-3.5 w-3.5" />
-                                        {formatDate(deal.expected_close_date)}
+                                        {formatDate(c.expected_close_date)}
                                       </span>
                                     )}
                                   </div>
@@ -477,96 +449,56 @@ function DealsContent() {
       <Modal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingDeal ? 'Editar Negócio' : 'Novo Negócio'}
+        title={editing ? 'Editar Contato' : 'Novo Lead'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" form="deal-form" loading={isSubmitting}>
-              {editingDeal ? 'Salvar' : 'Criar Negócio'}
+            <Button type="submit" form="pipeline-form" loading={isSubmitting}>
+              {editing ? 'Salvar' : 'Criar'}
             </Button>
           </>
         }
       >
-        <form id="deal-form" onSubmit={handleSaveDeal} className="space-y-4">
-          <Field label="Título do Negócio" htmlFor="title" required>
+        <form id="pipeline-form" onSubmit={handleSave} className="space-y-4">
+          <Field label="Nome" htmlFor="name" required>
             <Input
-              id="title"
+              id="name"
               required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Ex: Redesign de Site"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ex: João Silva"
             />
           </Field>
-          <Field label="Contato (Lead)" htmlFor="contact_id">
-            <Select
-              id="contact_id"
-              value={formData.contact_id}
-              onChange={(e) => {
-                const contact = contacts.find((c) => c.id === e.target.value);
-                setFormData((prev) => ({
-                  ...prev,
-                  contact_id: e.target.value,
-                  company: prev.company || contact?.company || '',
-                  produto: prev.produto || contact?.produto || '',
-                }));
-              }}
-            >
-              <option value="">Selecione um contato</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.company ? `(${c.company})` : ''}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="WhatsApp / Telefone" htmlFor="phone">
+              <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+            </Field>
+            <Field label="Email" htmlFor="email">
+              <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Empresa" htmlFor="company">
-              <Input
-                id="company"
-                value={formData.company}
-                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                placeholder="Nome da Empresa"
-              />
+              <Input id="company" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} />
             </Field>
             <Field label="Produto" htmlFor="produto">
-              <Input
-                id="produto"
-                value={formData.produto}
-                onChange={(e) => setFormData({ ...formData, produto: e.target.value })}
-                placeholder="Ex: Consultoria"
-              />
+              <Input id="produto" value={formData.produto} onChange={(e) => setFormData({ ...formData, produto: e.target.value })} placeholder="Ex: Consultoria" />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Valor (R$)" htmlFor="amount">
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="0,00"
-              />
+              <Input id="amount" type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0,00" />
             </Field>
             <Field label="Fechamento Esperado" htmlFor="expected_close_date">
-              <Input
-                id="expected_close_date"
-                type="date"
-                value={formData.expected_close_date}
-                onChange={(e) => setFormData({ ...formData, expected_close_date: e.target.value })}
-              />
+              <Input id="expected_close_date" type="date" value={formData.expected_close_date} onChange={(e) => setFormData({ ...formData, expected_close_date: e.target.value })} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Estágio" htmlFor="stage">
-              <Select
-                id="stage"
-                value={formData.stage}
-                onChange={(e) => setFormData({ ...formData, stage: e.target.value as DealStage })}
-              >
-                {DEAL_STAGES.map((s) => (
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="Etapa" htmlFor="status">
+              <Select id="status" value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as ContactStatus })}>
+                {CONTACT_STATUSES.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
                   </option>
@@ -574,11 +506,7 @@ function DealsContent() {
               </Select>
             </Field>
             <Field label="Prioridade" htmlFor="priority">
-              <Select
-                id="priority"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              >
+              <Select id="priority" value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })}>
                 {PRIORITIES.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
@@ -586,15 +514,19 @@ function DealsContent() {
                 ))}
               </Select>
             </Field>
+            <Field label="Origem" htmlFor="origin">
+              <Select id="origin" value={formData.origin} onChange={(e) => setFormData({ ...formData, origin: e.target.value as ContactOrigin })}>
+                {ORIGINS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
-          {formData.stage === 'Perdido' && (
-            <Field label="Motivo da Perda" htmlFor="lost_reason" hint="Por que o negócio foi perdido?">
-              <Input
-                id="lost_reason"
-                value={formData.lost_reason}
-                onChange={(e) => setFormData({ ...formData, lost_reason: e.target.value })}
-                placeholder="Ex: Preço acima do orçamento"
-              />
+          {formData.status === 'Arquivado' && (
+            <Field label="Motivo (não fechou)" htmlFor="lost_reason" hint="Por que não avançou?">
+              <Input id="lost_reason" value={formData.lost_reason} onChange={(e) => setFormData({ ...formData, lost_reason: e.target.value })} placeholder="Ex: Preço acima do orçamento" />
             </Field>
           )}
         </form>
@@ -606,7 +538,7 @@ function DealsContent() {
 export default function Deals() {
   return (
     <Suspense fallback={<PageLoader />}>
-      <DealsContent />
+      <PipelineContent />
     </Suspense>
   );
 }

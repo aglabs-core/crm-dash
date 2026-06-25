@@ -9,7 +9,6 @@ import {
   Phone,
   Building2,
   ExternalLink,
-  Plus,
   DollarSign,
   Briefcase,
   CheckSquare,
@@ -17,10 +16,17 @@ import {
   Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Contact, Deal, Task, Activity, ActivityType } from '@/lib/types';
-import { statusTone, stageTone, priorityTone } from '@/lib/constants';
+import type { Contact, Task, Activity, ActivityType } from '@/lib/types';
+import {
+  statusTone,
+  statusLabel,
+  priorityTone,
+  originTone,
+  originLabel,
+  isClientStatus,
+  isActiveStatus,
+} from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { totalRevenue, pipelineValue, isOpen } from '@/lib/analytics';
 import { logActivity } from '@/lib/activities';
 import {
   Card,
@@ -40,7 +46,6 @@ export default function ContactDetail() {
   const id = params.id;
 
   const [contact, setContact] = useState<Contact | null>(null);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,16 +54,14 @@ export default function ContactDetail() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [contactRes, dealsRes, tasksRes, actsRes] = await Promise.all([
+      const [contactRes, tasksRes, actsRes] = await Promise.all([
         supabase.from('contacts').select('*').eq('id', id).maybeSingle(),
-        supabase.from('deals').select('*').eq('contact_id', id).order('created_at', { ascending: false }),
         supabase.from('tasks').select('*').eq('contact_id', id).order('due_date', { ascending: true }),
         supabase.from('activities').select('*').eq('contact_id', id).order('created_at', { ascending: false }),
       ]);
       if (!active) return;
       if (!contactRes.data) setNotFound(true);
       else setContact(contactRes.data as Contact);
-      setDeals((dealsRes.data as Deal[]) || []);
       setTasks((tasksRes.data as Task[]) || []);
       setActivities((actsRes.data as Activity[]) || []);
       setIsLoading(false);
@@ -105,9 +108,9 @@ export default function ContactDetail() {
     );
   }
 
-  const wonValue = totalRevenue(deals);
-  const openValue = pipelineValue(deals);
-  const openCount = deals.filter(isOpen).length;
+  const amount = Number(contact.amount) || 0;
+  const isClient = isClientStatus(contact.status);
+  const isActive = isActiveStatus(contact.status);
   const pendingTasks = tasks.filter((t) => t.status === 'pending');
   const initials =
     contact.name
@@ -134,7 +137,8 @@ export default function ContactDetail() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-fg">{contact.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge tone={statusTone(contact.status)}>{contact.status}</Badge>
+                <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
+                <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                 {contact.produto && <Badge tone="purple">{contact.produto}</Badge>}
               </div>
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
@@ -170,10 +174,10 @@ export default function ContactDetail() {
               </div>
             </div>
           </div>
-          <Link href={`/deals?new_deal_contact_id=${contact.id}`}>
-            <Button>
-              <Plus className="h-4 w-4" />
-              Novo Negócio
+          <Link href="/deals">
+            <Button variant="secondary">
+              <Briefcase className="h-4 w-4" />
+              Abrir no Funil
             </Button>
           </Link>
         </div>
@@ -181,9 +185,13 @@ export default function ContactDetail() {
 
       {/* Rollups */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Receita Ganha" value={formatCurrency(wonValue)} icon={DollarSign} />
-        <StatCard label="Em Aberto" value={formatCurrency(openValue)} icon={Briefcase} />
-        <StatCard label="Negócios Abertos" value={openCount} icon={Briefcase} />
+        <StatCard label="Valor do Negócio" value={formatCurrency(amount)} icon={DollarSign} />
+        <StatCard label="Etapa" value={statusLabel(contact.status)} icon={Briefcase} />
+        <StatCard
+          label="Situação"
+          value={isClient ? 'Cliente' : isActive ? 'Em atendimento' : 'Arquivado'}
+          icon={Users}
+        />
         <StatCard label="Tarefas Pendentes" value={pendingTasks.length} icon={CheckSquare} />
       </div>
 
@@ -198,30 +206,38 @@ export default function ContactDetail() {
           </CardBody>
         </Card>
 
-        {/* Deals + Tasks */}
+        {/* Pipeline + Tasks */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Negócios</CardTitle>
-              <span className="text-sm text-muted">{deals.length}</span>
+              <CardTitle>Pipeline</CardTitle>
+              <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
             </CardHeader>
-            <CardBody className="space-y-2">
-              {deals.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted">Nenhum negócio.</p>
-              ) : (
-                deals.map((d) => (
-                  <Link
-                    key={d.id}
-                    href="/deals"
-                    className="flex items-center justify-between rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-fg">{d.title}</p>
-                      <p className="text-xs text-muted">{formatCurrency(d.amount)}</p>
-                    </div>
-                    <Badge tone={stageTone(d.stage)}>{d.stage}</Badge>
-                  </Link>
-                ))
+            <CardBody className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Valor</span>
+                <span className="font-semibold text-fg">{formatCurrency(amount)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Prioridade</span>
+                <Badge tone={priorityTone(contact.priority)}>{contact.priority || 'Média'}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Origem</span>
+                <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Fechamento previsto</span>
+                <span className="text-fg">{contact.expected_close_date ? formatDate(contact.expected_close_date) : '—'}</span>
+              </div>
+              {contact.closed_at && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted">Fechado em</span>
+                  <span className="text-fg">{formatDate(contact.closed_at)}</span>
+                </div>
+              )}
+              {contact.status === 'Arquivado' && contact.lost_reason && (
+                <p className="rounded-lg bg-surface-2 p-2 text-xs italic text-muted">{contact.lost_reason}</p>
               )}
             </CardBody>
           </Card>

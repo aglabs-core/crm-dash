@@ -33,7 +33,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import type { Deal, Task } from '@/lib/types';
+import type { Contact, Task } from '@/lib/types';
 import {
   totalRevenue,
   pipelineValue,
@@ -46,7 +46,7 @@ import {
   revenueByProduct,
   winLossCounts,
   isTaskOverdue,
-  dealsClosingSoon,
+  closingSoon,
 } from '@/lib/analytics';
 import { TONE_HEX } from '@/lib/constants';
 import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, type Change } from '@/lib/format';
@@ -82,13 +82,13 @@ function Trend({ change, hint }: { change?: Change | null; hint?: string }) {
 }
 
 export default function Dashboard() {
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchData(true);
-    const channels = ['deals', 'tasks', 'activities'].map((table) =>
+    const channels = ['contacts', 'tasks', 'activities'].map((table) =>
       supabase
         .channel(`dash-${table}`)
         .on('postgres_changes', { event: '*', schema: 'public', table }, () => fetchData())
@@ -102,12 +102,11 @@ export default function Dashboard() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const [dealsRes, tasksRes] = await Promise.all([
-        supabase.from('deals').select('*, contacts ( id, name )').order('created_at', { ascending: false }),
+      const [contactsRes, tasksRes] = await Promise.all([
+        supabase.from('contacts').select('*').order('updated_at', { ascending: false }),
         supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
       ]);
-      // Archived deals never feed the dashboard.
-      setDeals(((dealsRes.data as Deal[]) || []).filter((d) => !d.archived));
+      setContacts((contactsRes.data as Contact[]) || []);
       setTasks((tasksRes.data as Task[]) || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -122,26 +121,26 @@ export default function Dashboard() {
     const curY = now.getFullYear();
     const prev = new Date(curY, curM - 1, 1);
 
-    const won = deals.filter(isWon);
-    const revThis = won.filter((d) => inMonth(d.closed_at, curM, curY)).reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const won = contacts.filter(isWon);
+    const revThis = won.filter((c) => inMonth(c.closed_at, curM, curY)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
     const revPrev = won
-      .filter((d) => inMonth(d.closed_at, prev.getMonth(), prev.getFullYear()))
-      .reduce((s, d) => s + (Number(d.amount) || 0), 0);
+      .filter((c) => inMonth(c.closed_at, prev.getMonth(), prev.getFullYear()))
+      .reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
-    const series = monthlySeries(deals, 6);
+    const series = monthlySeries(contacts, 6);
     const last = series[series.length - 1];
     const prevPoint = series[series.length - 2];
 
-    const stalled = deals
-      .filter((d) => isOpen(d) && d.updated_at && Date.now() - new Date(d.updated_at).getTime() > STALE_DAYS * 86_400_000)
+    const stalled = contacts
+      .filter((c) => isOpen(c) && c.updated_at && Date.now() - new Date(c.updated_at).getTime() > STALE_DAYS * 86_400_000)
       .sort((a, b) => new Date(a.updated_at as string).getTime() - new Date(b.updated_at as string).getTime());
 
     return {
-      revenue: totalRevenue(deals),
+      revenue: totalRevenue(contacts),
       revenueChange: formatChange(revThis, revPrev),
-      pipeline: pipelineValue(deals),
-      openCount: openDealsCount(deals),
-      winRate: winRate(deals),
+      pipeline: pipelineValue(contacts),
+      openCount: openDealsCount(contacts),
+      winRate: winRate(contacts),
       newThis: last?.newCount ?? 0,
       newChange: formatChange(last?.newCount ?? 0, prevPoint?.newCount ?? 0),
       series,
@@ -149,14 +148,14 @@ export default function Dashboard() {
       sparkPipeline: series.map((p) => p.pipeline),
       sparkRate: series.map((p) => p.rate ?? 0),
       sparkNew: series.map((p) => p.newCount),
-      funnel: pipelineByStage(deals),
-      products: revenueByProduct(deals).slice(0, 6),
-      winLoss: winLossCounts(deals),
+      funnel: pipelineByStage(contacts),
+      products: revenueByProduct(contacts).slice(0, 6),
+      winLoss: winLossCounts(contacts),
       overdue: tasks.filter(isTaskOverdue),
-      closing: dealsClosingSoon(deals, 30),
+      closing: closingSoon(contacts, 30),
       stalled,
     };
-  }, [deals, tasks]);
+  }, [contacts, tasks]);
 
   if (isLoading) return <PageLoader />;
 
@@ -164,13 +163,13 @@ export default function Dashboard() {
     { id: 'sp-rev', label: 'Receita Ganha', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
     { id: 'sp-pipe', label: 'Em Pipeline', value: formatCurrency(m.pipeline), icon: Briefcase, color: TONE_HEX.emerald, spark: m.sparkPipeline, hint: `${m.openCount} abertos` },
     { id: 'sp-rate', label: 'Taxa de Ganho', value: formatPercent(m.winRate), icon: TrendingUp, color: TONE_HEX.amber, spark: m.sparkRate, hint: 'fechados' },
-    { id: 'sp-new', label: 'Novos Negócios', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
+    { id: 'sp-new', label: 'Novos Leads', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
   ];
 
   const attn = [
     { label: 'Tarefas vencidas', icon: AlertTriangle, color: TONE_HEX.red, count: m.overdue.length, sub: m.overdue[0]?.title ?? '', href: '/tasks' },
-    { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0]?.title ?? '', href: '/deals' },
-    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0]?.title ?? '', href: '/deals' },
+    { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0]?.name ?? '', href: '/deals' },
+    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0]?.name ?? '', href: '/deals' },
   ];
 
   const winLossData = [
@@ -185,10 +184,10 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight text-fg">Dashboard</h1>
           <p className="mt-0.5 text-sm text-muted">Resumo do seu funil de vendas</p>
         </div>
-        <Link href="/deals">
+        <Link href="/deals?new=1">
           <Button>
             <Plus className="h-4 w-4" />
-            Novo Negócio
+            Novo Lead
           </Button>
         </Link>
       </div>

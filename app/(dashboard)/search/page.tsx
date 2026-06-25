@@ -3,20 +3,18 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, Briefcase, CheckSquare, ArrowRight } from 'lucide-react';
+import { Users, CheckSquare, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Contact, Deal, Task } from '@/lib/types';
-import { statusTone, stageTone } from '@/lib/constants';
-import { formatCurrency } from '@/lib/format';
+import type { Contact, Task } from '@/lib/types';
+import { statusTone, statusLabel, originLabel } from '@/lib/constants';
 import { Card, Badge, EmptyState, PageLoader } from '@/components/ui';
 
 function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
   const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<{ contacts: Contact[]; deals: Deal[]; tasks: Task[] }>({
+  const [results, setResults] = useState<{ contacts: Contact[]; tasks: Task[] }>({
     contacts: [],
-    deals: [],
     tasks: [],
   });
 
@@ -25,14 +23,16 @@ function SearchContent() {
     (async () => {
       setIsLoading(true);
       const like = `%${query}%`;
-      const [contactsRes, dealsRes, tasksRes] = await Promise.all([
-        supabase.from('contacts').select('*').or(`name.ilike.${like},email.ilike.${like},company.ilike.${like}`).limit(10),
-        supabase.from('deals').select('*').or(`title.ilike.${like},company.ilike.${like}`).limit(10),
+      const [contactsRes, tasksRes] = await Promise.all([
+        supabase
+          .from('contacts')
+          .select('*')
+          .or(`name.ilike.${like},email.ilike.${like},company.ilike.${like}`)
+          .limit(15),
         supabase.from('tasks').select('*').or(`title.ilike.${like}`).limit(10),
       ]);
       setResults({
         contacts: (contactsRes.data as Contact[]) || [],
-        deals: (dealsRes.data as Deal[]) || [],
         tasks: (tasksRes.data as Task[]) || [],
       });
       setIsLoading(false);
@@ -40,11 +40,11 @@ function SearchContent() {
   }, [query]);
 
   if (!query) {
-    return <EmptyState icon={Users} title="Digite algo para buscar" description="Busque por contatos, negócios ou tarefas." />;
+    return <EmptyState icon={Users} title="Digite algo para buscar" description="Busque por contatos ou tarefas." />;
   }
   if (isLoading) return <PageLoader />;
 
-  const hasResults = results.contacts.length > 0 || results.deals.length > 0 || results.tasks.length > 0;
+  const hasResults = results.contacts.length > 0 || results.tasks.length > 0;
   if (!hasResults) {
     return <EmptyState icon={Users} title="Nenhum resultado encontrado" description={`Não encontramos nada para "${query}".`} />;
   }
@@ -68,31 +68,11 @@ function SearchContent() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-fg">{c.name}</p>
                     <p className="truncate text-xs text-muted">
-                      {c.email} {c.company && `· ${c.company}`}
+                      {c.email} {c.company && `· ${c.company}`} · {originLabel(c.origin)}
                     </p>
                   </div>
                 </div>
-                <Badge tone={statusTone(c.status)}>{c.status}</Badge>
-              </Link>
-            ))}
-          </Card>
-        </section>
-      )}
-
-      {results.deals.length > 0 && (
-        <section>
-          <SectionHeader icon={Briefcase} title={`Negócios (${results.deals.length})`} href="/deals" />
-          <Card className="divide-y divide-border overflow-hidden">
-            {results.deals.map((d) => (
-              <Link key={d.id} href="/deals" className="flex items-center justify-between gap-4 px-4 py-4 transition-colors hover:bg-surface-2/50">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-fg">{d.title}</p>
-                  <p className="truncate text-xs text-muted">{d.company}</p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-sm font-medium text-fg">{formatCurrency(d.amount)}</span>
-                  <Badge tone={stageTone(d.stage)}>{d.stage}</Badge>
-                </div>
+                <Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge>
               </Link>
             ))}
           </Card>

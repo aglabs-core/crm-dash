@@ -31,6 +31,7 @@ import {
   PageLoader,
   StatCard,
 } from '@/components/ui';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 /** wa.me link from a free-form phone (assumes BR if no country code). */
 function whatsappLink(raw?: string | null): string | null {
@@ -45,11 +46,13 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<InstitutionalLead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'Todos' | LeadStatus>('Todos');
+  // Default to "pendentes": converted/discarded leads have left the inbox.
+  const [statusFilter, setStatusFilter] = useState<'pendentes' | 'Todos' | LeadStatus>('pendentes');
 
   const [converting, setConverting] = useState<InstitutionalLead | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [convertForm, setConvertForm] = useState({ name: '', email: '', phone: '', company: '', produto: '' });
+  const confirm = useConfirm();
 
   useEffect(() => {
     fetchLeads(true);
@@ -90,7 +93,12 @@ export default function LeadsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir este lead da captação?')) return;
+    const ok = await confirm({
+      title: 'Excluir lead',
+      description: 'O lead será removido da captação. Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+    });
+    if (!ok) return;
     const { error } = await supabase.from('leads_institucional').delete().eq('id', id);
     if (error) {
       toast.error('Erro ao excluir lead.');
@@ -130,6 +138,7 @@ export default function LeadsPage() {
             company: convertForm.company || null,
             produto: convertForm.produto || null,
             status: 'Lead',
+            origin: 'web',
           },
         ])
         .select()
@@ -164,7 +173,12 @@ export default function LeadsPage() {
         l.lead?.toLowerCase().includes(term) ||
         (l.email?.toLowerCase().includes(term) ?? false) ||
         (l.whatsapp?.toLowerCase().includes(term) ?? false);
-      const matchesStatus = statusFilter === 'Todos' || l.status === statusFilter;
+      const matchesStatus =
+        statusFilter === 'Todos'
+          ? true
+          : statusFilter === 'pendentes'
+            ? l.status === 'novo' || l.status === 'contatado'
+            : l.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [leads, searchTerm, statusFilter]);
@@ -210,9 +224,10 @@ export default function LeadsPage() {
           </div>
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'Todos' | LeadStatus)}
+            onChange={(e) => setStatusFilter(e.target.value as 'pendentes' | 'Todos' | LeadStatus)}
             className="sm:w-48"
           >
+            <option value="pendentes">Pendentes</option>
             <option value="Todos">Todos os status</option>
             {LEAD_STATUSES.map((s) => (
               <option key={s.id} value={s.id}>

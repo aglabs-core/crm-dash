@@ -5,7 +5,6 @@ import type { Activity, ActivityType } from './types';
  *  automatically by a DB trigger; this is for manual notes/calls/emails/etc. */
 export async function logActivity(input: {
   contact_id?: string | null;
-  deal_id?: string | null;
   type: ActivityType;
   content: string;
 }): Promise<Activity | null> {

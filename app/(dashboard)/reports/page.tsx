@@ -26,7 +26,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import type { Deal, Contact } from '@/lib/types';
+import type { Contact } from '@/lib/types';
 import { TONE_HEX } from '@/lib/constants';
 import {
   avgDealSize,
@@ -41,7 +41,7 @@ import {
   productPerformance,
   leadsByProduct,
   uniqueProducts,
-  filterDealsByPeriod,
+  filterByPeriod,
 } from '@/lib/analytics';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, formatDate } from '@/lib/format';
 import {
@@ -66,7 +66,6 @@ function csvCell(v: string | number | null | undefined): string {
 }
 
 export default function Reports() {
-  const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [productFilter, setProductFilter] = useState('Todos');
@@ -74,70 +73,54 @@ export default function Reports() {
 
   useEffect(() => {
     (async () => {
-      const [dealsRes, contactsRes] = await Promise.all([
-        supabase.from('deals').select('*').order('created_at', { ascending: true }),
-        supabase.from('contacts').select('id, produto, status, created_at'),
-      ]);
-      if (dealsRes.error) console.error('Error fetching report data:', dealsRes.error);
-      // Archived deals are excluded from every report — they are noise, not history.
-      setAllDeals(((dealsRes.data as Deal[]) || []).filter((d) => !d.archived));
-      setAllContacts((contactsRes.data as Contact[]) || []);
+      const { data, error } = await supabase.from('contacts').select('*').order('created_at', { ascending: true });
+      if (error) console.error('Error fetching report data:', error);
+      setAllContacts((data as Contact[]) || []);
       setIsLoading(false);
     })();
   }, []);
 
-  const products = useMemo(() => uniqueProducts(allDeals), [allDeals]);
+  const products = useMemo(() => uniqueProducts(allContacts), [allContacts]);
 
-  const inPeriod = (created?: string) =>
-    !periodDays || (created ? Date.now() - new Date(created).getTime() <= periodDays * 86_400_000 : false);
-
-  const deals = useMemo(() => {
-    const byPeriod = filterDealsByPeriod(allDeals, periodDays);
-    return byPeriod.filter((d) => productFilter === 'Todos' || d.produto === productFilter);
-  }, [allDeals, productFilter, periodDays]);
-
-  const contacts = useMemo(
-    () =>
-      allContacts
-        .filter((c) => inPeriod(c.created_at))
-        .filter((c) => productFilter === 'Todos' || c.produto === productFilter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allContacts, productFilter, periodDays],
-  );
+  const contacts = useMemo(() => {
+    const byPeriod = filterByPeriod(allContacts, periodDays);
+    return byPeriod.filter((c) => productFilter === 'Todos' || c.produto === productFilter);
+  }, [allContacts, productFilter, periodDays]);
 
   const monthsWindow = periodDays ? Math.min(12, Math.max(2, Math.round(periodDays / 30))) : 12;
 
   const metrics = useMemo(() => {
-    const { won, lost } = winLossCounts(deals);
-    const cycle = avgSalesCycleDays(deals);
+    const { won, lost } = winLossCounts(contacts);
+    const cycle = avgSalesCycleDays(contacts);
     return {
-      revenue: totalRevenue(deals),
-      pipeline: pipelineValue(deals),
-      avgDealSize: avgDealSize(deals),
-      winRate: winRate(deals),
+      revenue: totalRevenue(contacts),
+      pipeline: pipelineValue(contacts),
+      avgDealSize: avgDealSize(contacts),
+      winRate: winRate(contacts),
       salesCycle: cycle === null ? '—' : `${Math.round(cycle)} dias`,
       closed: won + lost,
-      series: monthlySeries(deals, monthsWindow),
-      funnel: pipelineByStage(deals),
-      products: revenueByProduct(deals).slice(0, 8),
-      perf: productPerformance(deals),
+      series: monthlySeries(contacts, monthsWindow),
+      funnel: pipelineByStage(contacts),
+      products: revenueByProduct(contacts).slice(0, 8),
+      perf: productPerformance(contacts),
       leadsProduct: leadsByProduct(contacts).slice(0, 8),
     };
-  }, [deals, contacts, monthsWindow]);
+  }, [contacts, monthsWindow]);
 
   const periodLabel = PERIODS.find((p) => p.value === periodDays)?.label ?? 'Todo o período';
 
   const exportCSV = () => {
-    const headers = ['Título', 'Empresa', 'Produto', 'Estágio', 'Valor', 'Prioridade', 'Criado', 'Fechado'];
-    const rows = deals.map((d) => [
-      d.title,
-      d.company || '',
-      d.produto || '',
-      d.stage,
-      Number(d.amount) || 0,
-      d.priority || '',
-      d.created_at ? formatDate(d.created_at) : '',
-      d.closed_at ? formatDate(d.closed_at) : '',
+    const headers = ['Nome', 'Empresa', 'Produto', 'Status', 'Origem', 'Valor', 'Prioridade', 'Criado', 'Fechado'];
+    const rows = contacts.map((c) => [
+      c.name,
+      c.company || '',
+      c.produto || '',
+      c.status,
+      c.origin || '',
+      Number(c.amount) || 0,
+      c.priority || '',
+      c.created_at ? formatDate(c.created_at) : '',
+      c.closed_at ? formatDate(c.closed_at) : '',
     ]);
     const csv = [headers, ...rows].map((r) => r.map(csvCell).join(';')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -157,8 +140,7 @@ export default function Reports() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg">Relatórios e Análises</h1>
           <p className="mt-0.5 text-sm text-muted">
-            {formatNumber(deals.length)} negócios · {formatNumber(contacts.length)} leads ·{' '}
-            <span className="text-fg/80">{periodLabel}</span>
+            {formatNumber(contacts.length)} no funil · <span className="text-fg/80">{periodLabel}</span>
             {productFilter !== 'Todos' && (
               <>
                 {' '}
@@ -196,10 +178,10 @@ export default function Reports() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} hint="negócios ganhos" />
-        <StatCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} hint="negócios em aberto" />
-        <StatCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} hint="por negócio ganho" />
-        <StatCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} hint="negócios fechados" />
+        <StatCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} hint="clientes" />
+        <StatCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} hint="em atendimento" />
+        <StatCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} hint="por cliente" />
+        <StatCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} hint="fechados" />
         <StatCard label="Ciclo de Vendas" value={metrics.salesCycle} icon={Timer} hint="criação → fechamento" />
       </div>
 
@@ -227,7 +209,7 @@ export default function Reports() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Taxa de Conversão" subtitle="% de negócios ganhos entre os fechados" icon={TrendingUp}>
+        <ChartCard title="Taxa de Conversão" subtitle="% de ganhos entre os fechados" icon={TrendingUp}>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={metrics.series} margin={{ top: 16, right: 12, left: -10, bottom: 0 }}>
@@ -249,7 +231,7 @@ export default function Reports() {
 
       {/* Funnel + leads by product */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por estágio" icon={Briefcase}>
+        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por etapa" icon={Briefcase}>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={metrics.funnel} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
@@ -261,7 +243,7 @@ export default function Reports() {
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
-                  formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} neg.`, 'Em aberto']}
+                  formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} contatos`, 'Em aberto']}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {metrics.funnel.map((d) => (
@@ -300,7 +282,7 @@ export default function Reports() {
 
       {/* Revenue by product + product performance table */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Receita por Produto" subtitle="Negócios ganhos no período" icon={Package}>
+        <ChartCard title="Receita por Produto" subtitle="Clientes fechados no período" icon={Package}>
           <div className="h-80 w-full">
             {metrics.products.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted">Sem receita no período.</div>
@@ -315,7 +297,7 @@ export default function Reports() {
                     contentStyle={chartTooltipStyle}
                     itemStyle={chartTooltipItemStyle}
                     labelStyle={chartTooltipLabelStyle}
-                    formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} ganhos`, 'Receita']}
+                    formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} clientes`, 'Receita']}
                   />
                   <Bar dataKey="revenue" fill={TONE_HEX.purple} radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -337,7 +319,7 @@ export default function Reports() {
                 <thead className="sticky top-0 bg-surface">
                   <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
                     <th className="py-2 pr-3">Produto</th>
-                    <th className="px-2 py-2 text-right">Neg.</th>
+                    <th className="px-2 py-2 text-right">Leads</th>
                     <th className="px-2 py-2 text-right">Aberto</th>
                     <th className="px-2 py-2 text-right">Receita</th>
                     <th className="py-2 pl-2 text-right">Conv.</th>
