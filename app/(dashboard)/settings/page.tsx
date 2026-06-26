@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Sun, Moon, Upload } from 'lucide-react';
+import { Sun, Moon, Upload, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardBody, Button, Field, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
+
+const MAX_AVATAR_BYTES = 2_000_000; // 2MB
+const MIN_PASSWORD_LEN = 6;
 
 export default function Settings() {
   const { user } = useAuth();
@@ -17,6 +20,11 @@ export default function Settings() {
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const fileRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '' });
+
+  // Change-password state.
+  const [pwd, setPwd] = useState({ next: '', confirm: '' });
+  const [showPwd, setShowPwd] = useState(false);
+  const [isSavingPwd, setIsSavingPwd] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -49,17 +57,23 @@ export default function Settings() {
   const handleAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (file.size > 1_000_000) {
-      toast.error('A imagem deve ter no máximo 1MB.');
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem.');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error('A imagem deve ter no máximo 2MB.');
+      if (fileRef.current) fileRef.current.value = '';
       return;
     }
     setIsUploading(true);
     try {
-      const ext = file.name.split('.').pop() || 'png';
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
       const path = `avatars/${user.id}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('crm-dash')
-        .upload(path, file, { upsert: true, cacheControl: '3600' });
+        .upload(path, file, { upsert: true, cacheControl: '3600', contentType: file.type });
       if (upErr) throw upErr;
       const {
         data: { publicUrl },
@@ -75,6 +89,35 @@ export default function Settings() {
     } finally {
       setIsUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwd.next.length < MIN_PASSWORD_LEN) {
+      toast.error(`A senha deve ter pelo menos ${MIN_PASSWORD_LEN} caracteres.`);
+      return;
+    }
+    if (pwd.next !== pwd.confirm) {
+      toast.error('As senhas não coincidem.');
+      return;
+    }
+    setIsSavingPwd(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pwd.next });
+      if (error) throw error;
+      toast.success('Senha alterada com sucesso!');
+      setPwd({ next: '', confirm: '' });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      const msg = (error as { message?: string })?.message ?? '';
+      toast.error(
+        /same.*password/i.test(msg)
+          ? 'A nova senha deve ser diferente da atual.'
+          : 'Erro ao alterar a senha. Tente novamente.',
+      );
+    } finally {
+      setIsSavingPwd(false);
     }
   };
 
@@ -111,7 +154,7 @@ export default function Settings() {
                   <Upload className="h-4 w-4" />
                   Mudar avatar
                 </Button>
-                <p className="mt-2 text-xs text-muted">JPG, GIF ou PNG. Máx 1MB.</p>
+                <p className="mt-2 text-xs text-muted">JPG, GIF ou PNG. Máx 2MB.</p>
               </div>
             </div>
 
@@ -138,6 +181,59 @@ export default function Settings() {
             <div className="flex justify-end border-t border-border pt-6">
               <Button type="submit" loading={isLoading}>
                 Salvar
+              </Button>
+            </div>
+          </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Segurança</CardTitle>
+            <p className="mt-1 text-sm text-muted">Altere a senha da sua conta.</p>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <form onSubmit={handleChangePassword} className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Nova senha" htmlFor="new-password" hint={`Mínimo de ${MIN_PASSWORD_LEN} caracteres.`}>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showPwd ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    className="pr-10"
+                    value={pwd.next}
+                    onChange={(e) => setPwd({ ...pwd, next: e.target.value })}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd((s) => !s)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted transition-colors hover:text-fg"
+                    aria-label={showPwd ? 'Ocultar senha' : 'Mostrar senha'}
+                    tabIndex={-1}
+                  >
+                    {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </Field>
+              <Field label="Confirmar nova senha" htmlFor="confirm-password">
+                <Input
+                  id="confirm-password"
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={pwd.confirm}
+                  onChange={(e) => setPwd({ ...pwd, confirm: e.target.value })}
+                  placeholder="••••••••"
+                />
+              </Field>
+            </div>
+            <div className="flex justify-end border-t border-border pt-6">
+              <Button type="submit" loading={isSavingPwd} disabled={!pwd.next || !pwd.confirm}>
+                <KeyRound className="h-4 w-4" />
+                Alterar senha
               </Button>
             </div>
           </form>
