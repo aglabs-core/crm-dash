@@ -4,9 +4,9 @@ import type { Change } from '@/lib/format';
 import { TONE_HEX, type Tone } from '@/lib/constants';
 
 /**
- * Refined KPI card — a tone-colored icon chip, a large value and a caption,
- * with an optional trend pill and a soft corner glow in the accent color.
- * Used across the reports dashboard for a consistent, premium metric strip.
+ * KPI card — a tone-colored icon chip, a large value and a caption, with an
+ * optional trend pill. Kept intentionally minimal: a subtle border-color shift
+ * on hover, no transforms or glow, so the metric strip reads calm and coherent.
  */
 export function MetricCard({
   label,
@@ -30,15 +30,11 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        'group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
+        'rounded-2xl border border-border bg-surface p-5 shadow-sm transition-colors hover:border-border/60',
         className,
       )}
     >
-      <div
-        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-[0.10] blur-2xl transition-opacity duration-300 group-hover:opacity-20"
-        style={{ background: color }}
-      />
-      <div className="relative flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span
           className="flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset"
           style={{ background: `${color}1f`, color, borderColor: `${color}33` }}
@@ -47,10 +43,10 @@ export function MetricCard({
         </span>
         {change && <TrendPill change={change} />}
       </div>
-      <div className="relative mt-4 truncate text-[26px] font-bold leading-none tracking-tight text-fg">
+      <div className="mt-4 truncate text-[26px] font-bold leading-none tracking-tight text-fg">
         {value}
       </div>
-      <div className="relative mt-2 flex items-center gap-1.5">
+      <div className="mt-2 flex items-center gap-1.5">
         <span className="text-sm font-medium text-muted">{label}</span>
         {hint && <span className="truncate text-xs text-muted/70">· {hint}</span>}
       </div>

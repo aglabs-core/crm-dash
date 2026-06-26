@@ -12,6 +12,7 @@ import { isTaskOverdue } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, Button, Modal, Field, Input, Textarea, Select, Badge, PageLoader } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 const TASK_SELECT = `*, contacts ( id, name )`;
 
@@ -69,17 +70,19 @@ export default function Tasks() {
     }
   };
 
+  const debouncedFetch = useDebouncedCallback(() => fetchTasks(), 400);
+
   useEffect(() => {
     fetchTasks(true);
     fetchContacts();
     const sub = supabase
       .channel('tasks-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => fetchTasks())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [debouncedFetch]);
 
   const fetchContacts = async () => {
     const { data } = await supabase.from('contacts').select('id, name').order('name', { ascending: true });

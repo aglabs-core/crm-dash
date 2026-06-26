@@ -32,6 +32,7 @@ import {
   StatCard,
 } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 /** wa.me link from a free-form phone (assumes BR if no country code). */
 function whatsappLink(raw?: string | null): string | null {
@@ -54,16 +55,18 @@ export default function LeadsPage() {
   const [convertForm, setConvertForm] = useState({ name: '', email: '', phone: '', company: '', produto: '' });
   const confirm = useConfirm();
 
+  const debouncedFetch = useDebouncedCallback(() => fetchLeads(), 400);
+
   useEffect(() => {
     fetchLeads(true);
     const sub = supabase
       .channel('leads-inst-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads_institucional' }, () => fetchLeads())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads_institucional' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [debouncedFetch]);
 
   const fetchLeads = async (showLoader = false) => {
     try {

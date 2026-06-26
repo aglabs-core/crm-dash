@@ -5,7 +5,6 @@ import {
   BarChart3,
   TrendingUp,
   DollarSign,
-  Timer,
   Download,
   CheckCircle2,
   Briefcase,
@@ -33,7 +32,6 @@ import { TONE_HEX, type Tone } from '@/lib/constants';
 import {
   avgDealSize,
   winRate,
-  avgSalesCycleDays,
   winLossCounts,
   monthlySeries,
   conversionFunnel,
@@ -140,13 +138,11 @@ export default function Reports() {
 
   const metrics = useMemo(() => {
     const { won, lost } = winLossCounts(contacts);
-    const cycle = avgSalesCycleDays(contacts);
     return {
       revenue: totalRevenue(contacts),
       pipeline: pipelineValue(contacts),
       avgDealSize: avgDealSize(contacts),
       winRate: winRate(contacts),
-      salesCycle: cycle === null ? '—' : `${Math.round(cycle)} dias`,
       closed: won + lost,
       series: monthlySeries(contacts, monthsWindow),
       funnel: conversionFunnel(contacts),
@@ -239,12 +235,11 @@ export default function Reports() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} tone="emerald" hint="clientes" />
         <MetricCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} tone="indigo" hint="em atendimento" />
         <MetricCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} tone="blue" hint="por cliente" />
         <MetricCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} tone="amber" hint="fechados" />
-        <MetricCard label="Ciclo de Vendas" value={metrics.salesCycle} icon={Timer} tone="purple" hint="criação → fechamento" />
       </div>
 
       {/* Conversion funnel — hero */}

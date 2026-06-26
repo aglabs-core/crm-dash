@@ -46,6 +46,7 @@ import { TONE_HEX } from '@/lib/constants';
 import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, type Change } from '@/lib/format';
 import { CHART_AXIS_TICK, CHART_GRID, chartTooltipStyle, chartTooltipItemStyle, chartTooltipLabelStyle } from '@/lib/chart';
 import { cn } from '@/lib/utils';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { Card, CardHeader, CardTitle, ChartCard, Button, Sparkline, PageLoader, BarList, DonutChart } from '@/components/ui';
 
 const STALE_DAYS = 14;
@@ -80,18 +81,25 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Coalesce bursts of realtime events into a single refetch (e.g. a bulk
+  // status update emits one event per row) to avoid many full reloads.
+  const debouncedFetch = useDebouncedCallback(() => fetchData(), 400);
+
   useEffect(() => {
     fetchData(true);
-    const channels = ['contacts', 'tasks', 'activities'].map((table) =>
+    // Only the tables the dashboard actually renders. (Activities aren't shown
+    // here, and stage changes already touch `contacts`, so watching activities
+    // would just trigger redundant full refetches.)
+    const channels = ['contacts', 'tasks'].map((table) =>
       supabase
         .channel(`dash-${table}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, () => fetchData())
+        .on('postgres_changes', { event: '*', schema: 'public', table }, debouncedFetch)
         .subscribe(),
     );
     return () => {
       channels.forEach((c) => supabase.removeChannel(c));
     };
-  }, []);
+  }, [debouncedFetch]);
 
   const fetchData = async (showLoader = false) => {
     try {
@@ -207,10 +215,11 @@ export default function Dashboard() {
           subtitle="Últimos 6 meses · receita por data de fechamento"
           className="lg:col-span-2"
         >
-          {/* overflow-visible so the hovered active dots aren't clipped at the edges */}
-          <div className="h-72 w-full overflow-visible">
+          {/* Margins + .recharts-surface{overflow:visible} (globals.css) keep the
+              line stroke and hover active-dot from being clipped at the edges. */}
+          <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={m.series} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+              <AreaChart data={m.series} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={TONE_HEX.indigo} stopOpacity={0.3} />

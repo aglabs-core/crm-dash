@@ -9,6 +9,7 @@ import type { Contact } from '@/lib/types';
 import { buildClients } from '@/lib/analytics';
 import { formatCurrency, formatRelative } from '@/lib/format';
 import { Card, Badge, Button, Input, Select, EmptyState, PageLoader, StatCard } from '@/components/ui';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 export default function ClientsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -16,16 +17,18 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
 
+  const debouncedFetch = useDebouncedCallback(() => fetchData(), 400);
+
   useEffect(() => {
     fetchData(true);
     const sub = supabase
       .channel('clients-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [debouncedFetch]);
 
   const fetchData = async (showLoader = false) => {
     try {

@@ -107,3 +107,11 @@ body {
   background: var(--border);
   border-radius: 9999px;
 }
+
+/* Recharts clips to its root <svg> viewport by default, which cuts off the
+   line stroke and the hover active-dot at edge data points. Letting the surface
+   overflow keeps the full chart visible; every chart lives inside a padded card,
+   so nothing spills into neighboring UI. */
+.recharts-surface {
+  overflow: visible;
+}

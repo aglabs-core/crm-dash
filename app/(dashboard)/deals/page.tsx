@@ -36,6 +36,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button, Modal, Field, Input, Select, Badge, PageLoader, EmptyState } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 const emptyForm = {
   name: '',
@@ -89,17 +90,20 @@ function PipelineContent() {
     setIsModalOpen(true);
   };
 
+  // Debounced so drag-and-drop bursts / bulk changes refetch once, not per event.
+  const debouncedFetch = useDebouncedCallback(() => fetchContacts(), 400);
+
   useEffect(() => {
     setIsMounted(true);
     fetchContacts(true);
     const sub = supabase
       .channel('pipeline-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchContacts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [debouncedFetch]);
 
   useEffect(() => {
     if (searchParams.get('new')) {

@@ -45,6 +45,7 @@ import {
   Checkbox,
 } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 const emptyForm = {
   name: '',
@@ -109,16 +110,19 @@ export default function Contacts() {
     }
   };
 
+  // Debounced so a bulk update/delete (one event per row) triggers a single refetch.
+  const debouncedFetch = useDebouncedCallback(() => fetchContacts(), 400);
+
   useEffect(() => {
     fetchContacts(true);
     const sub = supabase
       .channel('contacts-page-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchContacts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
     };
-  }, []);
+  }, [debouncedFetch]);
 
   const fetchContacts = async (showLoader = false) => {
     try {
