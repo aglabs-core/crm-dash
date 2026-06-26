@@ -8,3 +8,5 @@ export { EmptyState } from './EmptyState';
 export { Spinner, PageLoader } from './Spinner';
 export { ChartCard } from './ChartCard';
 export { Sparkline } from './Sparkline';
+export { BarList, type BarListItem } from './BarList';
+export { DonutChart, type DonutSegment } from './DonutChart';

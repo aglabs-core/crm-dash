@@ -22,7 +22,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  Cell,
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
@@ -51,7 +50,7 @@ import {
   chartTooltipItemStyle,
   chartTooltipLabelStyle,
 } from '@/lib/chart';
-import { ChartCard, StatCard, Select, Button, PageLoader, Card } from '@/components/ui';
+import { ChartCard, StatCard, Select, Button, PageLoader, Card, BarList } from '@/components/ui';
 
 const PERIODS: { label: string; value: number | null }[] = [
   { label: 'Últimos 30 dias', value: 30 },
@@ -233,49 +232,30 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por etapa" icon={Briefcase}>
           <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={metrics.funnel} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} />
-                <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} width={78} />
-                <Tooltip
-                  cursor={{ fill: CHART_GRID }}
-                  contentStyle={chartTooltipStyle}
-                  itemStyle={chartTooltipItemStyle}
-                  labelStyle={chartTooltipLabelStyle}
-                  formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} contatos`, 'Em aberto']}
-                />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {metrics.funnel.map((d) => (
-                    <Cell key={d.stage} fill={TONE_HEX[d.tone as keyof typeof TONE_HEX]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <BarList
+              emptyMessage="Sem negócios em aberto."
+              items={metrics.funnel.map((d) => ({
+                label: d.label,
+                value: d.value,
+                display: formatCurrencyCompact(d.value),
+                sub: `${d.count}`,
+                color: TONE_HEX[d.tone as keyof typeof TONE_HEX],
+              }))}
+            />
           </div>
         </ChartCard>
 
         <ChartCard title="Leads por Produto" subtitle="Volume de contatos por produto" icon={Users}>
           <div className="h-80 w-full">
-            {metrics.leadsProduct.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted">Sem leads no período.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.leadsProduct} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} allowDecimals={false} />
-                  <YAxis type="category" dataKey="produto" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} width={110} />
-                  <Tooltip
-                    cursor={{ fill: CHART_GRID }}
-                    contentStyle={chartTooltipStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    formatter={(value: any) => [`${value} leads`, 'Volume']}
-                  />
-                  <Bar dataKey="count" fill={TONE_HEX.blue} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <BarList
+              emptyMessage="Sem leads no período."
+              items={metrics.leadsProduct.map((p) => ({
+                label: p.produto,
+                value: p.count,
+                display: `${p.count}`,
+                color: TONE_HEX.blue,
+              }))}
+            />
           </div>
         </ChartCard>
       </div>
@@ -284,25 +264,16 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard title="Receita por Produto" subtitle="Clientes fechados no período" icon={Package}>
           <div className="h-80 w-full">
-            {metrics.products.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted">Sem receita no período.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.products} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                  <XAxis dataKey="produto" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} interval={0} height={40} />
-                  <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={64} />
-                  <Tooltip
-                    cursor={{ fill: CHART_GRID }}
-                    contentStyle={chartTooltipStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} clientes`, 'Receita']}
-                  />
-                  <Bar dataKey="revenue" fill={TONE_HEX.purple} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <BarList
+              emptyMessage="Sem receita no período."
+              items={metrics.products.map((p) => ({
+                label: p.produto,
+                value: p.revenue,
+                display: formatCurrencyCompact(p.revenue),
+                sub: `${p.count} cliente${p.count === 1 ? '' : 's'}`,
+                color: TONE_HEX.purple,
+              }))}
+            />
           </div>
         </ChartCard>
 

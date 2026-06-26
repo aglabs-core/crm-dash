@@ -20,16 +20,10 @@ import {
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
@@ -52,7 +46,7 @@ import { TONE_HEX } from '@/lib/constants';
 import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, type Change } from '@/lib/format';
 import { CHART_AXIS_TICK, CHART_GRID, chartTooltipStyle, chartTooltipItemStyle, chartTooltipLabelStyle } from '@/lib/chart';
 import { cn } from '@/lib/utils';
-import { Card, CardHeader, CardTitle, ChartCard, Button, Sparkline, PageLoader } from '@/components/ui';
+import { Card, CardHeader, CardTitle, ChartCard, Button, Sparkline, PageLoader, BarList, DonutChart } from '@/components/ui';
 
 const STALE_DAYS = 14;
 
@@ -172,11 +166,6 @@ export default function Dashboard() {
     { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0]?.name ?? '', href: '/deals' },
   ];
 
-  const winLossData = [
-    { name: 'Ganhos', value: m.winLoss.won, color: TONE_HEX.emerald },
-    { name: 'Perdidos', value: m.winLoss.lost, color: TONE_HEX.red },
-  ];
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -278,27 +267,18 @@ export default function Dashboard() {
 
       {/* Funnel + Win/Loss + Product */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por estágio">
+        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por etapa">
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={m.funnel} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} />
-                <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} width={78} />
-                <Tooltip
-                  cursor={{ fill: CHART_GRID }}
-                  contentStyle={chartTooltipStyle}
-                  itemStyle={chartTooltipItemStyle}
-                  labelStyle={chartTooltipLabelStyle}
-                  formatter={(value: any, _n: any, item: any) => [`${formatCurrency(value)} · ${item?.payload?.count ?? 0} neg.`, 'Em aberto']}
-                />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {m.funnel.map((d) => (
-                    <Cell key={d.stage} fill={TONE_HEX[d.tone as keyof typeof TONE_HEX]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <BarList
+              emptyMessage="Sem negócios em aberto."
+              items={m.funnel.map((d) => ({
+                label: d.label,
+                value: d.value,
+                display: formatCurrencyCompact(d.value),
+                sub: `${d.count}`,
+                color: TONE_HEX[d.tone as keyof typeof TONE_HEX],
+              }))}
+            />
           </div>
         </ChartCard>
 
@@ -307,42 +287,30 @@ export default function Dashboard() {
             {m.winLoss.won + m.winLoss.lost === 0 ? (
               <p className="text-sm text-muted">Nenhum negócio fechado ainda.</p>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={winLossData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
-                    {winLossData.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={chartTooltipStyle} itemStyle={chartTooltipItemStyle} labelStyle={chartTooltipLabelStyle} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <DonutChart
+                centerValue={formatPercent(m.winRate)}
+                centerLabel="taxa de ganho"
+                data={[
+                  { label: 'Ganhos', value: m.winLoss.won, color: TONE_HEX.emerald },
+                  { label: 'Perdidos', value: m.winLoss.lost, color: TONE_HEX.red },
+                ]}
+              />
             )}
           </div>
         </ChartCard>
 
         <ChartCard title="Receita por Produto" subtitle="Negócios ganhos">
           <div className="h-64 w-full">
-            {m.products.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted">Sem receita registrada.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={m.products} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                  <XAxis dataKey="produto" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} interval={0} height={40} />
-                  <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={64} />
-                  <Tooltip
-                    cursor={{ fill: CHART_GRID }}
-                    contentStyle={chartTooltipStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    formatter={(value: any) => [formatCurrency(value), 'Receita']}
-                  />
-                  <Bar dataKey="revenue" fill={TONE_HEX.purple} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <BarList
+              emptyMessage="Sem receita registrada."
+              items={m.products.map((p) => ({
+                label: p.produto,
+                value: p.revenue,
+                display: formatCurrencyCompact(p.revenue),
+                sub: `${p.count} ganho${p.count === 1 ? '' : 's'}`,
+                color: TONE_HEX.purple,
+              }))}
+            />
           </div>
         </ChartCard>
       </div>
