@@ -36,10 +36,12 @@ export const TONE_HEX: Record<Tone, string> = {
 };
 
 // ---- Contact lifecycle — single source of truth for the funnel ------------
-// One field (`contacts.status`) drives everything:
-//   active funnel (Kanban) -> Lead · Contatado · Proposta · Negociação
-//   won                    -> Cliente (active) · Inativo (inactive client)
-//   lost / didn't close    -> Arquivado (leaves the Kanban, stays separate)
+// One field (`contacts.status`) drives everything. The active stages mirror the
+// message/WhatsApp attendance flow, in order:
+//   Lead (esperando) · Contatado · Atendimento (em conversa) ·
+//   Proposta (orçamento enviado) · Pagamento (aguardando pagamento) -> Kanban
+//   Cliente (ativo) · Inativo (inativo)                             -> won
+//   Arquivado (não fechou)                                          -> lost
 
 export type StatusGroup = 'active' | 'client' | 'archived';
 
@@ -48,8 +50,9 @@ export type StatusMeta = { id: ContactStatus; label: string; tone: Tone; group: 
 export const CONTACT_STATUSES: StatusMeta[] = [
   { id: 'Lead', label: 'Lead', tone: 'gray', group: 'active' },
   { id: 'Contatado', label: 'Contatado', tone: 'blue', group: 'active' },
-  { id: 'Proposta', label: 'Proposta', tone: 'indigo', group: 'active' },
-  { id: 'Negociação', label: 'Negociação', tone: 'amber', group: 'active' },
+  { id: 'Atendimento', label: 'Atendimento', tone: 'indigo', group: 'active' },
+  { id: 'Proposta', label: 'Proposta', tone: 'purple', group: 'active' },
+  { id: 'Pagamento', label: 'Pagamento', tone: 'amber', group: 'active' },
   { id: 'Cliente', label: 'Cliente', tone: 'emerald', group: 'client' },
   { id: 'Inativo', label: 'Cliente inativo', tone: 'gray', group: 'client' },
   { id: 'Arquivado', label: 'Arquivado', tone: 'red', group: 'archived' },

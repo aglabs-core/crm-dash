@@ -339,27 +339,6 @@ export default function Contacts() {
           </Select>
         </div>
 
-        {selected.size > 0 && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-2/60 px-4 py-3">
-            <span className="text-sm font-medium text-fg">{selected.size} selecionado(s)</span>
-            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Arquivado')}>
-              <Archive className="h-4 w-4" />
-              Arquivar
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Lead')}>
-              <ArchiveRestore className="h-4 w-4" />
-              Mover p/ Lead
-            </Button>
-            <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={bulkDelete}>
-              <Trash2 className="h-4 w-4" />
-              Excluir
-            </Button>
-            <button onClick={() => setSelected(new Set())} className="ml-auto text-sm text-muted hover:text-fg">
-              Limpar
-            </button>
-          </div>
-        )}
-
         <div className="min-h-[300px] overflow-x-auto">
           {isLoading ? (
             <PageLoader />
@@ -476,6 +455,30 @@ export default function Contacts() {
           )}
         </div>
       </Card>
+
+      {/* Floating bulk-action bar — overlays, never shifts the table layout. */}
+      {selected.size > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-xl">
+            <span className="text-sm font-medium text-fg">{selected.size} selecionado(s)</span>
+            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Arquivado')}>
+              <Archive className="h-4 w-4" />
+              Arquivar
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => bulkSetStatus('Lead')}>
+              <ArchiveRestore className="h-4 w-4" />
+              Mover p/ Lead
+            </Button>
+            <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={bulkDelete}>
+              <Trash2 className="h-4 w-4" />
+              Excluir
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="text-sm text-muted hover:text-fg">
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
 
       <Modal
         open={isModalOpen}
