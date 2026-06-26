@@ -42,6 +42,7 @@ import {
   EmptyState,
   PageLoader,
   StatCard,
+  Checkbox,
 } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
 
@@ -353,12 +354,11 @@ export default function Contacts() {
               <thead className="bg-surface-2/60">
                 <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
                   <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label="Selecionar todos"
                       checked={allSelected}
+                      indeterminate={!allSelected && filteredContacts.some((c) => selected.has(c.id))}
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 cursor-pointer rounded border-border accent-brand"
                     />
                   </th>
                   <th className="px-6 py-3">Nome</th>
@@ -376,12 +376,10 @@ export default function Contacts() {
                     className={`transition-colors hover:bg-surface-2/50 ${selected.has(contact.id) ? 'bg-brand/5' : ''}`}
                   >
                     <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         aria-label={`Selecionar ${contact.name}`}
                         checked={selected.has(contact.id)}
                         onChange={() => toggleSelect(contact.id)}
-                        className="h-4 w-4 cursor-pointer rounded border-border accent-brand"
                       />
                     </td>
                     <td className="px-6 py-4">

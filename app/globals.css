@@ -17,6 +17,14 @@
   --brand-strong: #4338ca;
   --brand-contrast: #ffffff;
   --ring: #6366f1;
+  /* Chart palette — shared by Recharts and the funnel chart. */
+  --chart-1: #6366f1;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #a855f7;
+  --chart-5: #3b82f6;
+  --chart-grid: rgba(161, 161, 170, 0.18);
+  --chart-line-primary: #6366f1;
 }
 
 .dark {
@@ -30,6 +38,14 @@
   --brand-strong: #818cf8;
   --brand-contrast: #ffffff;
   --ring: #6366f1;
+  /* Chart palette — shared by Recharts and the funnel chart. */
+  --chart-1: #818cf8;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #c084fc;
+  --chart-5: #60a5fa;
+  --chart-grid: rgba(161, 161, 170, 0.16);
+  --chart-line-primary: #818cf8;
 }
 
 @theme inline {
@@ -43,6 +59,24 @@
   --color-brand-strong: var(--brand-strong);
   --color-brand-contrast: var(--brand-contrast);
   --color-ring: var(--ring);
+
+  /* shadcn-compatible aliases so imported components (e.g. the funnel chart)
+     that reference foreground/background/card/muted-foreground render on-theme. */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--fg);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--fg);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--fg);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 }
 
 html {

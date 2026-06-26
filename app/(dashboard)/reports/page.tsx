@@ -11,12 +11,15 @@ import {
   Briefcase,
   Package,
   Users,
+  Filter,
+  Layers,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -26,14 +29,14 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
 import type { Contact } from '@/lib/types';
-import { TONE_HEX } from '@/lib/constants';
+import { TONE_HEX, type Tone } from '@/lib/constants';
 import {
   avgDealSize,
   winRate,
   avgSalesCycleDays,
   winLossCounts,
   monthlySeries,
-  pipelineByStage,
+  conversionFunnel,
   pipelineValue,
   totalRevenue,
   revenueByProduct,
@@ -50,7 +53,9 @@ import {
   chartTooltipItemStyle,
   chartTooltipLabelStyle,
 } from '@/lib/chart';
-import { ChartCard, StatCard, Select, Button, PageLoader, Card, BarList } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Select, Button, PageLoader, BarList, MetricCard } from '@/components/ui';
+import { FunnelChart } from '@/components/ui/funnel-chart';
 
 const PERIODS: { label: string; value: number | null }[] = [
   { label: 'Últimos 30 dias', value: 30 },
@@ -62,6 +67,51 @@ const PERIODS: { label: string; value: number | null }[] = [
 function csvCell(v: string | number | null | undefined): string {
   const s = String(v ?? '');
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Refined section card with a tone-colored icon chip in the header. */
+function Panel({
+  title,
+  subtitle,
+  icon: Icon,
+  tone = 'indigo',
+  action,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: LucideIcon;
+  tone?: Tone;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  const color = TONE_HEX[tone];
+  return (
+    <div className={cn('rounded-2xl border border-border bg-surface shadow-sm', className)}>
+      <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset"
+              style={{ background: `${color}1f`, color, borderColor: `${color}33` }}
+            >
+              <Icon className="h-[18px] w-[18px]" />
+            </span>
+          )}
+          <div>
+            <h2 className="text-sm font-semibold text-fg">{title}</h2>
+            {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      <div className={cn('p-5', bodyClassName)}>{children}</div>
+    </div>
+  );
 }
 
 export default function Reports() {
@@ -99,12 +149,25 @@ export default function Reports() {
       salesCycle: cycle === null ? '—' : `${Math.round(cycle)} dias`,
       closed: won + lost,
       series: monthlySeries(contacts, monthsWindow),
-      funnel: pipelineByStage(contacts),
+      funnel: conversionFunnel(contacts),
       products: revenueByProduct(contacts).slice(0, 8),
       perf: productPerformance(contacts),
       leadsProduct: leadsByProduct(contacts).slice(0, 8),
     };
   }, [contacts, monthsWindow]);
+
+  const funnelTop = metrics.funnel[0]?.reached ?? 0;
+  const hasFunnel = funnelTop > 0;
+  const funnelData = useMemo(
+    () =>
+      metrics.funnel.map((s) => ({
+        label: s.label,
+        value: s.reached,
+        displayValue: formatNumber(s.reached),
+        color: TONE_HEX[s.tone],
+      })),
+    [metrics.funnel],
+  );
 
   const periodLabel = PERIODS.find((p) => p.value === periodDays)?.label ?? 'Todo o período';
 
@@ -177,92 +240,145 @@ export default function Reports() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} hint="clientes" />
-        <StatCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} hint="em atendimento" />
-        <StatCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} hint="por cliente" />
-        <StatCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} hint="fechados" />
-        <StatCard label="Ciclo de Vendas" value={metrics.salesCycle} icon={Timer} hint="criação → fechamento" />
+        <MetricCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} tone="emerald" hint="clientes" />
+        <MetricCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} tone="indigo" hint="em atendimento" />
+        <MetricCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} tone="blue" hint="por cliente" />
+        <MetricCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} tone="amber" hint="fechados" />
+        <MetricCard label="Ciclo de Vendas" value={metrics.salesCycle} icon={Timer} tone="purple" hint="criação → fechamento" />
       </div>
+
+      {/* Conversion funnel — hero */}
+      <Panel
+        title="Funil de Conversão"
+        subtitle="Quantos contatos alcançam cada etapa, do Lead ao Cliente"
+        icon={Filter}
+        tone="indigo"
+        action={
+          <span className="hidden rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted sm:inline-block">
+            {formatNumber(funnelTop)} em jogo
+          </span>
+        }
+      >
+        {hasFunnel ? (
+          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <FunnelChart
+                data={funnelData}
+                orientation="horizontal"
+                layers={3}
+                edges="curved"
+                gap={6}
+                labelLayout="grouped"
+                labelOrientation="vertical"
+                labelAlign="center"
+                formatValue={(v) => formatNumber(v)}
+                formatPercentage={(p) => `${Math.round(p)}%`}
+              />
+            </div>
+            <div className="flex flex-col gap-2 lg:col-span-2">
+              {metrics.funnel.map((s, i) => {
+                const fromTop = funnelTop ? (s.reached / funnelTop) * 100 : 0;
+                return (
+                  <div
+                    key={s.stage}
+                    className="flex items-center gap-3 rounded-xl border border-border/70 bg-surface-2/40 px-3 py-2.5 transition-colors hover:bg-surface-2/70"
+                  >
+                    <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: TONE_HEX[s.tone] }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-medium text-fg">{s.label}</span>
+                        <span className="shrink-0 text-sm font-bold tabular-nums text-fg">{formatNumber(s.reached)}</span>
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted">
+                        <span className="tabular-nums">{formatCurrencyCompact(s.value)}</span>
+                        <span className="tabular-nums">{i === 0 ? '100% · topo' : `${fromTop.toFixed(0)}% do topo`}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-48 items-center justify-center text-sm text-muted">
+            Sem contatos ativos no funil para o período.
+          </div>
+        )}
+      </Panel>
 
       {/* Sales performance + conversion */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Desempenho de Vendas" subtitle="Ganhos vs perdidos por mês" icon={BarChart3}>
+        <Panel title="Desempenho de Vendas" subtitle="Ganhos vs perdidos por mês" icon={BarChart3} tone="emerald">
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={metrics.series} margin={{ top: 16, right: 12, left: -10, bottom: 0 }}>
+              <BarChart data={metrics.series} margin={{ top: 16, right: 12, left: -8, bottom: 0 }} barGap={4}>
+                <defs>
+                  <linearGradient id="gWon" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={TONE_HEX.emerald} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={TONE_HEX.emerald} stopOpacity={0.55} />
+                  </linearGradient>
+                  <linearGradient id="gLost" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={TONE_HEX.red} stopOpacity={0.9} />
+                    <stop offset="100%" stopColor={TONE_HEX.red} stopOpacity={0.5} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={68} />
+                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={64} />
                 <Tooltip
-                  cursor={{ fill: CHART_GRID }}
+                  cursor={{ fill: 'rgba(161,161,170,0.08)' }}
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
                   formatter={(value: any, name: any) => [formatCurrency(value), name === 'revenue' ? 'Ganhos' : 'Perdidos']}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => (v === 'revenue' ? 'Ganhos' : 'Perdidos')} />
-                <Bar dataKey="revenue" name="revenue" fill={TONE_HEX.emerald} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="lost" name="lost" fill={TONE_HEX.red} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" name="revenue" fill="url(#gWon)" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="lost" name="lost" fill="url(#gLost)" radius={[5, 5, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </ChartCard>
+        </Panel>
 
-        <ChartCard title="Taxa de Conversão" subtitle="% de ganhos entre os fechados" icon={TrendingUp}>
+        <Panel title="Taxa de Conversão" subtitle="% de ganhos entre os fechados" icon={TrendingUp} tone="indigo">
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={metrics.series} margin={{ top: 16, right: 12, left: -10, bottom: 0 }}>
+              <AreaChart data={metrics.series} margin={{ top: 16, right: 16, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gRate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={TONE_HEX.indigo} stopOpacity={0.28} />
+                    <stop offset="95%" stopColor={TONE_HEX.indigo} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => `${v}%`} domain={[0, 100]} width={44} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} padding={{ left: 8, right: 8 }} />
+                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => `${v}%`} domain={[0, 100]} width={40} />
                 <Tooltip
+                  cursor={{ stroke: CHART_GRID, strokeWidth: 1 }}
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
                   formatter={(value: any) => [value === null || value === undefined ? '—' : `${value}%`, 'Conversão']}
                 />
-                <Line type="monotone" dataKey="rate" stroke={TONE_HEX.indigo} strokeWidth={3} connectNulls dot={{ r: 4, fill: TONE_HEX.indigo, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-              </LineChart>
+                <Area
+                  type="monotone"
+                  dataKey="rate"
+                  stroke={TONE_HEX.indigo}
+                  strokeWidth={2.5}
+                  fill="url(#gRate)"
+                  connectNulls
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--surface)', fill: TONE_HEX.indigo }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
-        </ChartCard>
+        </Panel>
       </div>
 
-      {/* Funnel + leads by product */}
+      {/* Revenue by product + leads by product */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Funil de Pipeline" subtitle="Valor em aberto por etapa" icon={Briefcase}>
-          <div className="h-80 w-full">
-            <BarList
-              emptyMessage="Sem negócios em aberto."
-              items={metrics.funnel.map((d) => ({
-                label: d.label,
-                value: d.value,
-                display: formatCurrencyCompact(d.value),
-                sub: `${d.count}`,
-                color: TONE_HEX[d.tone as keyof typeof TONE_HEX],
-              }))}
-            />
-          </div>
-        </ChartCard>
-
-        <ChartCard title="Leads por Produto" subtitle="Volume de contatos por produto" icon={Users}>
-          <div className="h-80 w-full">
-            <BarList
-              emptyMessage="Sem leads no período."
-              items={metrics.leadsProduct.map((p) => ({
-                label: p.produto,
-                value: p.count,
-                display: `${p.count}`,
-                color: TONE_HEX.blue,
-              }))}
-            />
-          </div>
-        </ChartCard>
-      </div>
-
-      {/* Revenue by product + product performance table */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Receita por Produto" subtitle="Clientes fechados no período" icon={Package}>
+        <Panel title="Receita por Produto" subtitle="Clientes fechados no período" icon={Package} tone="purple">
           <div className="h-80 w-full">
             <BarList
               emptyMessage="Sem receita no período."
@@ -275,49 +391,80 @@ export default function Reports() {
               }))}
             />
           </div>
-        </ChartCard>
+        </Panel>
 
-        <Card className="p-5">
-          <div className="mb-4">
-            <h2 className="text-base font-semibold text-fg">Desempenho por Produto</h2>
-            <p className="text-sm text-muted">Funil completo, do lead à receita</p>
+        <Panel title="Leads por Produto" subtitle="Volume de contatos por produto" icon={Users} tone="blue">
+          <div className="h-80 w-full">
+            <BarList
+              emptyMessage="Sem leads no período."
+              items={metrics.leadsProduct.map((p) => ({
+                label: p.produto,
+                value: p.count,
+                display: formatNumber(p.count),
+                color: TONE_HEX.blue,
+              }))}
+            />
           </div>
-          {metrics.perf.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted">Sem dados no período.</div>
-          ) : (
-            <div className="max-h-72 overflow-y-auto">
-              <table className="min-w-full text-sm">
-                <thead className="sticky top-0 bg-surface">
-                  <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted">
-                    <th className="py-2 pr-3">Produto</th>
-                    <th className="px-2 py-2 text-right">Leads</th>
-                    <th className="px-2 py-2 text-right">Aberto</th>
-                    <th className="px-2 py-2 text-right">Receita</th>
-                    <th className="py-2 pl-2 text-right">Conv.</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {metrics.perf.map((p) => (
-                    <tr key={p.produto}>
-                      <td className="py-2.5 pr-3">
-                        <span className="font-medium text-fg">{p.produto}</span>
+        </Panel>
+      </div>
+
+      {/* Product performance table */}
+      <Panel
+        title="Desempenho por Produto"
+        subtitle="Funil completo, do lead à receita"
+        icon={Layers}
+        tone="amber"
+        bodyClassName="p-0"
+      >
+        {metrics.perf.length === 0 ? (
+          <div className="flex h-64 items-center justify-center text-sm text-muted">Sem dados no período.</div>
+        ) : (
+          <div className="max-h-[26rem] overflow-y-auto">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-surface/95 backdrop-blur">
+                <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted">
+                  <th className="py-3 pl-5 pr-3">Produto</th>
+                  <th className="px-3 py-3 text-right">Leads</th>
+                  <th className="px-3 py-3 text-right">Aberto</th>
+                  <th className="px-3 py-3 text-right">Receita</th>
+                  <th className="py-3 pl-3 pr-5 text-right">Conv.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {metrics.perf.map((p) => {
+                  const rate = p.rate;
+                  const rateTone =
+                    rate === null
+                      ? 'text-muted'
+                      : rate >= 50
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : rate >= 25
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-red-600 dark:text-red-400';
+                  return (
+                    <tr key={p.produto} className="transition-colors hover:bg-surface-2/40">
+                      <td className="py-3 pl-5 pr-3">
+                        <span className="flex items-center gap-2.5">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_HEX.purple }} />
+                          <span className="font-medium text-fg">{p.produto}</span>
+                        </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right text-muted">{p.deals}</td>
-                      <td className="px-2 py-2.5 text-right text-muted">{formatCurrencyCompact(p.openValue)}</td>
-                      <td className="px-2 py-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                      <td className="px-3 py-3 text-right tabular-nums text-muted">{formatNumber(p.deals)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-muted">{formatCurrencyCompact(p.openValue)}</td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                         {formatCurrencyCompact(p.wonValue)}
                       </td>
-                      <td className="py-2.5 pl-2 text-right font-medium text-fg">
-                        {p.rate === null ? '—' : `${p.rate}%`}
+                      <td className={cn('py-3 pl-3 pr-5 text-right font-semibold tabular-nums', rateTone)}>
+                        {rate === null ? '—' : `${rate}%`}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

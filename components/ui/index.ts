@@ -2,6 +2,8 @@ export { Button, type ButtonProps } from './Button';
 export { Card, CardHeader, CardTitle, CardBody } from './Card';
 export { Badge } from './Badge';
 export { StatCard } from './StatCard';
+export { MetricCard } from './MetricCard';
+export { Checkbox } from './Checkbox';
 export { Modal } from './Modal';
 export { Field, Input, Textarea, Select } from './Field';
 export { EmptyState } from './EmptyState';

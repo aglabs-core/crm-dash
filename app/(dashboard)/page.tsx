@@ -207,9 +207,10 @@ export default function Dashboard() {
           subtitle="Últimos 6 meses · receita por data de fechamento"
           className="lg:col-span-2"
         >
-          <div className="h-72 w-full">
+          {/* overflow-visible so the hovered active dots aren't clipped at the edges */}
+          <div className="h-72 w-full overflow-visible">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={m.series} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={m.series} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={TONE_HEX.indigo} stopOpacity={0.3} />
@@ -221,16 +222,35 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={70} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} dy={8} padding={{ left: 8, right: 8 }} />
+                <YAxis axisLine={false} tickLine={false} tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} width={72} />
                 <Tooltip
+                  cursor={{ stroke: CHART_GRID, strokeWidth: 1 }}
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
                   formatter={(value: any, name: any) => [formatCurrency(value), name === 'revenue' ? 'Receita' : 'Pipeline']}
                 />
-                <Area type="monotone" dataKey="revenue" name="revenue" stroke={TONE_HEX.indigo} strokeWidth={2} fill="url(#gRev)" />
-                <Area type="monotone" dataKey="pipeline" name="pipeline" stroke={TONE_HEX.emerald} strokeWidth={2} fill="url(#gPipe)" />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  name="revenue"
+                  stroke={TONE_HEX.indigo}
+                  strokeWidth={2}
+                  fill="url(#gRev)"
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--surface)', fill: TONE_HEX.indigo }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="pipeline"
+                  name="pipeline"
+                  stroke={TONE_HEX.emerald}
+                  strokeWidth={2}
+                  fill="url(#gPipe)"
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--surface)', fill: TONE_HEX.emerald }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -5,8 +5,8 @@
 //  - month buckets keyed by year+month
 //  - win-rate and sales-cycle computed from real closed contacts
 
-import type { Contact, Task } from './types';
-import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus } from './constants';
+import type { Contact, ContactStatus, Task } from './types';
+import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus, type Tone } from './constants';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -140,6 +140,61 @@ export function pipelineByStage(contacts: Contact[]): StageDatum[] {
       tone: s.tone,
     };
   });
+}
+
+export type FunnelStageDatum = {
+  stage: string;
+  label: string;
+  reached: number; // contacts that reached at least this stage
+  value: number; // open/won amount at or beyond this stage
+  tone: Tone;
+};
+
+/**
+ * Cumulative conversion funnel built from current statuses. A contact at a later
+ * stage (or already won) is counted as having "reached" every earlier stage, so
+ * the result is a strictly descending funnel — Lead (everyone still in play) down
+ * to Cliente (won). Lost/archived contacts drop out and are excluded.
+ * This is the honest way to turn status snapshots into a conversion funnel.
+ */
+export function conversionFunnel(contacts: Contact[]): FunnelStageDatum[] {
+  const active = KANBAN_STATUSES; // Lead → Pagamento, in order
+  const indexOf = new Map(active.map((s, i) => [s.id, i]));
+  const here = active.map(() => 0);
+  const hereValue = active.map(() => 0);
+  let wonCount = 0;
+  let wonValue = 0;
+
+  for (const c of contacts) {
+    if (isWon(c)) {
+      wonCount += 1;
+      wonValue += amount(c);
+      continue;
+    }
+    const i = indexOf.get(c.status as ContactStatus);
+    if (i === undefined) continue; // lost / unknown → not in the funnel
+    here[i] += 1;
+    hereValue[i] += amount(c);
+  }
+
+  // Accumulate from the bottom up; won contacts have passed every active stage.
+  const stages: FunnelStageDatum[] = [];
+  let reached = wonCount;
+  let reachedValue = wonValue;
+  for (let i = active.length - 1; i >= 0; i--) {
+    reached += here[i];
+    reachedValue += hereValue[i];
+    stages.push({
+      stage: active[i].id,
+      label: active[i].label,
+      reached,
+      value: reachedValue,
+      tone: active[i].tone,
+    });
+  }
+  stages.reverse();
+  stages.push({ stage: 'Cliente', label: 'Cliente', reached: wonCount, value: wonValue, tone: 'emerald' });
+  return stages;
 }
 
 export type ProductDatum = { produto: string; revenue: number; count: number };
