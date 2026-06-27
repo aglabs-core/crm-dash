@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sun, Moon, Upload, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Sun, Moon, Upload, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardBody, Button, Field, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -15,6 +17,8 @@ const MIN_PASSWORD_LEN = 6;
 export default function Settings() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const confirm = useConfirm();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
@@ -22,9 +26,10 @@ export default function Settings() {
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '' });
 
   // Change-password state.
-  const [pwd, setPwd] = useState({ next: '', confirm: '' });
+  const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [isSavingPwd, setIsSavingPwd] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -94,6 +99,10 @@ export default function Settings() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.email) {
+      toast.error('Conta sem e-mail/senha; não é possível alterar a senha aqui.');
+      return;
+    }
     if (pwd.next.length < MIN_PASSWORD_LEN) {
       toast.error(`A senha deve ter pelo menos ${MIN_PASSWORD_LEN} caracteres.`);
       return;
@@ -104,10 +113,19 @@ export default function Settings() {
     }
     setIsSavingPwd(true);
     try {
+      // Re-authenticate with the current password before allowing a change.
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: pwd.current,
+      });
+      if (authErr) {
+        toast.error('Senha atual incorreta.');
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: pwd.next });
       if (error) throw error;
       toast.success('Senha alterada com sucesso!');
-      setPwd({ next: '', confirm: '' });
+      setPwd({ current: '', next: '', confirm: '' });
     } catch (error) {
       console.error('Error changing password:', error);
       const msg = (error as { message?: string })?.message ?? '';
@@ -118,6 +136,30 @@ export default function Settings() {
       );
     } finally {
       setIsSavingPwd(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const ok = await confirm({
+      title: 'Excluir conta',
+      description:
+        'Sua conta e todos os seus dados (contatos, negócios, tarefas e histórico) serão removidos permanentemente. Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir minha conta',
+      tone: 'danger',
+      icon: Trash2,
+    });
+    if (!ok) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.rpc('delete_account');
+      if (error) throw error;
+      await supabase.auth.signOut();
+      toast.success('Conta excluída.');
+      router.replace('/login');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Erro ao excluir a conta. Tente novamente.');
+      setIsDeleting(false);
     }
   };
 
@@ -196,6 +238,16 @@ export default function Settings() {
         </CardHeader>
         <CardBody>
           <form onSubmit={handleChangePassword} className="space-y-6">
+            <Field label="Senha atual" htmlFor="current-password" className="sm:max-w-sm">
+              <Input
+                id="current-password"
+                type={showPwd ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={pwd.current}
+                onChange={(e) => setPwd({ ...pwd, current: e.target.value })}
+                placeholder="••••••••"
+              />
+            </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Nova senha" htmlFor="new-password" hint={`Mínimo de ${MIN_PASSWORD_LEN} caracteres.`}>
                 <div className="relative">
@@ -231,7 +283,11 @@ export default function Settings() {
               </Field>
             </div>
             <div className="flex justify-end border-t border-border pt-6">
-              <Button type="submit" loading={isSavingPwd} disabled={!pwd.next || !pwd.confirm}>
+              <Button
+                type="submit"
+                loading={isSavingPwd}
+                disabled={!pwd.current || !pwd.next || !pwd.confirm}
+              >
                 <KeyRound className="h-4 w-4" />
                 Alterar senha
               </Button>
@@ -263,6 +319,29 @@ export default function Settings() {
                 {t === 'light' ? 'Claro' : 'Escuro'}
               </button>
             ))}
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card className="border-red-500/30">
+        <CardHeader>
+          <div>
+            <CardTitle>Zona de perigo</CardTitle>
+            <p className="mt-1 text-sm text-muted">Ações irreversíveis para a sua conta.</p>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-sm font-medium text-fg">Excluir conta</p>
+              <p className="mt-0.5 text-sm text-muted">
+                Remove permanentemente sua conta e todos os seus dados.
+              </p>
+            </div>
+            <Button variant="danger" onClick={handleDeleteAccount} loading={isDeleting} className="shrink-0">
+              <Trash2 className="h-4 w-4" />
+              Excluir conta
+            </Button>
           </div>
         </CardBody>
       </Card>
