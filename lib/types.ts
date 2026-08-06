@@ -16,7 +16,10 @@ export type ContactStatus =
   | 'Inativo'
   | 'Arquivado';
 
-export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'manual';
+export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'manual' | 'compra';
+
+/** Gateways de pagamento que alimentam o CRM automaticamente. */
+export type Gateway = 'stripe' | 'asaas' | 'mercadopago';
 
 export type Priority = 'Baixa' | 'Média' | 'Alta';
 
@@ -51,6 +54,11 @@ export type Contact = {
   expected_close_date?: string | null;
   closed_at?: string | null;
   lost_reason?: string | null;
+  // Rastro da ingestão automática de pagamentos. Só preenchidos quando
+  // `origin` é 'compra'.
+  gateway?: Gateway | null;
+  external_id?: string | null;
+  documento?: string | null;
   created_at?: string;
   updated_at?: string;
 };
