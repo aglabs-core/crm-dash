@@ -2,7 +2,14 @@
 // priorities and activity types. Reused by badges, the Kanban, contact totals,
 // dashboards and reports so colors/labels never drift between screens.
 
-import type { ContactStatus, ContactOrigin, Priority, ActivityType, LeadStatus } from './types';
+import type {
+  ContactStatus,
+  ContactOrigin,
+  Priority,
+  ActivityType,
+  ActivityChannel,
+  LeadStatus,
+} from './types';
 
 export type Tone =
   | 'gray'
@@ -119,12 +126,33 @@ export type ActivityMeta = { label: string; tone: Tone; icon: string };
 /** `icon` is a lucide-react icon name resolved by the timeline component. */
 export const ACTIVITY_META: Record<ActivityType, ActivityMeta> = {
   note: { label: 'Nota', tone: 'gray', icon: 'StickyNote' },
-  call: { label: 'Ligação', tone: 'blue', icon: 'Phone' },
-  email: { label: 'E-mail', tone: 'indigo', icon: 'Mail' },
+  followup: { label: 'Follow-up', tone: 'blue', icon: 'Repeat' },
+  boas_vindas: { label: 'Boas-vindas', tone: 'emerald', icon: 'Sparkles' },
+  disparo: { label: 'Disparo', tone: 'indigo', icon: 'Megaphone' },
+  suporte: { label: 'Suporte', tone: 'red', icon: 'LifeBuoy' },
   meeting: { label: 'Reunião', tone: 'purple', icon: 'Users' },
   stage_change: { label: 'Mudança de estágio', tone: 'amber', icon: 'ArrowRightLeft' },
   task: { label: 'Tarefa', tone: 'emerald', icon: 'CheckSquare' },
 };
 
 /** Activity types a user can log manually (excludes system-generated ones). */
-export const LOGGABLE_ACTIVITY_TYPES: ActivityType[] = ['note', 'call', 'email', 'meeting'];
+export const LOGGABLE_ACTIVITY_TYPES: ActivityType[] = [
+  'note',
+  'followup',
+  'boas_vindas',
+  'disparo',
+  'suporte',
+  'meeting',
+];
+
+// ---- Channel — por onde a interação aconteceu ------------------------------
+export const ACTIVITY_CHANNELS: { id: ActivityChannel; label: string }[] = [
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'email', label: 'E-mail' },
+  { id: 'telefone', label: 'Telefone' },
+  { id: 'presencial', label: 'Presencial' },
+  { id: 'sistema', label: 'Sistema' },
+];
+export function channelLabel(channel: string | null | undefined): string | null {
+  return ACTIVITY_CHANNELS.find((c) => c.id === channel)?.label ?? null;
+}

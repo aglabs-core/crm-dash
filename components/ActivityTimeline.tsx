@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import {
   StickyNote,
-  Phone,
-  Mail,
+  Repeat,
+  Sparkles,
+  Megaphone,
+  LifeBuoy,
   Users,
   ArrowRightLeft,
   CheckSquare,
@@ -19,8 +21,10 @@ import { Button } from '@/components/ui';
 
 const ICONS: Record<string, LucideIcon> = {
   StickyNote,
-  Phone,
-  Mail,
+  Repeat,
+  Sparkles,
+  Megaphone,
+  LifeBuoy,
   Users,
   ArrowRightLeft,
   CheckSquare,

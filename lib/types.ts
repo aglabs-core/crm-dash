@@ -28,13 +28,19 @@ export type TaskStatus = 'pending' | 'completed';
 /** Handling status of an inbound (web-captured) institutional lead. */
 export type LeadStatus = 'novo' | 'contatado' | 'convertido' | 'descartado';
 
+// Intenção da interação — o quê. O meio fica em `ActivityChannel`.
 export type ActivityType =
   | 'note'
-  | 'call'
-  | 'email'
+  | 'followup'
+  | 'boas_vindas'
+  | 'disparo'
+  | 'suporte'
   | 'meeting'
   | 'stage_change'
   | 'task';
+
+/** Meio pelo qual a interação aconteceu — por onde. */
+export type ActivityChannel = 'whatsapp' | 'email' | 'telefone' | 'presencial' | 'sistema';
 
 // A Contact is now the pipeline unit: it carries the funnel position (`status`)
 // AND the deal economics (amount, expected_close_date, closed_at, …).
@@ -98,6 +104,7 @@ export type Activity = {
   user_id?: string;
   contact_id?: string | null;
   type: ActivityType;
+  channel?: ActivityChannel | null;
   content?: string | null;
   created_at: string;
 };
