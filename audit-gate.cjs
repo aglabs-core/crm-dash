@@ -7,26 +7,9 @@ const { spawnSync } = require('node:child_process');
 // cada exceção é explícita, justificada e tem data de revisão — qualquer aviso
 // novo continua reprovando.
 
-const exceptions = [
-  {
-    package: 'postcss',
-    ids: ['GHSA-6g55-p6wh-862q', 'GHSA-r28c-9q8g-f849'],
-    reason:
-      'postcss vem embutido no Next 15 e roda em tempo de build. Os vetores exigem CSS '
-      + 'controlado por atacante; aqui o CSS vem do repositório e do Tailwind. A correção é '
-      + 'Next 16, migração planejada.',
-    reviewBy: '2026-11-30',
-  },
-  {
-    package: 'sharp',
-    ids: ['GHSA-f88m-g3jw-g9cj'],
-    reason:
-      'sharp <0.35 herda CVEs do libvips e vem embutido no Next 15. Este tem caminho de '
-      + 'entrada real: o Next otimiza os avatares vindos do Supabase Storage. É o aviso que '
-      + 'justifica priorizar a migração para o Next 16 — revisão curta de propósito.',
-    reviewBy: '2026-09-30',
-  },
-];
+// Hoje a lista está vazia: `postcss` e `sharp` vinham presos dentro do Next 15
+// e foram resolvidos por `overrides` no package.json, sem migrar de major.
+const exceptions = [];
 
 const blockedSeverities = new Set(['high', 'critical']);
 const onWindows = process.platform === 'win32';

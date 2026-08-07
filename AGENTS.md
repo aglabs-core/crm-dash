@@ -43,7 +43,11 @@ Ficam em `supabase/migrations/`, aplicadas por `supabase db push`. Padrão da ca
 
 **Nunca silencie um aviso com `continue-on-error` no workflow** — isso desliga o portão para todos os avisos futuros. Registre a exceção com justificativa.
 
-Aberto hoje: `postcss` e `sharp`, ambos embutidos no Next 15. O de `sharp` tem caminho de entrada real (o Next otimiza avatares vindos do Storage) e é o que justifica priorizar a **migração para o Next 16**.
+A lista de exceções está **vazia** — o projeto está com zero avisos. `postcss` e `sharp` vinham presos dentro do Next 15 e foram resolvidos por `overrides` no `package.json`, sem migrar de major.
+
+Note a sintaxe: `"postcss": "$postcss"`. Quando o pacote também é dependência direta, o npm recusa um override com versão literal (`EOVERRIDE`) — o `$` manda usar a versão da dependência direta, que é onde a correção foi aplicada.
+
+Ordem ao aparecer um aviso novo: corrigir com `npm audit fix` se resolver sem breaking change → `overrides` quando vier preso dentro de outra dependência → exceção declarada só quando a correção exigir migração de major.
 
 ## Pendência conhecida
 
