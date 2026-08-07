@@ -1,0 +1,31 @@
+name: Qualidade
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # lint + typecheck + build. Sem variáveis de ambiente de propósito:
+      # lib/supabase.ts cai no placeholder e o build precisa continuar passando.
+      - run: npm run check
+      # Avisos alto/crítico em dependências de produção. Exceções conscientes
+      # ficam declaradas em audit-gate.cjs; qualquer aviso novo reprova.
+      - run: npm run audit:gate
