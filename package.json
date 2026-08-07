@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm run build",
-    "audit:gate": "node audit-gate.cjs",
+    "audit:gate": "node audit-gate.mjs",
     "clean": "next clean"
   },
   "dependencies": {
