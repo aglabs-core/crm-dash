@@ -19,7 +19,7 @@ export type ContactStatus =
 export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'manual' | 'compra';
 
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
-export type Gateway = 'stripe' | 'asaas' | 'mercadopago';
+export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';
 
 export type Priority = 'Baixa' | 'Média' | 'Alta';
 
