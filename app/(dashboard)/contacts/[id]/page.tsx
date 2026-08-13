@@ -27,6 +27,7 @@ import {
   isActiveStatus,
 } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { assigneeLabel } from '@/lib/tasks';
 import { logActivity } from '@/lib/activities';
 import {
   Card,
@@ -265,6 +266,7 @@ export default function ContactDetail() {
                       >
                         {t.title}
                       </p>
+                      {t.assigned_to && <p className="text-xs text-brand">{assigneeLabel(t.assigned_to)}</p>}
                       {t.due_date && (
                         <p className="flex items-center gap-1 text-xs text-muted">
                           <Clock className="h-3 w-3" />

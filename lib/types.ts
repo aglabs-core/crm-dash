@@ -25,6 +25,8 @@ export type Priority = 'Baixa' | 'Média' | 'Alta';
 
 export type TaskStatus = 'pending' | 'completed';
 
+export type TaskAssignee = 'maia' | 'leo' | 'antonio' | 'tecnico';
+
 /** Handling status of an inbound (web-captured) institutional lead. */
 export type LeadStatus = 'novo' | 'contatado' | 'convertido' | 'descartado';
 
@@ -93,6 +95,7 @@ export type Task = {
   due_date?: string | null;
   status: TaskStatus;
   priority?: Priority | null;
+  assigned_to?: TaskAssignee | null;
   contact_id?: string | null;
   contacts?: Pick<Contact, 'id' | 'name'> | null;
   created_at?: string;

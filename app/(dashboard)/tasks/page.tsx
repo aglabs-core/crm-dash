@@ -5,8 +5,15 @@ import { CheckCircle2, Circle, Plus, Calendar, Users, Pencil, Trash2, AlertTrian
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Task, Contact } from '@/lib/types';
+import type { Task, Contact, TaskAssignee } from '@/lib/types';
 import { PRIORITIES, priorityTone } from '@/lib/constants';
+import {
+  TASK_ASSIGNEES,
+  assigneeLabel,
+  buildTaskPayload,
+  taskMatchesAssignee,
+  type AssigneeFilter,
+} from '@/lib/tasks';
 import { formatDate } from '@/lib/format';
 import { isTaskOverdue } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -22,6 +29,7 @@ const emptyForm = {
   due_date: '',
   priority: 'Média',
   contact_id: '',
+  assigned_to: '' as TaskAssignee | '',
 };
 
 export default function Tasks() {
@@ -32,6 +40,7 @@ export default function Tasks() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const confirm = useConfirm();
 
   const openNewTaskModal = () => {
@@ -48,6 +57,7 @@ export default function Tasks() {
       due_date: task.due_date ? task.due_date.split('T')[0] : '',
       priority: task.priority || 'Média',
       contact_id: task.contact_id || '',
+      assigned_to: task.assigned_to || '',
     });
     setIsModalOpen(true);
   };
@@ -112,13 +122,7 @@ export default function Tasks() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
 
-      const payload = {
-        title: formData.title,
-        description: formData.description || null,
-        due_date: formData.due_date || null,
-        priority: formData.priority,
-        contact_id: formData.contact_id || null,
-      };
+      const payload = buildTaskPayload(formData);
 
       if (editingTask) {
         const { data, error } = await supabase
@@ -166,25 +170,43 @@ export default function Tasks() {
   const pendingTasks = useMemo(
     () =>
       tasks
-        .filter((t) => t.status === 'pending')
+        .filter((t) => t.status === 'pending' && taskMatchesAssignee(t, assigneeFilter))
         .sort((a, b) => {
           if (!a.due_date) return 1;
           if (!b.due_date) return -1;
           return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
         }),
-    [tasks],
+    [tasks, assigneeFilter],
   );
-  const completedTasks = useMemo(() => tasks.filter((t) => t.status === 'completed'), [tasks]);
+  const completedTasks = useMemo(
+    () => tasks.filter((t) => t.status === 'completed' && taskMatchesAssignee(t, assigneeFilter)),
+    [tasks, assigneeFilter],
+  );
   const overdueCount = useMemo(() => pendingTasks.filter(isTaskOverdue).length, [pendingTasks]);
 
   return (
     <div className="relative mx-auto max-w-4xl space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-fg">Minhas Tarefas</h1>
-        <Button onClick={openNewTaskModal}>
-          <Plus className="h-4 w-4" />
-          Nova Tarefa
-        </Button>
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Tarefas</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            aria-label="Filtrar por responsável"
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value as AssigneeFilter)}
+          >
+            <option value="all">Todos os responsáveis</option>
+            <option value="unassigned">Sem responsável</option>
+            {TASK_ASSIGNEES.map((owner) => (
+              <option key={owner.id} value={owner.id}>
+                {owner.label}
+              </option>
+            ))}
+          </Select>
+          <Button onClick={openNewTaskModal}>
+            <Plus className="h-4 w-4" />
+            Nova Tarefa
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -234,6 +256,7 @@ export default function Tasks() {
                       </div>
                       {task.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{task.description}</p>}
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+                        {task.assigned_to && <Badge tone="blue">{assigneeLabel(task.assigned_to)}</Badge>}
                         {task.due_date && (
                           <span
                             className={cn(
@@ -363,20 +386,38 @@ export default function Tasks() {
               </Select>
             </Field>
           </div>
-          <Field label="Contato Relacionado" htmlFor="contact_id">
-            <Select
-              id="contact_id"
-              value={formData.contact_id}
-              onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
-            >
-              <option value="">Nenhum contato</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Responsável" htmlFor="assigned_to">
+              <Select
+                id="assigned_to"
+                value={formData.assigned_to}
+                onChange={(e) =>
+                  setFormData({ ...formData, assigned_to: e.target.value as TaskAssignee | '' })
+                }
+              >
+                <option value="">Sem responsável</option>
+                {TASK_ASSIGNEES.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {owner.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Contato Relacionado" htmlFor="contact_id">
+              <Select
+                id="contact_id"
+                value={formData.contact_id}
+                onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
+              >
+                <option value="">Nenhum contato</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
         </form>
       </Modal>
     </div>
