@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName, contactInitials } from '@/lib/contact-name';
+
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -63,10 +65,10 @@ function SearchContent() {
               <Link key={c.id} href={`/contacts/${c.id}`} className="flex items-center justify-between gap-4 px-4 py-4 transition-colors hover:bg-surface-2/50">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
-                    {c.name.charAt(0).toUpperCase()}
+                    {contactInitials(c.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-fg">{c.name}</p>
+                    <p className="truncate text-sm font-semibold text-fg">{contactName(c.name)}</p>
                     <p className="truncate text-xs text-muted">
                       {c.email} {c.company && `· ${c.company}`} · {originLabel(c.origin)}
                     </p>

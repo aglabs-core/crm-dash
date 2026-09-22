@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName } from '@/lib/contact-name';
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -170,8 +172,8 @@ export default function Dashboard() {
 
   const attn = [
     { label: 'Tarefas vencidas', icon: AlertTriangle, color: TONE_HEX.red, count: m.overdue.length, sub: m.overdue[0]?.title ?? '', href: '/tasks' },
-    { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0]?.name ?? '', href: '/deals' },
-    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0]?.name ?? '', href: '/deals' },
+    { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0] ? contactName(m.closing[0].name) : '', href: '/deals' },
+    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0] ? contactName(m.stalled[0].name) : '', href: '/deals' },
   ];
 
   return (

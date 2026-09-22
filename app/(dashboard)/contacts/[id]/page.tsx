@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName, contactInitials } from '@/lib/contact-name';
+
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -113,13 +115,7 @@ export default function ContactDetail() {
   const isClient = isClientStatus(contact.status);
   const isActive = isActiveStatus(contact.status);
   const pendingTasks = tasks.filter((t) => t.status === 'pending');
-  const initials =
-    contact.name
-      ?.split(' ')
-      .map((n) => n?.[0] || '')
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || '?';
+  const initials = contactInitials(contact.name);
 
   return (
     <div className="space-y-6">
@@ -136,7 +132,7 @@ export default function ContactDetail() {
               {initials}
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-fg">{contact.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-fg">{contactName(contact.name)}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
                 <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>

@@ -1,5 +1,7 @@
 'use client';
 
+import { contactNameInput, contactNamePayload, contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+
 import { useEffect, useMemo, useState } from 'react';
 import {
   Search,
@@ -80,7 +82,7 @@ export default function Contacts() {
   const openEditContactModal = (contact: Contact) => {
     setEditingContact(contact);
     setFormData({
-      name: contact.name,
+      name: contactNameInput(contact.name),
       email: contact.email || '',
       phone: contact.phone || '',
       company: contact.company || '',
@@ -148,7 +150,7 @@ export default function Contacts() {
       if (!userData.user) throw new Error('User not authenticated');
 
       const payload = {
-        name: formData.name,
+        name: contactNamePayload(formData.name),
         email: formData.email || null,
         phone: formData.phone || null,
         company: formData.company || null,
@@ -212,8 +214,7 @@ export default function Contacts() {
       productScoped.filter((contact) => {
         const term = searchTerm.toLowerCase();
         const matchesSearch =
-          contact.name.toLowerCase().includes(term) ||
-          (contact.company?.toLowerCase().includes(term) ?? false);
+          contactMatchesSearch(contact, term);
         const matchesSituacao =
           situacao === 'Todos'
             ? true
@@ -381,7 +382,7 @@ export default function Contacts() {
                   >
                     <td className="px-4 py-4">
                       <Checkbox
-                        aria-label={`Selecionar ${contact.name}`}
+                        aria-label={`Selecionar ${contactName(contact.name)}`}
                         checked={selected.has(contact.id)}
                         onChange={() => toggleSelect(contact.id)}
                       />
@@ -389,9 +390,9 @@ export default function Contacts() {
                     <td className="px-6 py-4">
                       <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">
-                          {contact.name?.split(' ').map((n) => n?.[0] || '').slice(0, 2).join('').toUpperCase() || '?'}
+                          {contactInitials(contact.name)}
                         </div>
-                        <span className="font-medium text-fg group-hover:text-brand">{contact.name}</span>
+                        <span className="font-medium text-fg group-hover:text-brand">{contactName(contact.name)}</span>
                       </Link>
                     </td>
                     <td className="px-6 py-4 text-muted">{contact.company || '—'}</td>
@@ -498,10 +499,10 @@ export default function Contacts() {
         }
       >
         <form id="contact-form" onSubmit={handleSaveContact} className="space-y-4">
-          <Field label="Nome Completo" htmlFor="name" required>
+          <Field label="Nome Completo" htmlFor="name" required={!editingContact}>
             <Input
               id="name"
-              required
+              required={!editingContact}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ex: João Silva"

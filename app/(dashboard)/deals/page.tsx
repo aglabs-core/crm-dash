@@ -1,5 +1,7 @@
 'use client';
 
+import { contactNameInput, contactNamePayload, contactName } from '@/lib/contact-name';
+
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import {
   Plus,
@@ -75,7 +77,7 @@ function PipelineContent() {
   const openEdit = (c: Contact) => {
     setEditing(c);
     setFormData({
-      name: c.name,
+      name: contactNameInput(c.name),
       company: c.company || '',
       email: c.email || '',
       phone: c.phone || '',
@@ -165,7 +167,7 @@ function PipelineContent() {
       if (!userData.user) throw new Error('User not authenticated');
 
       const payload = {
-        name: formData.name,
+        name: contactNamePayload(formData.name),
         company: formData.company || null,
         email: formData.email || null,
         phone: formData.phone || null,
@@ -294,7 +296,7 @@ function PipelineContent() {
                 <div key={c.id} className="flex items-center gap-4 rounded-lg border border-border bg-surface p-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-fg">{c.name}</p>
+                      <p className="truncate text-sm font-semibold text-fg">{contactName(c.name)}</p>
                       {c.produto && <Badge tone="purple">{c.produto}</Badge>}
                       <Badge tone={originTone(c.origin)}>{originLabel(c.origin)}</Badge>
                     </div>
@@ -409,7 +411,7 @@ function PipelineContent() {
                                     href={`/contacts/${c.id}`}
                                     className="mb-1 block text-sm font-semibold text-fg hover:text-brand"
                                   >
-                                    {c.name}
+                                    {contactName(c.name)}
                                   </Link>
                                   {c.company && (
                                     <p className="mb-1 flex items-center gap-1 text-xs text-muted">
@@ -466,10 +468,10 @@ function PipelineContent() {
         }
       >
         <form id="pipeline-form" onSubmit={handleSave} className="space-y-4">
-          <Field label="Nome" htmlFor="name" required>
+          <Field label="Nome" htmlFor="name" required={!editing}>
             <Input
               id="name"
-              required
+              required={!editing}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ex: João Silva"
