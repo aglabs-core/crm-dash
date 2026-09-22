@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName } from '@/lib/contact-name';
+
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Circle, Plus, Calendar, Users, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -275,7 +277,7 @@ export default function Tasks() {
                             className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 font-medium text-brand hover:underline"
                           >
                             <Users className="h-3 w-3" />
-                            {task.contacts.name}
+                            {contactName(task.contacts.name)}
                           </Link>
                         )}
                       </div>
@@ -412,7 +414,7 @@ export default function Tasks() {
                 <option value="">Nenhum contato</option>
                 {contacts.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {contactName(c.name)}
                   </option>
                 ))}
               </Select>

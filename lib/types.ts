@@ -49,7 +49,7 @@ export type ActivityChannel = 'whatsapp' | 'email' | 'telefone' | 'presencial' |
 export type Contact = {
   id: string;
   user_id?: string;
-  name: string;
+  name: string | null;
   email?: string | null;
   phone?: string | null;
   company?: string | null;

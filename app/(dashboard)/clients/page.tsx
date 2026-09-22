@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search, UserCheck, DollarSign, Trophy, Building2, Power } from 'lucide-react';
@@ -63,8 +65,7 @@ export default function ClientsPage() {
     const term = searchTerm.toLowerCase();
     return clients.filter((c) => {
       const matchesSearch =
-        c.contact.name.toLowerCase().includes(term) ||
-        (c.contact.company?.toLowerCase().includes(term) ?? false);
+        contactMatchesSearch(c.contact, term);
       const matchesProduct = productFilter === 'Todos' || c.products.includes(productFilter);
       return matchesSearch && matchesProduct;
     });
@@ -143,10 +144,10 @@ export default function ClientsPage() {
                     <td className="px-6 py-4">
                       <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                          {contact.name?.split(' ').map((n) => n?.[0] || '').slice(0, 2).join('').toUpperCase() || '?'}
+                          {contactInitials(contact.name)}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-fg group-hover:text-brand">{contact.name}</p>
+                          <p className="font-medium text-fg group-hover:text-brand">{contactName(contact.name)}</p>
                           {contact.company && (
                             <p className="flex items-center gap-1 text-xs text-muted">
                               <Building2 className="h-3 w-3" />

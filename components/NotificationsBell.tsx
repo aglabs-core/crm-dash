@@ -1,5 +1,7 @@
 'use client';
 
+import { contactName } from '@/lib/contact-name';
+
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, AlertTriangle, CalendarClock, type LucideIcon } from 'lucide-react';
@@ -107,7 +109,7 @@ export function NotificationsBell() {
                   href="/deals"
                   items={closing
                     .slice(0, 4)
-                    .map((c) => ({ id: c.id, label: c.name, meta: formatDate(c.expected_close_date) }))}
+                    .map((c) => ({ id: c.id, label: contactName(c.name), meta: formatDate(c.expected_close_date) }))}
                   onNav={() => setOpen(false)}
                 />
               )}
