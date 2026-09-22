@@ -29,7 +29,7 @@ Não reintroduza uma segunda fonte para o estágio do funil.
 ## Regras do banco que o código depende
 
 - **`status`, `origin`, `priority` e `gateway` têm CHECK constraint.** Adicionar um valor novo na interface sem a migration correspondente faz o insert falhar em produção. Os valores vivem em `lib/constants.ts` (`ORIGINS`, `KANBAN_STATUSES`, `PRIORITIES`) — a interface é gerada a partir deles, então acrescentar lá propaga sozinho.
-- **Índices únicos já normalizam na expressão:** `lower(email)` e `regexp_replace(phone,'\D','','g')`. Formatação diferente do mesmo telefone não duplica. O que ainda duplica é código de país — `+55...` e `62...` são chaves diferentes.
+- **Índices únicos normalizam na expressão:** `lower(email)` e `regexp_replace(phone,'[^0-9]','','g')` (também no campo `whatsapp`). A migration `20260917160523` corrige um escape duplicado no padrão antigo, que não removia formatação. A normalização preserva o escopo `user_id`; código de país ausente e identidades entre colunas/canais continuam exigindo resolução privilegiada. Um erro de unicidade no banco não substitui recuperação de conflito/idempotência no n8n.
 - **Trigger `set_contact_closed_at`** preenche `closed_at` sozinho quando o status vira `Cliente`/`Inativo`/`Arquivado`. Não precisa setar na mão.
 - **RLS ligada** em todas as tabelas, por `user_id`. Escrita automatizada (n8n) usa a chave `service_role` e define `user_id` explicitamente.
 
