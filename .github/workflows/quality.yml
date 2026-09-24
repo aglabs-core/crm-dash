@@ -29,3 +29,18 @@ jobs:
       # Avisos alto/crítico em dependências de produção. Exceções conscientes
       # ficam declaradas em audit-gate.cjs; qualquer aviso novo reprova.
       - run: npm run audit:gate
+
+      # Portão de produção: este passo só roda se todos os anteriores passaram.
+      # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy
+      # do EasyPanel ou deploy hook da Vercel) e o deploy automático por push
+      # estiver desligado na plataforma. Sem o secret, nada muda.
+      - name: Disparar deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK_URL" ]; then
+            echo "::notice::DEPLOY_HOOK_URL ausente: o deploy segue pelo automático da plataforma."
+            exit 0
+          fi
+          curl -fsS -X POST "$DEPLOY_HOOK_URL" -o /dev/null
