@@ -30,17 +30,12 @@ jobs:
       # ficam declaradas em audit-gate.cjs; qualquer aviso novo reprova.
       - run: npm run audit:gate
 
-  # Portão de produção: a plataforma só recebe deploy depois do check verde.
-  # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy do
-  # EasyPanel ou deploy hook da Vercel) e o deploy automático por push estiver
-  # desligado na plataforma. Sem o secret, nada muda.
-  deploy:
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
+      # Portão de produção: este passo só roda se todos os anteriores passaram.
+      # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy
+      # do EasyPanel ou deploy hook da Vercel) e o deploy automático por push
+      # estiver desligado na plataforma. Sem o secret, nada muda.
       - name: Disparar deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
         run: |
@@ -49,23 +44,3 @@ jobs:
             exit 0
           fi
           curl -fsS -X POST "$DEPLOY_HOOK_URL" -o /dev/null
-
-  # CI vermelho na branch principal avisa na hora no Discord, em vez de
-  # esperar alguém abrir o GitHub. Sem o secret CI_ALERT_WEBHOOK, só registra.
-  alerta:
-    needs: [check, deploy]
-    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Avisar no Discord
-        env:
-          ALERT_WEBHOOK: ${{ secrets.CI_ALERT_WEBHOOK }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$ALERT_WEBHOOK" ]; then
-            echo "::warning::CI_ALERT_WEBHOOK ausente: falha sem aviso externo."
-            exit 0
-          fi
-          msg="CI vermelho em $GITHUB_REPOSITORY ($GITHUB_REF_NAME, ${GITHUB_SHA::7}): $RUN_URL"
-          jq -n --arg c "$msg" '{content: $c}' | curl -fsS -H 'Content-Type: application/json' -d @- "$ALERT_WEBHOOK"
