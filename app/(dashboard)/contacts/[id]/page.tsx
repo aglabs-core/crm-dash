@@ -16,6 +16,7 @@ import {
   CheckSquare,
   Clock,
   Users,
+  AtSign,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Task, Activity, ActivityType } from '@/lib/types';
@@ -144,6 +145,12 @@ export default function ContactDetail() {
                     <Building2 className="h-4 w-4" />
                     {contact.company}
                   </span>
+                )}
+                {contact.instagram && (
+                  <a href={`https://instagram.com/${contact.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-fg">
+                    <AtSign className="h-4 w-4" />
+                    {contact.instagram}
+                  </a>
                 )}
                 {contact.email && (
                   <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1.5 hover:text-fg">

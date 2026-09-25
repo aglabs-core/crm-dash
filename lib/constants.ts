@@ -90,6 +90,7 @@ export const ORIGINS: { id: ContactOrigin; label: string; tone: Tone }[] = [
   { id: 'email', label: 'E-mail', tone: 'amber' },
   { id: 'manual', label: 'Manual', tone: 'gray' },
   { id: 'compra', label: 'Compra', tone: 'purple' },
+  { id: 'instagram', label: 'Instagram', tone: 'purple' },
 ];
 const ORIGIN_TONE = new Map(ORIGINS.map((o) => [o.id, o.tone]));
 export function originTone(origin: string | null | undefined): Tone {
@@ -153,6 +154,7 @@ export const ACTIVITY_CHANNELS: { id: ActivityChannel; label: string }[] = [
   { id: 'telefone', label: 'Telefone' },
   { id: 'presencial', label: 'Presencial' },
   { id: 'sistema', label: 'Sistema' },
+  { id: 'instagram', label: 'Instagram' },
 ];
 export function channelLabel(channel: string | null | undefined): string | null {
   return ACTIVITY_CHANNELS.find((c) => c.id === channel)?.label ?? null;

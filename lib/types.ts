@@ -16,7 +16,7 @@ export type ContactStatus =
   | 'Inativo'
   | 'Arquivado';
 
-export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manual' | 'compra';
+export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manual' | 'compra' | 'instagram';
 
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
 export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';
@@ -42,7 +42,7 @@ export type ActivityType =
   | 'task';
 
 /** Meio pelo qual a interação aconteceu — por onde. */
-export type ActivityChannel = 'whatsapp' | 'email' | 'telefone' | 'presencial' | 'sistema';
+export type ActivityChannel = 'whatsapp' | 'email' | 'telefone' | 'presencial' | 'sistema' | 'instagram';
 
 // A Contact is now the pipeline unit: it carries the funnel position (`status`)
 // AND the deal economics (amount, expected_close_date, closed_at, …).
@@ -67,6 +67,10 @@ export type Contact = {
   gateway?: Gateway | null;
   external_id?: string | null;
   documento?: string | null;
+  // Contato que pediu material pelo Instagram (origin 'instagram').
+  instagram?: string | null;
+  instagram_id?: string | null;
+  instagram_oferta_em?: string | null;
   created_at?: string;
   updated_at?: string;
 };
