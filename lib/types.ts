@@ -16,7 +16,7 @@ export type ContactStatus =
   | 'Inativo'
   | 'Arquivado';
 
-export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'manual' | 'compra';
+export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manual' | 'compra';
 
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
 export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';

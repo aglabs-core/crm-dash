@@ -87,15 +87,16 @@ export const ORIGINS: { id: ContactOrigin; label: string; tone: Tone }[] = [
   { id: 'web', label: 'Web', tone: 'indigo' },
   { id: 'prospeccao', label: 'Prospecção', tone: 'blue' },
   { id: 'whatsapp', label: 'WhatsApp', tone: 'emerald' },
+  { id: 'email', label: 'E-mail', tone: 'amber' },
   { id: 'manual', label: 'Manual', tone: 'gray' },
   { id: 'compra', label: 'Compra', tone: 'purple' },
 ];
 const ORIGIN_TONE = new Map(ORIGINS.map((o) => [o.id, o.tone]));
 export function originTone(origin: string | null | undefined): Tone {
-  return ORIGIN_TONE.get((origin as ContactOrigin) ?? 'prospeccao') ?? 'gray';
+  return ORIGIN_TONE.get(origin as ContactOrigin) ?? 'gray';
 }
 export function originLabel(origin: string | null | undefined): string {
-  return ORIGINS.find((o) => o.id === origin)?.label ?? 'Prospecção';
+  return ORIGINS.find((o) => o.id === origin)?.label ?? 'Não informada';
 }
 
 export const PRIORITIES: { id: Priority; label: string; tone: Tone }[] = [
