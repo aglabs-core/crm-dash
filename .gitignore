@@ -8,3 +8,5 @@ coverage/
 
 # build artifacts
 *.tsbuildinfo
+__pycache__/
+*.pyc
