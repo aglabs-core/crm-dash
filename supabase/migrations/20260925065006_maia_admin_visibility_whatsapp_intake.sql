@@ -85,7 +85,7 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION public.maia_whatsapp_intake(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.maia_whatsapp_intake(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.maia_whatsapp_intake(text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.maia_whatsapp_contact(p_contact uuid, p_body jsonb)
