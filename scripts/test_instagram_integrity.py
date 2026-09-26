@@ -7,6 +7,7 @@ container. Never point this script at a shared or production database.
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
+import time
 import unittest
 
 
@@ -14,6 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTAINER = "crm-instagram-integrity-test"
 OWNER = "0af00833-c1f7-42f4-9543-a5e0ff6f55fc"
 OTHER = "11111111-1111-4111-8111-111111111111"
+
+
+def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        list(args), text=True, encoding="utf-8", capture_output=True
+    )
+    if check and result.returncode:
+        raise AssertionError(result.stderr or result.stdout)
+    return result
 
 
 def sql(statement: str, *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -44,6 +54,27 @@ def sql(statement: str, *, check: bool = True) -> subprocess.CompletedProcess[st
 class InstagramIntegrity(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        run("docker", "rm", "-f", CONTAINER, check=False)
+        run(
+            "docker",
+            "run",
+            "--rm",
+            "-d",
+            "--name",
+            CONTAINER,
+            "-e",
+            "POSTGRES_PASSWORD=synthetic-only",
+            "postgres:17-alpine",
+        )
+        for _ in range(30):
+            if run(
+                "docker", "exec", CONTAINER, "pg_isready", "-U", "postgres", check=False
+            ).returncode == 0:
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError("Disposable PostgreSQL did not become ready")
+
         sql(
             f"""
             CREATE ROLE anon NOLOGIN;
@@ -93,6 +124,10 @@ class InstagramIntegrity(unittest.TestCase):
             )
         )
         sql(migration.read_text(encoding="utf-8"))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        run("docker", "rm", "-f", CONTAINER, check=False)
 
     def setUp(self) -> None:
         sql(
