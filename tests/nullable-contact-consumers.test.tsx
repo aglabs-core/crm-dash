@@ -126,3 +126,14 @@ it('promotes an interested prospect on the same contact record', async () => {
   }));
   expect(await screen.findByText('Em atendimento')).toBeTruthy();
 });
+
+it('persists an explicit block on future campaigns without deleting the contact', async () => {
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await user.click(await screen.findByRole('button', { name: 'Editar' }));
+  await user.selectOptions(screen.getByLabelText('Campanhas'), 'blocked');
+  await user.click(screen.getByRole('button', { name: /^Salvar/ }));
+  await waitFor(() => expect(api.writes[0]).toMatchObject({
+    table: 'contacts', id: 'synthetic-null-contact', payload: { outreach_status: 'blocked' },
+  }));
+});

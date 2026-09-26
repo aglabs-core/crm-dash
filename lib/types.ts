@@ -72,6 +72,7 @@ export type Contact = {
   produto?: string | null;
   lp_url?: string | null;
   prospecting_pool?: boolean;
+  outreach_status?: 'unreviewed' | 'contactable' | 'blocked';
   amount?: number | null;
   priority?: Priority | null;
   expected_close_date?: string | null;

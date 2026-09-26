@@ -153,6 +153,11 @@ export default function ContactDetail() {
                 {contact.prospecting_pool
                   ? <Badge tone="purple">Prospecção</Badge>
                   : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
+                {(contact.prospecting_pool || contact.outreach_status === 'blocked') && (
+                  <Badge tone={contact.outreach_status === 'blocked' ? 'red' : contact.outreach_status === 'contactable' ? 'emerald' : 'gray'}>
+                    {contact.outreach_status === 'blocked' ? 'Não contatar' : contact.outreach_status === 'contactable' ? 'Apto para contato' : 'Revisão pendente'}
+                  </Badge>
+                )}
                 <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                 {contact.produto && <Badge tone="purple">{productLabel(contact.produto)}</Badge>}
               </div>
