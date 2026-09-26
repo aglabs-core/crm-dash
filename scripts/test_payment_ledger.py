@@ -174,6 +174,10 @@ class PaymentLedger(unittest.TestCase):
             (ROOT / "supabase" / "migrations").glob("*_idempotent_web_onboarding.sql")
         )
         sql(onboarding_migration.read_text(encoding="utf-8"))
+        maia_migration = next(
+            (ROOT / "supabase" / "migrations").glob("*_route_web_onboarding_to_maia.sql")
+        )
+        sql(maia_migration.read_text(encoding="utf-8"))
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -195,7 +199,11 @@ class PaymentLedger(unittest.TestCase):
         self.assertTrue(all(result.returncode == 0 for result in results), results[0].stderr)
         self.assertEqual(sql("SELECT count(*) FROM public.payment_transactions;").stdout.strip(), "1")
         self.assertEqual(sql("SELECT count(*) FROM public.tasks;").stdout.strip(), "1")
-        self.assertEqual(sql("SELECT assigned_to FROM public.tasks;").stdout.strip(), "leo")
+        self.assertEqual(sql("SELECT assigned_to FROM public.tasks;").stdout.strip(), "maia")
+        self.assertIn(
+            "produção só após escopo aprovado",
+            sql("SELECT description FROM public.tasks;").stdout,
+        )
 
     def test_other_cakto_product_does_not_create_web_task(self) -> None:
         result = sql(
@@ -295,6 +303,10 @@ class PaymentLedger(unittest.TestCase):
             (ROOT / "supabase" / "migrations").glob("*_create_payment_transactions.sql")
         )
         sql(migration.read_text(encoding="utf-8"))
+        maia_migration = next(
+            (ROOT / "supabase" / "migrations").glob("*_route_web_onboarding_to_maia.sql")
+        )
+        sql(maia_migration.read_text(encoding="utf-8"))
         self.assertEqual(ingest("pay_after_reapply").returncode, 0)
         self.assertEqual(sql("SELECT count(*) FROM public.payment_transactions;").stdout.strip(), "1")
 
