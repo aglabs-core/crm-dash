@@ -27,17 +27,16 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import type { Contact } from '@/lib/types';
+import type { Contact, PaymentTransaction } from '@/lib/types';
+import { netRevenue, paymentProducts, paymentRevenue, paymentsByPeriod } from '@/lib/payment-analytics';
+import { loadPaymentTransactions } from '@/lib/payment-data';
 import { TONE_HEX, type Tone } from '@/lib/constants';
 import {
-  avgDealSize,
   winRate,
   winLossCounts,
   monthlySeries,
   conversionFunnel,
   pipelineValue,
-  totalRevenue,
-  revenueByProduct,
   productPerformance,
   leadsByProduct,
   uniqueProducts,
@@ -114,43 +113,66 @@ function Panel({
 
 export default function Reports() {
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
+  const [allPayments, setAllPayments] = useState<PaymentTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [paymentError, setPaymentError] = useState(false);
   const [productFilter, setProductFilter] = useState('Todos');
   const [periodDays, setPeriodDays] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from('contacts').select('*').order('created_at', { ascending: true });
-      if (error) console.error('Error fetching report data:', error);
-      setAllContacts((data as Contact[]) || []);
+      try {
+        const [contactsRes, paymentRows] = await Promise.all([
+          supabase.from('contacts').select('*').order('created_at', { ascending: true }),
+          loadPaymentTransactions(),
+        ]);
+        if (contactsRes.error) throw contactsRes.error;
+        setAllContacts((contactsRes.data as Contact[]) || []);
+        setAllPayments(paymentRows);
+      } catch (error) {
+        console.error('Error fetching report data:', error);
+        setPaymentError(true);
+      }
       setIsLoading(false);
     })();
   }, []);
 
-  const products = useMemo(() => uniqueProducts(allContacts), [allContacts]);
+  const products = useMemo(() => [...new Set([
+    ...uniqueProducts(allContacts),
+    ...allPayments.map((payment) => payment.product?.trim()).filter((product): product is string => !!product),
+  ])].sort(), [allContacts, allPayments]);
 
   const contacts = useMemo(() => {
     const byPeriod = filterByPeriod(allContacts, periodDays);
     return byPeriod.filter((c) => productFilter === 'Todos' || c.produto === productFilter);
   }, [allContacts, productFilter, periodDays]);
 
+  const payments = useMemo(() => paymentsByPeriod(allPayments, periodDays)
+    .filter((payment) => productFilter === 'Todos' || payment.product === productFilter),
+  [allPayments, periodDays, productFilter]);
+
   const monthsWindow = periodDays ? Math.min(12, Math.max(2, Math.round(periodDays / 30))) : 12;
 
   const metrics = useMemo(() => {
     const { won, lost } = winLossCounts(contacts);
+    const productsWithRevenue = paymentProducts(payments);
+    const paidCount = payments.filter((payment) => netRevenue(payment) > 0).length;
     return {
-      revenue: totalRevenue(contacts),
+      revenue: paymentRevenue(payments),
       pipeline: pipelineValue(contacts),
-      avgDealSize: avgDealSize(contacts),
+      avgDealSize: paidCount ? paymentRevenue(payments) / paidCount : 0,
       winRate: winRate(contacts),
       closed: won + lost,
-      series: monthlySeries(contacts, monthsWindow),
+      series: monthlySeries(contacts, monthsWindow, payments),
       funnel: conversionFunnel(contacts),
-      products: revenueByProduct(contacts).slice(0, 8),
-      perf: productPerformance(contacts),
+      products: productsWithRevenue.slice(0, 8),
+      perf: productPerformance(contacts).map((row) => ({
+        ...row,
+        wonValue: productsWithRevenue.find((payment) => payment.produto === row.produto)?.revenue ?? 0,
+      })),
       leadsProduct: leadsByProduct(contacts).slice(0, 8),
     };
-  }, [contacts, monthsWindow]);
+  }, [contacts, payments, monthsWindow]);
 
   const funnelTop = metrics.funnel[0]?.reached ?? 0;
   const hasFunnel = funnelTop > 0;
@@ -191,6 +213,7 @@ export default function Reports() {
   };
 
   if (isLoading) return <PageLoader />;
+  if (paymentError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar as transações. Os relatórios financeiros estão indisponíveis.</p>;
 
   return (
     <div className="space-y-6">
@@ -236,9 +259,9 @@ export default function Reports() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard label="Receita Ganha" value={formatCurrency(metrics.revenue)} icon={DollarSign} tone="emerald" hint="clientes" />
+        <MetricCard label="Receita após estornos" value={formatCurrency(metrics.revenue)} icon={DollarSign} tone="emerald" hint="pagamentos" />
         <MetricCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} tone="indigo" hint="em atendimento" />
-        <MetricCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} tone="blue" hint="por cliente" />
+        <MetricCard label="Ticket Médio" value={formatCurrency(metrics.avgDealSize)} icon={TrendingUp} tone="blue" hint="por transação" />
         <MetricCard label="Taxa de Ganho" value={formatPercent(metrics.winRate)} icon={CheckCircle2} tone="amber" hint="fechados" />
       </div>
 
@@ -303,7 +326,7 @@ export default function Reports() {
 
       {/* Sales performance + conversion */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel title="Desempenho de Vendas" subtitle="Ganhos vs perdidos por mês" icon={BarChart3} tone="emerald">
+        <Panel title="Desempenho de Vendas" subtitle="Pagamentos por mês e valor de oportunidades perdidas" icon={BarChart3} tone="emerald">
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={metrics.series} margin={{ top: 16, right: 12, left: -8, bottom: 0 }} barGap={4}>
@@ -325,9 +348,9 @@ export default function Reports() {
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
-                  formatter={(value: any, name: any) => [formatCurrency(value), name === 'revenue' ? 'Ganhos' : 'Perdidos']}
+                  formatter={(value: any, name: any) => [formatCurrency(value), name === 'revenue' ? 'Receita' : 'Oportunidades perdidas']}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => (v === 'revenue' ? 'Ganhos' : 'Perdidos')} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(v) => (v === 'revenue' ? 'Receita' : 'Oportunidades perdidas')} />
                 <Bar dataKey="revenue" name="revenue" fill="url(#gWon)" radius={[5, 5, 0, 0]} maxBarSize={36} />
                 <Bar dataKey="lost" name="lost" fill="url(#gLost)" radius={[5, 5, 0, 0]} maxBarSize={36} />
               </BarChart>
@@ -373,7 +396,7 @@ export default function Reports() {
 
       {/* Revenue by product + leads by product */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel title="Receita por Produto" subtitle="Clientes fechados no período" icon={Package} tone="purple">
+        <Panel title="Receita por Produto" subtitle="Pagamentos registrados no período" icon={Package} tone="purple">
           <div className="h-80 w-full">
             <BarList
               emptyMessage="Sem receita no período."

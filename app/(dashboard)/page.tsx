@@ -29,17 +29,16 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import type { Contact, Task } from '@/lib/types';
+import type { Contact, PaymentTransaction, Task } from '@/lib/types';
+import { paymentMonthRevenue, paymentProducts, paymentRevenue } from '@/lib/payment-analytics';
+import { loadPaymentTransactions } from '@/lib/payment-data';
 import {
-  totalRevenue,
   pipelineValue,
   openDealsCount,
   winRate,
-  isWon,
   isOpen,
   monthlySeries,
   pipelineByStage,
-  revenueByProduct,
   winLossCounts,
   isTaskOverdue,
   closingSoon,
@@ -52,12 +51,6 @@ import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { Card, CardHeader, CardTitle, ChartCard, Button, Sparkline, PageLoader, BarList, DonutChart } from '@/components/ui';
 
 const STALE_DAYS = 14;
-
-function inMonth(dateStr: string | null | undefined, month: number, year: number) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  return d.getMonth() === month && d.getFullYear() === year;
-}
 
 function Trend({ change, hint }: { change?: Change | null; hint?: string }) {
   if (change) {
@@ -81,7 +74,9 @@ function Trend({ change, hint }: { change?: Change | null; hint?: string }) {
 export default function Dashboard() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [paymentError, setPaymentError] = useState(false);
 
   // Coalesce bursts of realtime events into a single refetch (e.g. a bulk
   // status update emits one event per row) to avoid many full reloads.
@@ -106,14 +101,18 @@ export default function Dashboard() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const [contactsRes, tasksRes] = await Promise.all([
+      const [contactsRes, tasksRes, paymentRows] = await Promise.all([
         supabase.from('contacts').select('*').order('updated_at', { ascending: false }),
         supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
+        loadPaymentTransactions(),
       ]);
       setContacts((contactsRes.data as Contact[]) || []);
       setTasks((tasksRes.data as Task[]) || []);
+      setPayments(paymentRows);
+      setPaymentError(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setPaymentError(true);
     } finally {
       setIsLoading(false);
     }
@@ -125,13 +124,10 @@ export default function Dashboard() {
     const curY = now.getFullYear();
     const prev = new Date(curY, curM - 1, 1);
 
-    const won = contacts.filter(isWon);
-    const revThis = won.filter((c) => inMonth(c.closed_at, curM, curY)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
-    const revPrev = won
-      .filter((c) => inMonth(c.closed_at, prev.getMonth(), prev.getFullYear()))
-      .reduce((s, c) => s + (Number(c.amount) || 0), 0);
+    const revThis = paymentMonthRevenue(payments, curY, curM);
+    const revPrev = paymentMonthRevenue(payments, prev.getFullYear(), prev.getMonth());
 
-    const series = monthlySeries(contacts, 6);
+    const series = monthlySeries(contacts, 6, payments);
     const last = series[series.length - 1];
     const prevPoint = series[series.length - 2];
 
@@ -140,7 +136,7 @@ export default function Dashboard() {
       .sort((a, b) => new Date(a.updated_at as string).getTime() - new Date(b.updated_at as string).getTime());
 
     return {
-      revenue: totalRevenue(contacts),
+      revenue: paymentRevenue(payments),
       revenueChange: formatChange(revThis, revPrev),
       pipeline: pipelineValue(contacts),
       openCount: openDealsCount(contacts),
@@ -153,18 +149,19 @@ export default function Dashboard() {
       sparkRate: series.map((p) => p.rate ?? 0),
       sparkNew: series.map((p) => p.newCount),
       funnel: pipelineByStage(contacts),
-      products: revenueByProduct(contacts).slice(0, 6),
+      products: paymentProducts(payments).slice(0, 6),
       winLoss: winLossCounts(contacts),
       overdue: tasks.filter(isTaskOverdue),
       closing: closingSoon(contacts, 30),
       stalled,
     };
-  }, [contacts, tasks]);
+  }, [contacts, tasks, payments]);
 
   if (isLoading) return <PageLoader />;
+  if (paymentError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar as transações. Os totais financeiros estão indisponíveis.</p>;
 
   const kpis: { id: string; label: string; value: React.ReactNode; icon: LucideIcon; color: string; spark: number[]; change?: Change | null; hint?: string }[] = [
-    { id: 'sp-rev', label: 'Receita Ganha', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
+    { id: 'sp-rev', label: 'Receita após estornos', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
     { id: 'sp-pipe', label: 'Em Pipeline', value: formatCurrency(m.pipeline), icon: Briefcase, color: TONE_HEX.emerald, spark: m.sparkPipeline, hint: `${m.openCount} abertos` },
     { id: 'sp-rate', label: 'Taxa de Ganho', value: formatPercent(m.winRate), icon: TrendingUp, color: TONE_HEX.amber, spark: m.sparkRate, hint: 'fechados' },
     { id: 'sp-new', label: 'Novos Leads', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
@@ -214,7 +211,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <ChartCard
           title="Receita e Pipeline"
-          subtitle="Últimos 6 meses · receita por data de fechamento"
+          subtitle="Últimos 6 meses · receita por data do pagamento"
           className="lg:col-span-2"
         >
           {/* Margins + .recharts-surface{overflow:visible} (globals.css) keep the
@@ -330,7 +327,7 @@ export default function Dashboard() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Receita por Produto" subtitle="Negócios ganhos">
+        <ChartCard title="Receita por Produto" subtitle="Pagamentos registrados">
           <div className="h-64 w-full">
             <BarList
               emptyMessage="Sem receita registrada."
