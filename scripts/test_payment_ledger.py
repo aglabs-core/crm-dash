@@ -147,23 +147,84 @@ class PaymentLedger(unittest.TestCase):
               ON public.contacts(gateway, external_id)
               WHERE gateway IS NOT NULL AND external_id IS NOT NULL;
 
+            CREATE TABLE public.tasks (
+              id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+              user_id uuid NOT NULL REFERENCES auth.users(id),
+              contact_id uuid REFERENCES public.contacts(id),
+              title text NOT NULL,
+              description text,
+              due_date date,
+              status text DEFAULT 'pending',
+              priority text DEFAULT 'Média',
+              assigned_to text
+            );
+
             GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
             GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
             GRANT SELECT ON public.admin_users TO authenticated, service_role;
             GRANT ALL ON public.contacts TO service_role;
+            GRANT ALL ON public.tasks TO service_role;
             """
         )
         migration = next(
             (ROOT / "supabase" / "migrations").glob("*_create_payment_transactions.sql")
         )
         sql(migration.read_text(encoding="utf-8"))
+        onboarding_migration = next(
+            (ROOT / "supabase" / "migrations").glob("*_idempotent_web_onboarding.sql")
+        )
+        sql(onboarding_migration.read_text(encoding="utf-8"))
 
     @classmethod
     def tearDownClass(cls) -> None:
         run("docker", "rm", "-f", CONTAINER, check=False)
 
     def setUp(self) -> None:
-        sql("TRUNCATE public.payment_transactions, public.contacts CASCADE;")
+        sql("TRUNCATE public.tasks, public.payment_transactions, public.contacts CASCADE;")
+
+    def test_web_onboarding_is_atomic_and_idempotent_without_phone(self) -> None:
+        statement = (
+            "SET ROLE service_role; SELECT public.ingest_payment_with_onboarding("
+            f"'{OWNER}', 'cakto', 'web_one', 'paid', 497, 0, 'BRL', "
+            "'Nome comercial alterado', now(), 'Cliente Teste', "
+            "'cliente@example.test', NULL, NULL, "
+            "'eafbeb9c-2689-4f1a-9ee1-37b51d7f90b4');"
+        )
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: sql(statement, check=False), range(2)))
+        self.assertTrue(all(result.returncode == 0 for result in results), results[0].stderr)
+        self.assertEqual(sql("SELECT count(*) FROM public.payment_transactions;").stdout.strip(), "1")
+        self.assertEqual(sql("SELECT count(*) FROM public.tasks;").stdout.strip(), "1")
+        self.assertEqual(sql("SELECT assigned_to FROM public.tasks;").stdout.strip(), "leo")
+
+    def test_other_cakto_product_does_not_create_web_task(self) -> None:
+        result = sql(
+            "SET ROLE service_role; SELECT public.ingest_payment_with_onboarding("
+            f"'{OWNER}', 'cakto', 'other_product', 'paid', 27, 0, 'BRL', "
+            "'Outro produto', now(), 'Cliente Teste', 'cliente@example.test', "
+            "NULL, NULL, '00000000-0000-4000-8000-000000000000');",
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sql("SELECT count(*) FROM public.tasks;").stdout.strip(), "0")
+
+    def test_onboarding_failure_rolls_back_payment(self) -> None:
+        sql("""
+          CREATE FUNCTION public.reject_test_task() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN RAISE EXCEPTION 'synthetic task failure'; END $$;
+          CREATE TRIGGER reject_test_task BEFORE INSERT ON public.tasks
+          FOR EACH ROW EXECUTE FUNCTION public.reject_test_task();
+        """)
+        result = sql(
+            "SET ROLE service_role; SELECT public.ingest_payment_with_onboarding("
+            f"'{OWNER}', 'cakto', 'failed_task', 'paid', 497, 0, 'BRL', "
+            "'Web', now(), 'Cliente Teste', 'cliente@example.test', NULL, NULL, "
+            "'eafbeb9c-2689-4f1a-9ee1-37b51d7f90b4');",
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(sql("SELECT count(*) FROM public.payment_transactions;").stdout.strip(), "0")
+        sql("DROP TRIGGER reject_test_task ON public.tasks; DROP FUNCTION public.reject_test_task();")
 
     def test_same_payment_replay_is_idempotent_under_concurrency(self) -> None:
         with ThreadPoolExecutor(max_workers=8) as pool:
