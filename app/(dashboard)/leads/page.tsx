@@ -202,8 +202,8 @@ export default function LeadsPage() {
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-fg">Leads</h1>
-          <p className="mt-0.5 text-sm text-muted">Captação inbound · leads qualificados que entraram pela web</p>
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Entradas do site</h1>
+          <p className="mt-0.5 text-sm text-muted">Formulários recebidos · converta para a ficha de contato ao iniciar o atendimento</p>
         </div>
       </div>
 

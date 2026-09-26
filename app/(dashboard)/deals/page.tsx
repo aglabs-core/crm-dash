@@ -1,5 +1,8 @@
 'use client';
 
+import { productLabel } from '@/lib/product-label';
+import { loadContacts } from '@/lib/contact-data';
+
 import { contactNameInput, contactNamePayload, contactName } from '@/lib/contact-name';
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
@@ -117,12 +120,7 @@ function PipelineContent() {
   const fetchContacts = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
-      setContacts((data as Contact[]) || []);
+      setContacts(await loadContacts('updated_at'));
     } catch (error) {
       console.error('Error fetching pipeline:', error);
       toast.error('Erro ao carregar o funil.');
@@ -269,7 +267,7 @@ function PipelineContent() {
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {productLabel(p)}
               </option>
             ))}
           </Select>
@@ -297,7 +295,7 @@ function PipelineContent() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-sm font-semibold text-fg">{contactName(c.name)}</p>
-                      {c.produto && <Badge tone="purple">{c.produto}</Badge>}
+                      {c.produto && <Badge tone="purple">{productLabel(c.produto)}</Badge>}
                       <Badge tone={originTone(c.origin)}>{originLabel(c.origin)}</Badge>
                     </div>
                     <p className="mt-1 truncate text-xs text-muted">
@@ -421,7 +419,7 @@ function PipelineContent() {
                                   )}
                                   {c.produto && (
                                     <div className="mb-2">
-                                      <Badge tone="purple">{c.produto}</Badge>
+                                      <Badge tone="purple">{productLabel(c.produto)}</Badge>
                                     </div>
                                   )}
                                   <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted">
@@ -489,8 +487,8 @@ function PipelineContent() {
             <Field label="Empresa" htmlFor="company">
               <Input id="company" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} />
             </Field>
-            <Field label="Produto" htmlFor="produto">
-              <Input id="produto" value={formData.produto} onChange={(e) => setFormData({ ...formData, produto: e.target.value })} placeholder="Ex: Consultoria" />
+            <Field label="Produto de interesse" htmlFor="produto">
+              <Input id="produto" value={formData.produto} onChange={(e) => setFormData({ ...formData, produto: e.target.value })} placeholder="Deixe vazio se ainda não foi identificado" />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">

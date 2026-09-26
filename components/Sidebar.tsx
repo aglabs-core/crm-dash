@@ -26,9 +26,9 @@ const navGroups: NavGroup[] = [
   {
     label: 'Funil',
     items: [
-      { name: 'Leads', href: '/leads', icon: Magnet },
+      { name: 'Entradas do site', href: '/leads', icon: Magnet },
       { name: 'Contatos', href: '/contacts', icon: Users },
-      { name: 'Negócios', href: '/deals', icon: Briefcase },
+      { name: 'Funil', href: '/deals', icon: Briefcase },
       { name: 'Clientes', href: '/clients', icon: UserCheck },
     ],
   },

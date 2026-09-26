@@ -26,7 +26,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { supabase } from '@/lib/supabase';
+import { loadContacts } from '@/lib/contact-data';
+import { productLabel } from '@/lib/product-label';
 import type { Contact, PaymentTransaction } from '@/lib/types';
 import { netRevenue, paymentProducts, paymentRevenue, paymentsByPeriod } from '@/lib/payment-analytics';
 import { loadPaymentTransactions } from '@/lib/payment-data';
@@ -123,12 +124,11 @@ export default function Reports() {
   useEffect(() => {
     (async () => {
       try {
-        const [contactsRes, paymentRows] = await Promise.all([
-          supabase.from('contacts').select('*').order('created_at', { ascending: true }),
+        const [contactRows, paymentRows] = await Promise.all([
+          loadContacts('created_at', true),
           loadPaymentTransactions(),
         ]);
-        if (contactsRes.error) throw contactsRes.error;
-        setAllContacts((contactsRes.data as Contact[]) || []);
+        setAllContacts(contactRows);
         setAllPayments(paymentRows);
       } catch (error) {
         console.error('Error fetching report data:', error);
@@ -228,11 +228,11 @@ export default function Reports() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg">Relatórios e Análises</h1>
           <p className="mt-0.5 text-sm text-muted">
-            {formatNumber(contacts.length)} no funil · <span className="text-fg/80">{periodLabel}</span>
+            {formatNumber(contacts.length)} no histórico comercial · <span className="text-fg/80">{periodLabel}</span>
             {productFilter !== 'Todos' && (
               <>
                 {' '}
-                · <span className="text-fg/80">{productFilter}</span>
+                · <span className="text-fg/80">{productLabel(productFilter)}</span>
               </>
             )}
           </p>
@@ -242,7 +242,7 @@ export default function Reports() {
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {productLabel(p)}
               </option>
             ))}
           </Select>
@@ -408,7 +408,7 @@ export default function Reports() {
             <BarList
               emptyMessage="Sem receita no período."
               items={metrics.products.map((p) => ({
-                label: p.produto,
+                label: productLabel(p.produto),
                 value: p.revenue,
                 display: formatCurrencyCompact(p.revenue),
                 sub: `${p.count} cliente${p.count === 1 ? '' : 's'}`,
@@ -418,12 +418,12 @@ export default function Reports() {
           </div>
         </Panel>
 
-        <Panel title="Leads por Produto" subtitle="Volume de contatos por produto" icon={Users} tone="blue">
+        <Panel title="Contatos por produto" subtitle="Volume por produto identificado ou a definir" icon={Users} tone="blue">
           <div className="h-80 w-full">
             <BarList
               emptyMessage="Sem leads no período."
               items={metrics.leadsProduct.map((p) => ({
-                label: p.produto,
+                label: productLabel(p.produto),
                 value: p.count,
                 display: formatNumber(p.count),
                 color: TONE_HEX.blue,
@@ -471,7 +471,7 @@ export default function Reports() {
                       <td className="py-3 pl-5 pr-3">
                         <span className="flex items-center gap-2.5">
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_HEX.purple }} />
-                          <span className="font-medium text-fg">{p.produto}</span>
+                          <span className="font-medium text-fg">{productLabel(p.produto)}</span>
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums text-muted">{formatNumber(p.deals)}</td>
