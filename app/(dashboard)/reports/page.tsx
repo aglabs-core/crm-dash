@@ -157,6 +157,15 @@ export default function Reports() {
     const { won, lost } = winLossCounts(contacts);
     const productsWithRevenue = paymentProducts(payments);
     const paidCount = payments.filter((payment) => netRevenue(payment) > 0).length;
+    const perf = productPerformance(contacts);
+    for (const row of perf) row.wonValue = 0;
+    for (const payment of productsWithRevenue) {
+      const row = perf.find((candidate) => candidate.produto === payment.produto);
+      if (row) row.wonValue = payment.revenue;
+      else perf.push({ produto: payment.produto, deals: 0, open: 0, openValue: 0,
+        won: 0, wonValue: payment.revenue, lost: 0, rate: null });
+    }
+    perf.sort((a, b) => b.wonValue - a.wonValue || b.deals - a.deals);
     return {
       revenue: paymentRevenue(payments),
       pipeline: pipelineValue(contacts),
@@ -166,10 +175,7 @@ export default function Reports() {
       series: monthlySeries(contacts, monthsWindow, payments),
       funnel: conversionFunnel(contacts),
       products: productsWithRevenue.slice(0, 8),
-      perf: productPerformance(contacts).map((row) => ({
-        ...row,
-        wonValue: productsWithRevenue.find((payment) => payment.produto === row.produto)?.revenue ?? 0,
-      })),
+      perf,
       leadsProduct: leadsByProduct(contacts).slice(0, 8),
     };
   }, [contacts, payments, monthsWindow]);

@@ -1,7 +1,7 @@
-// Pure analytics over the contact-centric pipeline. The contact IS the funnel
-// unit now: it carries `status` (funnel position) and `amount`/`closed_at`.
-// This keeps the data honest and reused by dashboard, reports, clients.
-//  - revenue attributed by closed_at (not created_at)
+// Contact analytics for the funnel. Financial views pass payment transactions
+// to monthlySeries so revenue follows each payment's date rather than the
+// contact's closing date.
+//  - open pipeline and win-rate remain contact-based
 //  - month buckets keyed by year+month
 //  - win-rate and sales-cycle computed from real closed contacts
 
@@ -59,7 +59,7 @@ export function avgSalesCycleDays(contacts: Contact[]): number | null {
 export type MonthPoint = {
   key: string; // YYYY-MM for sorting
   name: string; // e.g. "Jun/26"
-  revenue: number; // won value, by closed_at
+  revenue: number; // payment net value by paid_at when payments are supplied
   lost: number; // lost value, by closed_at
   pipeline: number; // open value, by created_at
   newCount: number; // contacts created in the month
