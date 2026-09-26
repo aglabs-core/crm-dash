@@ -127,43 +127,31 @@ export default function LeadsPage() {
     if (!converting) return;
     try {
       setIsSubmitting(true);
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('User not authenticated');
-
-      const { data: contact, error: cErr } = await supabase
-        .from('contacts')
-        .insert([
-          {
-            user_id: userData.user.id,
-            name: convertForm.name,
-            email: convertForm.email || null,
-            phone: convertForm.phone || null,
-            company: convertForm.company || null,
-            produto: convertForm.produto || null,
-            status: 'Lead',
-            origin: 'web',
-          },
-        ])
-        .select()
-        .single();
-      if (cErr) throw cErr;
-
-      const { error: lErr } = await supabase
-        .from('leads_institucional')
-        .update({ status: 'convertido', contact_id: contact.id, produto: convertForm.produto || null })
-        .eq('id', converting.id);
-      if (lErr) throw lErr;
+      const { data: contactId, error } = await supabase.rpc('convert_institutional_lead', {
+        p_lead_id: converting.id,
+        p_name: convertForm.name || null,
+        p_email: convertForm.email || null,
+        p_phone: convertForm.phone || null,
+        p_company: convertForm.company || null,
+        p_product: convertForm.produto || null,
+      });
+      if (error || !contactId) throw error || new Error('Contact conversion returned no id');
 
       setLeads((p) =>
         p.map((l) =>
-          l.id === converting.id ? { ...l, status: 'convertido', contact_id: contact.id } : l,
+          l.id === converting.id ? { ...l, status: 'convertido', contact_id: contactId as string } : l,
         ),
       );
       toast.success('Lead convertido em contato!');
       setConverting(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error converting lead:', error);
-      toast.error('Erro ao converter lead.');
+      const message = (error as { message?: string; code?: string })?.message || '';
+      toast.error(message.includes('identity conflict')
+        ? 'Email e telefone apontam para contatos diferentes. Revise antes de converter.'
+        : (error as { code?: string })?.code === '23505'
+          ? 'Outro processo atualizou esse contato. Tente converter novamente.'
+          : 'Erro ao converter a entrada do site.');
     } finally {
       setIsSubmitting(false);
     }
