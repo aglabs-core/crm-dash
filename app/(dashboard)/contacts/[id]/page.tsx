@@ -164,7 +164,7 @@ export default function ContactDetail() {
                     {contact.phone}
                   </span>
                 )}
-                {contact.lp_url && (
+                {contact.lp_url && !contact.prospecting_pool && (
                   <a
                     href={contact.lp_url}
                     target="_blank"
@@ -178,10 +178,10 @@ export default function ContactDetail() {
               </div>
             </div>
           </div>
-          <Link href="/deals">
+          <Link href={contact.prospecting_pool ? '/contacts' : '/deals'}>
             <Button variant="secondary">
               <Briefcase className="h-4 w-4" />
-              Abrir no Funil
+              {contact.prospecting_pool ? 'Voltar aos contatos' : 'Abrir no Funil'}
             </Button>
           </Link>
         </div>

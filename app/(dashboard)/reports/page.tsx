@@ -41,6 +41,7 @@ import {
   leadsByProduct,
   uniqueProducts,
   filterByPeriod,
+  salesContacts,
 } from '@/lib/analytics';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, formatDate } from '@/lib/format';
 import {
@@ -143,7 +144,7 @@ export default function Reports() {
   ])].sort(), [allContacts, allPayments]);
 
   const contacts = useMemo(() => {
-    const byPeriod = filterByPeriod(allContacts, periodDays);
+    const byPeriod = filterByPeriod(salesContacts(allContacts), periodDays);
     return byPeriod.filter((c) => productFilter === 'Todos' || c.produto === productFilter);
   }, [allContacts, productFilter, periodDays]);
 
