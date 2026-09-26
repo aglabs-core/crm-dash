@@ -61,12 +61,14 @@ const emptyForm = {
   lp_url: '',
   produto: '',
   prospecting_pool: false,
+  outreach_status: 'unreviewed' as NonNullable<Contact['outreach_status']>,
 };
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
   const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados' | 'prospeccao'>('Todos');
+  const [outreachFilter, setOutreachFilter] = useState<'Todos' | NonNullable<Contact['outreach_status']>>('Todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,6 +96,7 @@ export default function Contacts() {
       lp_url: contact.lp_url || '',
       produto: contact.produto || '',
       prospecting_pool: !!contact.prospecting_pool,
+      outreach_status: contact.outreach_status || 'unreviewed',
     });
     setIsModalOpen(true);
   };
@@ -158,6 +161,7 @@ export default function Contacts() {
         lp_url: formData.lp_url || null,
         produto: formData.produto || null,
         prospecting_pool: formData.prospecting_pool && formData.status === 'Arquivado',
+        outreach_status: formData.outreach_status,
       };
 
       if (editingContact) {
@@ -225,9 +229,10 @@ export default function Contacts() {
                 : situacao === 'prospeccao'
                   ? !!contact.prospecting_pool
                   : isArchivedStatus(contact.status) && !contact.prospecting_pool;
-        return matchesSearch && matchesSituacao;
+        const matchesOutreach = situacao !== 'prospeccao' || outreachFilter === 'Todos' || (contact.outreach_status || 'unreviewed') === outreachFilter;
+        return matchesSearch && matchesSituacao && matchesOutreach;
       }),
-    [productScoped, searchTerm, situacao],
+    [productScoped, searchTerm, situacao, outreachFilter],
   );
 
   // Honest, non-overlapping rollups so "em pipeline" (the active funnel) is clearly
@@ -352,6 +357,14 @@ export default function Contacts() {
               </option>
             ))}
           </Select>
+          {situacao === 'prospeccao' && (
+            <Select value={outreachFilter} onChange={(e) => setOutreachFilter(e.target.value as typeof outreachFilter)} className="sm:w-44">
+              <option value="Todos">Toda a base</option>
+              <option value="unreviewed">Revisão pendente</option>
+              <option value="contactable">Apto para contato</option>
+              <option value="blocked">Não contatar</option>
+            </Select>
+          )}
         </div>
 
         <div className="min-h-[300px] overflow-x-auto">
@@ -430,6 +443,11 @@ export default function Contacts() {
                         {contact.prospecting_pool
                           ? <Badge tone="purple">Prospecção</Badge>
                           : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
+                        {contact.prospecting_pool && (
+                          <Badge tone={contact.outreach_status === 'blocked' ? 'red' : contact.outreach_status === 'contactable' ? 'emerald' : 'gray'}>
+                            {contact.outreach_status === 'blocked' ? 'Não contatar' : contact.outreach_status === 'contactable' ? 'Apto para contato' : 'Revisão pendente'}
+                          </Badge>
+                        )}
                         <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                       </div>
                     </td>
@@ -601,6 +619,14 @@ export default function Contacts() {
               />
             </Field>
           </div>
+          <Field label="Campanhas" htmlFor="outreach_status">
+            <Select id="outreach_status" value={formData.outreach_status}
+              onChange={(e) => setFormData({ ...formData, outreach_status: e.target.value as NonNullable<Contact['outreach_status']> })}>
+              <option value="unreviewed">Revisão pendente</option>
+              <option value="contactable">Apto para contato após revisão</option>
+              <option value="blocked">Não contatar</option>
+            </Select>
+          </Field>
         </form>
       </Modal>
     </div>
