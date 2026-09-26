@@ -90,7 +90,10 @@ class PaymentLedger(unittest.TestCase):
         )
         for _ in range(30):
             if run(
-                "docker", "exec", CONTAINER, "pg_isready", "-U", "postgres", check=False
+                # The image starts a socket-only temporary server during init.
+                # Wait for the final TCP listener so the next psql call cannot
+                # race with the temporary server shutting down.
+                "docker", "exec", CONTAINER, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", check=False
             ).returncode == 0:
                 break
             time.sleep(1)
