@@ -33,6 +33,8 @@ jobs:
       # múltiplas compras, estorno, conflito de identidade e RLS.
       - name: Testar livro-caixa de pagamentos
         run: python3 scripts/test_payment_ledger.py
+      - name: Testar conversão de formulários
+        run: python3 scripts/test_institutional_conversion.py
 
       # Portão de produção: este passo só roda se todos os anteriores passaram.
       # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy
