@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test lib/*.test.ts && npm run test:ui",
-    "test:ui": "vitest run",
+    "test:ui": "NODE_ENV=test vitest run",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "audit:gate": "node audit-gate.mjs",
     "clean": "next clean"
