@@ -71,6 +71,7 @@ export type Contact = {
   origin?: ContactOrigin | null;
   produto?: string | null;
   lp_url?: string | null;
+  prospecting_pool?: boolean;
   amount?: number | null;
   priority?: Priority | null;
   expected_close_date?: string | null;

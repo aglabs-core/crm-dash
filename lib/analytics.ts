@@ -13,10 +13,13 @@ const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 
 const amount = (c: Contact) => Number(c.amount) || 0;
 
+/** Cold outreach remains in the contact history, outside sales conversion. */
+export const salesContacts = (contacts: Contact[]) => contacts.filter((c) => !c.prospecting_pool);
+
 /** Won = a client (active or inactive). Lost = archived. Open = active funnel. */
 export const isWon = (c: Contact) => isClientStatus(c.status);
-export const isLost = (c: Contact) => isArchivedStatus(c.status);
-export const isOpen = (c: Contact) => isActiveStatus(c.status);
+export const isLost = (c: Contact) => !c.prospecting_pool && isArchivedStatus(c.status);
+export const isOpen = (c: Contact) => !c.prospecting_pool && isActiveStatus(c.status);
 
 export function totalRevenue(contacts: Contact[]): number {
   return contacts.filter(isWon).reduce((s, c) => s + amount(c), 0);

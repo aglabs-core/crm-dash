@@ -42,6 +42,7 @@ import {
   winLossCounts,
   isTaskOverdue,
   closingSoon,
+  salesContacts,
 } from '@/lib/analytics';
 import { TONE_HEX } from '@/lib/constants';
 import { formatCurrency, formatCurrencyCompact, formatPercent, formatChange, type Change } from '@/lib/format';
@@ -119,6 +120,7 @@ export default function Dashboard() {
   };
 
   const m = useMemo(() => {
+    const funnelContacts = salesContacts(contacts);
     const now = new Date();
     const curM = now.getMonth();
     const curY = now.getFullYear();
@@ -127,20 +129,20 @@ export default function Dashboard() {
     const revThis = paymentMonthRevenue(payments, curY, curM);
     const revPrev = paymentMonthRevenue(payments, prev.getFullYear(), prev.getMonth());
 
-    const series = monthlySeries(contacts, 6, payments);
+    const series = monthlySeries(funnelContacts, 6, payments);
     const last = series[series.length - 1];
     const prevPoint = series[series.length - 2];
 
-    const stalled = contacts
+    const stalled = funnelContacts
       .filter((c) => isOpen(c) && c.updated_at && Date.now() - new Date(c.updated_at).getTime() > STALE_DAYS * 86_400_000)
       .sort((a, b) => new Date(a.updated_at as string).getTime() - new Date(b.updated_at as string).getTime());
 
     return {
       revenue: paymentRevenue(payments),
       revenueChange: formatChange(revThis, revPrev),
-      pipeline: pipelineValue(contacts),
-      openCount: openDealsCount(contacts),
-      winRate: winRate(contacts),
+      pipeline: pipelineValue(funnelContacts),
+      openCount: openDealsCount(funnelContacts),
+      winRate: winRate(funnelContacts),
       newThis: last?.newCount ?? 0,
       newChange: formatChange(last?.newCount ?? 0, prevPoint?.newCount ?? 0),
       series,
@@ -148,11 +150,11 @@ export default function Dashboard() {
       sparkPipeline: series.map((p) => p.pipeline),
       sparkRate: series.map((p) => p.rate ?? 0),
       sparkNew: series.map((p) => p.newCount),
-      funnel: pipelineByStage(contacts),
+      funnel: pipelineByStage(funnelContacts),
       products: paymentProducts(payments).slice(0, 6),
-      winLoss: winLossCounts(contacts),
+      winLoss: winLossCounts(funnelContacts),
       overdue: tasks.filter(isTaskOverdue),
-      closing: closingSoon(contacts, 30),
+      closing: closingSoon(funnelContacts, 30),
       stalled,
     };
   }, [contacts, tasks, payments]);

@@ -226,7 +226,7 @@ function PipelineContent() {
   const products = useMemo(() => uniqueProducts(contacts), [contacts]);
   const byProduct = (c: Contact) => productFilter === 'Todos' || c.produto === productFilter;
   const archivedList = useMemo(
-    () => contacts.filter((c) => c.status === 'Arquivado' && byProduct(c)),
+    () => contacts.filter((c) => c.status === 'Arquivado' && !c.prospecting_pool && byProduct(c)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [contacts, productFilter],
   );

@@ -58,12 +58,13 @@ const emptyForm = {
   origin: 'prospeccao' as ContactOrigin,
   lp_url: '',
   produto: '',
+  prospecting_pool: false,
 };
 
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
-  const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados'>('Todos');
+  const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados' | 'prospeccao'>('Todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +91,7 @@ export default function Contacts() {
       origin: (contact.origin as ContactOrigin) || 'prospeccao',
       lp_url: contact.lp_url || '',
       produto: contact.produto || '',
+      prospecting_pool: !!contact.prospecting_pool,
     });
     setIsModalOpen(true);
   };
@@ -158,6 +160,7 @@ export default function Contacts() {
         origin: formData.origin,
         lp_url: formData.lp_url || null,
         produto: formData.produto || null,
+        prospecting_pool: formData.prospecting_pool && formData.status === 'Arquivado',
       };
 
       if (editingContact) {
@@ -222,7 +225,9 @@ export default function Contacts() {
               ? isActiveStatus(contact.status)
               : situacao === 'clientes'
                 ? isClientStatus(contact.status)
-                : isArchivedStatus(contact.status);
+                : situacao === 'prospeccao'
+                  ? !!contact.prospecting_pool
+                  : isArchivedStatus(contact.status) && !contact.prospecting_pool;
         return matchesSearch && matchesSituacao;
       }),
     [productScoped, searchTerm, situacao],
@@ -235,12 +240,14 @@ export default function Contacts() {
     const total = f.length;
     const emPipeline = f.filter((c) => isActiveStatus(c.status)).length;
     const clientes = f.filter((c) => isClientStatus(c.status)).length;
-    const arquivados = f.filter((c) => isArchivedStatus(c.status)).length;
+    const prospeccao = f.filter((c) => c.prospecting_pool).length;
+    const arquivados = f.filter((c) => isArchivedStatus(c.status) && !c.prospecting_pool).length;
     const fechados = clientes + arquivados;
     return {
       total,
       emPipeline,
       clientes,
+      prospeccao,
       arquivados,
       conversao: fechados ? `${((clientes / fechados) * 100).toFixed(1)}%` : '—',
     };
@@ -264,7 +271,7 @@ export default function Contacts() {
   const bulkSetStatus = async (status: ContactStatus) => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status } : c)));
+    setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status, prospecting_pool: status === 'Arquivado' && c.prospecting_pool } : c)));
     setSelected(new Set());
     const { error } = await supabase.from('contacts').update({ status }).in('id', ids);
     if (error) {
@@ -306,10 +313,11 @@ export default function Contacts() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Total" value={totals.total} icon={Users} hint="na carteira" />
         <StatCard label="Em pipeline" value={totals.emPipeline} icon={Headset} hint="em atendimento" />
         <StatCard label="Clientes" value={totals.clientes} icon={UserCheck} hint="fecharam negócio" />
+        <StatCard label="Prospecção" value={totals.prospeccao} icon={Users} hint="base para contato" />
         <StatCard label="Arquivados" value={totals.arquivados} icon={Archive} hint="fora do funil" />
         <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="ganhos / fechados" />
       </div>
@@ -329,6 +337,7 @@ export default function Contacts() {
             <option value="Todos">Todas as situações</option>
             <option value="pipeline">Em pipeline</option>
             <option value="clientes">Clientes</option>
+            <option value="prospeccao">Prospecção</option>
             <option value="arquivados">Arquivados</option>
           </Select>
           <Select
@@ -419,12 +428,13 @@ export default function Contacts() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-start gap-1.5">
                         <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
+                        {contact.prospecting_pool && <Badge tone="purple">Base de prospecção</Badge>}
                         <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2 text-muted">
-                        {contact.lp_url && (
+                        {contact.lp_url && !contact.prospecting_pool && (
                           <a
                             href={contact.lp_url}
                             target="_blank"
@@ -586,6 +596,14 @@ export default function Contacts() {
               />
             </Field>
           </div>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <Checkbox
+              checked={formData.prospecting_pool}
+              disabled={formData.status !== 'Arquivado'}
+              onChange={(e) => setFormData({ ...formData, prospecting_pool: e.target.checked })}
+            />
+            Base de prospecção (fora do funil; requer status Arquivado)
+          </label>
         </form>
       </Modal>
     </div>
