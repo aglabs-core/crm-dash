@@ -24,8 +24,10 @@ vi.mock('@/lib/supabase', () => ({
       const query = {
         select: () => query,
         order: () => query,
+        range: () => query,
         eq: (key: string, value: unknown) => { if (write && key === 'id') write.id = value; return query; },
         maybeSingle: () => { single = true; return query; },
+        single: () => { single = true; return query; },
         update: (payload: Record<string, unknown>) => {
           write = { table, payload }; api.writes.push(write); return query;
         },
@@ -110,4 +112,17 @@ it('contact detail renders a null name and nullable initials from the API', asyn
   expect(screen.getByText('?')).toBeTruthy();
   expect(screen.getByText('nullable@example.invalid')).toBeTruthy();
   expect(api.writes).toHaveLength(0);
+});
+
+it('promotes an interested prospect on the same contact record', async () => {
+  api.row.status = 'Arquivado';
+  api.row.prospecting_pool = true;
+  const user = userEvent.setup();
+  render(<Detail />);
+  await user.click(await screen.findByRole('button', { name: /mover para Lead/ }));
+  await waitFor(() => expect(api.writes[0]).toMatchObject({
+    table: 'contacts', id: 'synthetic-null-contact',
+    payload: { status: 'Lead', prospecting_pool: false },
+  }));
+  expect(await screen.findByText('Em atendimento')).toBeTruthy();
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { contactName, contactInitials } from '@/lib/contact-name';
+import { productLabel } from '@/lib/product-label';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -19,6 +20,7 @@ import {
   AtSign,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import type { Contact, Task, Activity, ActivityType } from '@/lib/types';
 import {
   statusTone,
@@ -54,6 +56,7 @@ export default function ContactDetail() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isPromoting, setIsPromoting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -93,6 +96,18 @@ export default function ContactDetail() {
     if (created) {
       setActivities((prev) => (prev.some((x) => x.id === created.id) ? prev : [created, ...prev]));
     }
+  };
+
+  const promoteToLead = async () => {
+    setIsPromoting(true);
+    const { data, error } = await supabase.from('contacts')
+      .update({ status: 'Lead', prospecting_pool: false }).eq('id', id).select().single();
+    if (error) toast.error('Não foi possível mover para Lead.');
+    else {
+      setContact(data as Contact);
+      toast.success('Contato movido para Lead.');
+    }
+    setIsPromoting(false);
   };
 
   if (isLoading) return <PageLoader />;
@@ -135,9 +150,11 @@ export default function ContactDetail() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-fg">{contactName(contact.name)}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
+                {contact.prospecting_pool
+                  ? <Badge tone="purple">Prospecção</Badge>
+                  : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
                 <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
-                {contact.produto && <Badge tone="purple">{contact.produto}</Badge>}
+                {contact.produto && <Badge tone="purple">{productLabel(contact.produto)}</Badge>}
               </div>
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
                 {contact.company && (
@@ -178,22 +195,21 @@ export default function ContactDetail() {
               </div>
             </div>
           </div>
-          <Link href={contact.prospecting_pool ? '/contacts' : '/deals'}>
-            <Button variant="secondary">
-              <Briefcase className="h-4 w-4" />
-              {contact.prospecting_pool ? 'Voltar aos contatos' : 'Abrir no Funil'}
-            </Button>
-          </Link>
+          {contact.prospecting_pool ? (
+            <Button onClick={promoteToLead} loading={isPromoting}>Houve interesse · mover para Lead</Button>
+          ) : (
+            <Link href="/deals"><Button variant="secondary"><Briefcase className="h-4 w-4" />Abrir no Funil</Button></Link>
+          )}
         </div>
       </Card>
 
       {/* Rollups */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Valor do Negócio" value={formatCurrency(amount)} icon={DollarSign} />
-        <StatCard label="Etapa" value={statusLabel(contact.status)} icon={Briefcase} />
+        <StatCard label={contact.prospecting_pool ? 'Valor histórico estimado' : 'Valor do Negócio'} value={formatCurrency(amount)} icon={DollarSign} />
+        <StatCard label="Etapa" value={contact.prospecting_pool ? 'Prospecção' : statusLabel(contact.status)} icon={Briefcase} />
         <StatCard
           label="Situação"
-          value={isClient ? 'Cliente' : isActive ? 'Em atendimento' : 'Arquivado'}
+          value={contact.prospecting_pool ? 'Antes do Lead' : isClient ? 'Cliente' : isActive ? 'Em atendimento' : 'Arquivado'}
           icon={Users}
         />
         <StatCard label="Tarefas Pendentes" value={pendingTasks.length} icon={CheckSquare} />
@@ -214,12 +230,14 @@ export default function ContactDetail() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Pipeline</CardTitle>
-              <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
+            <CardTitle>{contact.prospecting_pool ? 'Contexto da prospecção' : 'Pipeline'}</CardTitle>
+              {contact.prospecting_pool
+                ? <Badge tone="purple">Prospecção</Badge>
+                : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
             </CardHeader>
             <CardBody className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted">Valor</span>
+                <span className="text-muted">{contact.prospecting_pool ? 'Estimativa histórica' : 'Valor'}</span>
                 <span className="font-semibold text-fg">{formatCurrency(amount)}</span>
               </div>
               <div className="flex items-center justify-between">

@@ -1,6 +1,7 @@
 'use client';
 
 import { contactNameInput, contactNamePayload, contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+import { productLabel } from '@/lib/product-label';
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -21,6 +22,7 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { loadContacts } from '@/lib/contact-data';
 import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
 import {
   CONTACT_STATUSES,
@@ -131,12 +133,7 @@ export default function Contacts() {
   const fetchContacts = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setContacts((data as Contact[]) || []);
+      setContacts(await loadContacts());
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {
@@ -306,7 +303,10 @@ export default function Contacts() {
   return (
     <div className="relative space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-fg">Contatos</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Contatos</h1>
+          <p className="mt-0.5 text-sm text-muted">Uma ficha por pessoa: prospecção, interesse e histórico de cliente.</p>
+        </div>
         <Button onClick={openNewContactModal}>
           <Plus className="h-4 w-4" />
           Adicionar Contato
@@ -348,7 +348,7 @@ export default function Contacts() {
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {productLabel(p)}
               </option>
             ))}
           </Select>
@@ -406,7 +406,7 @@ export default function Contacts() {
                     </td>
                     <td className="px-6 py-4 text-muted">{contact.company || '—'}</td>
                     <td className="px-6 py-4">
-                      {contact.produto ? <Badge tone="purple">{contact.produto}</Badge> : <span className="text-muted">—</span>}
+                      {contact.produto ? <Badge tone="purple">{productLabel(contact.produto)}</Badge> : <span className="text-muted">A definir</span>}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-muted">
@@ -427,8 +427,9 @@ export default function Contacts() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-start gap-1.5">
-                        <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>
-                        {contact.prospecting_pool && <Badge tone="purple">Base de prospecção</Badge>}
+                        {contact.prospecting_pool
+                          ? <Badge tone="purple">Prospecção</Badge>
+                          : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
                         <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                       </div>
                     </td>
@@ -547,12 +548,16 @@ export default function Contacts() {
                 placeholder="Nome da Empresa"
               />
             </Field>
-            <Field label="Status" htmlFor="status">
+            <Field label="Etapa" htmlFor="status">
               <Select
                 id="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as ContactStatus })}
+                value={formData.prospecting_pool ? '__prospeccao__' : formData.status}
+                onChange={(e) => setFormData({ ...formData,
+                  status: e.target.value === '__prospeccao__' ? 'Arquivado' : e.target.value as ContactStatus,
+                  prospecting_pool: e.target.value === '__prospeccao__',
+                })}
               >
+                <option value="__prospeccao__">Prospecção (ainda sem interesse)</option>
                 {CONTACT_STATUSES.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
@@ -578,12 +583,12 @@ export default function Contacts() {
             <div />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Produto" htmlFor="produto">
+            <Field label="Produto de interesse" htmlFor="produto">
               <Input
                 id="produto"
                 value={formData.produto}
                 onChange={(e) => setFormData({ ...formData, produto: e.target.value })}
-                placeholder="Ex: Consultoria Premium"
+                placeholder="Deixe vazio se ainda não foi identificado"
               />
             </Field>
             <Field label="LP URL" htmlFor="lp_url">
@@ -596,14 +601,6 @@ export default function Contacts() {
               />
             </Field>
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted">
-            <Checkbox
-              checked={formData.prospecting_pool}
-              disabled={formData.status !== 'Arquivado'}
-              onChange={(e) => setFormData({ ...formData, prospecting_pool: e.target.checked })}
-            />
-            Base de prospecção (fora do funil; requer status Arquivado)
-          </label>
         </form>
       </Modal>
     </div>

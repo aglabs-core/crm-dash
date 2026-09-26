@@ -1,6 +1,8 @@
 'use client';
 
 import { contactName } from '@/lib/contact-name';
+import { productLabel } from '@/lib/product-label';
+import { loadContacts } from '@/lib/contact-data';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -102,12 +104,12 @@ export default function Dashboard() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const [contactsRes, tasksRes, paymentRows] = await Promise.all([
-        supabase.from('contacts').select('*').order('updated_at', { ascending: false }),
+      const [contactRows, tasksRes, paymentRows] = await Promise.all([
+        loadContacts('updated_at'),
         supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
         loadPaymentTransactions(),
       ]);
-      setContacts((contactsRes.data as Contact[]) || []);
+      setContacts(contactRows);
       setTasks((tasksRes.data as Task[]) || []);
       setPayments(paymentRows);
       setPaymentError(false);
@@ -166,7 +168,7 @@ export default function Dashboard() {
     { id: 'sp-rev', label: 'Receita após estornos', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
     { id: 'sp-pipe', label: 'Em Pipeline', value: formatCurrency(m.pipeline), icon: Briefcase, color: TONE_HEX.emerald, spark: m.sparkPipeline, hint: `${m.openCount} abertos` },
     { id: 'sp-rate', label: 'Taxa de Ganho', value: formatPercent(m.winRate), icon: TrendingUp, color: TONE_HEX.amber, spark: m.sparkRate, hint: 'fechados' },
-    { id: 'sp-new', label: 'Novos Leads', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
+    { id: 'sp-new', label: 'Novos contatos', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
   ];
 
   const attn = [
@@ -334,7 +336,7 @@ export default function Dashboard() {
             <BarList
               emptyMessage="Sem receita registrada."
               items={m.products.map((p) => ({
-                label: p.produto,
+                label: productLabel(p.produto),
                 value: p.revenue,
                 display: formatCurrencyCompact(p.revenue),
                 sub: `${p.count} ganho${p.count === 1 ? '' : 's'}`,

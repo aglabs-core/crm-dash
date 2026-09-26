@@ -6,7 +6,7 @@
 //  - win-rate and sales-cycle computed from real closed contacts
 
 import type { Contact, ContactStatus, PaymentTransaction, Task } from './types';
-import { paymentMonthRevenue } from './payment-analytics';
+import { netRevenue, paymentMonthRevenue } from './payment-analytics';
 import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus, type Tone } from './constants';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -296,16 +296,29 @@ export type ClientRow = {
 };
 
 /** Clients = contacts whose status is Cliente (active) or Inativo (inactive). */
-export function buildClients(contacts: Contact[]): ClientRow[] {
+export function buildClients(contacts: Contact[], payments: PaymentTransaction[] = []): ClientRow[] {
+  const byContact = new Map<string, PaymentTransaction[]>();
+  for (const payment of payments) {
+    if (!payment.contact_id) continue;
+    const group = byContact.get(payment.contact_id) ?? [];
+    group.push(payment);
+    byContact.set(payment.contact_id, group);
+  }
   return contacts
-    .filter(isWon)
-    .map((contact) => ({
-      contact,
-      wonRevenue: amount(contact),
-      active: contact.status === 'Cliente',
-      products: contact.produto ? [contact.produto.trim()] : [],
-      lastWonAt: contact.closed_at || contact.updated_at || null,
-    }))
+    .filter((contact) => isWon(contact) || (byContact.get(contact.id) ?? []).some((payment) => netRevenue(payment) > 0))
+    .map((contact) => {
+      const paid = byContact.get(contact.id) ?? [];
+      const purchased = paid.filter((payment) => netRevenue(payment) > 0);
+      const products = [...new Set(purchased.map((payment) => payment.product?.trim()).filter((product): product is string => !!product))];
+      const paidDates = purchased.map((payment) => payment.paid_at).filter((date): date is string => !!date).sort();
+      return {
+        contact,
+        wonRevenue: paid.reduce((total, payment) => total + netRevenue(payment), 0),
+        active: contact.status !== 'Inativo',
+        products: products.length ? products : contact.produto ? [contact.produto.trim()] : [],
+        lastWonAt: paidDates.at(-1) || contact.closed_at || contact.updated_at || null,
+      };
+    })
     .sort((a, b) => b.wonRevenue - a.wonRevenue);
 }
 

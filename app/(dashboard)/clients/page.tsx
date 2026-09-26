@@ -1,20 +1,25 @@
 'use client';
 
 import { contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+import { productLabel } from '@/lib/product-label';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search, UserCheck, DollarSign, Trophy, Building2, Power } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Contact } from '@/lib/types';
+import type { Contact, PaymentTransaction } from '@/lib/types';
 import { buildClients } from '@/lib/analytics';
+import { loadPaymentTransactions } from '@/lib/payment-data';
+import { loadContacts } from '@/lib/contact-data';
 import { formatCurrency, formatRelative } from '@/lib/format';
 import { Card, Badge, Button, Input, Select, EmptyState, PageLoader, StatCard } from '@/components/ui';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 
 export default function ClientsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [payments, setPayments] = useState<PaymentTransaction[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
@@ -35,11 +40,16 @@ export default function ClientsPage() {
   const fetchData = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const { data, error } = await supabase.from('contacts').select('*');
-      if (error) throw error;
-      setContacts((data as Contact[]) || []);
+      const [contactRows, paymentRows] = await Promise.all([
+        loadContacts(),
+        loadPaymentTransactions(),
+      ]);
+      setContacts(contactRows);
+      setPayments(paymentRows);
+      setLoadError(false);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -57,7 +67,7 @@ export default function ClientsPage() {
     toast.success(makeActive ? 'Cliente reativado.' : 'Cliente marcado como inativo.');
   };
 
-  const clients = useMemo(() => buildClients(contacts), [contacts]);
+  const clients = useMemo(() => buildClients(contacts, payments), [contacts, payments]);
 
   const products = useMemo(() => Array.from(new Set(clients.flatMap((c) => c.products))).sort(), [clients]);
 
@@ -83,6 +93,7 @@ export default function ClientsPage() {
   }, [clients]);
 
   if (isLoading) return <PageLoader />;
+  if (loadError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar clientes e pagamentos. Os valores por cliente estão indisponíveis.</p>;
 
   return (
     <div className="space-y-6">
@@ -93,7 +104,7 @@ export default function ClientsPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Clientes" value={totals.count} icon={UserCheck} hint={`${totals.ativos} ativos`} />
-        <StatCard label="Receita total" value={formatCurrency(totals.revenue)} icon={DollarSign} hint="negócios ganhos" />
+        <StatCard label="Receita após estornos" value={formatCurrency(totals.revenue)} icon={DollarSign} hint="pagamentos vinculados" />
         <StatCard label="Ticket médio" value={formatCurrency(totals.ticket)} icon={Trophy} hint="por cliente" />
         <StatCard label="Ativos" value={totals.ativos} icon={Power} hint="relacionamento em dia" />
       </div>
@@ -113,7 +124,7 @@ export default function ClientsPage() {
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {productLabel(p)}
               </option>
             ))}
           </Select>
@@ -164,7 +175,7 @@ export default function ClientsPage() {
                         ) : (
                           prods.map((p) => (
                             <Badge key={p} tone="purple">
-                              {p}
+                              {productLabel(p)}
                             </Badge>
                           ))
                         )}
