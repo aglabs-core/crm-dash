@@ -1,11 +1,12 @@
-// Pure analytics over the contact-centric pipeline. The contact IS the funnel
-// unit now: it carries `status` (funnel position) and `amount`/`closed_at`.
-// This keeps the data honest and reused by dashboard, reports, clients.
-//  - revenue attributed by closed_at (not created_at)
+// Contact analytics for the funnel. Financial views pass payment transactions
+// to monthlySeries so revenue follows each payment's date rather than the
+// contact's closing date.
+//  - open pipeline and win-rate remain contact-based
 //  - month buckets keyed by year+month
 //  - win-rate and sales-cycle computed from real closed contacts
 
-import type { Contact, ContactStatus, Task } from './types';
+import type { Contact, ContactStatus, PaymentTransaction, Task } from './types';
+import { paymentMonthRevenue } from './payment-analytics';
 import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus, type Tone } from './constants';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -58,7 +59,7 @@ export function avgSalesCycleDays(contacts: Contact[]): number | null {
 export type MonthPoint = {
   key: string; // YYYY-MM for sorting
   name: string; // e.g. "Jun/26"
-  revenue: number; // won value, by closed_at
+  revenue: number; // payment net value by paid_at when payments are supplied
   lost: number; // lost value, by closed_at
   pipeline: number; // open value, by created_at
   newCount: number; // contacts created in the month
@@ -74,7 +75,7 @@ const monthLabel = (d: Date) => `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYe
  * Year-aware monthly series, strictly bounded to the last `months` months
  * (rolling window) so the chart length matches its label.
  */
-export function monthlySeries(contacts: Contact[], months = 6): MonthPoint[] {
+export function monthlySeries(contacts: Contact[], months = 6, payments?: PaymentTransaction[]): MonthPoint[] {
   const buckets = new Map<string, MonthPoint>();
   const order: string[] = [];
   const now = new Date();
@@ -105,7 +106,7 @@ export function monthlySeries(contacts: Contact[], months = 6): MonthPoint[] {
   for (const c of contacts) {
     if (isWon(c)) {
       at(c.closed_at, (b) => {
-        b.revenue += amount(c);
+        if (!payments) b.revenue += amount(c);
         b.wonCount += 1;
       });
     } else if (isLost(c)) {
@@ -120,6 +121,10 @@ export function monthlySeries(contacts: Contact[], months = 6): MonthPoint[] {
 
   const points = order.map((k) => buckets.get(k) as MonthPoint);
   for (const p of points) {
+    if (payments) {
+      const [year, month] = p.key.split('-').map(Number);
+      p.revenue = paymentMonthRevenue(payments, year, month);
+    }
     const closed = p.wonCount + p.lostCount;
     p.rate = closed ? Math.round((p.wonCount / closed) * 100) : null;
   }

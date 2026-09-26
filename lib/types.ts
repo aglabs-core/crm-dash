@@ -21,6 +21,20 @@ export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manua
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
 export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';
 
+export type PaymentTransaction = {
+  id: string;
+  contact_id: string | null;
+  gateway: Gateway;
+  external_id: string;
+  status: 'paid' | 'partially_refunded' | 'refunded' | 'chargeback' | 'canceled';
+  product: string | null;
+  currency: string;
+  amount: number;
+  refunded_amount: number;
+  net_amount: number;
+  paid_at: string | null;
+};
+
 export type Priority = 'Baixa' | 'Média' | 'Alta';
 
 export type TaskStatus = 'pending' | 'completed';
