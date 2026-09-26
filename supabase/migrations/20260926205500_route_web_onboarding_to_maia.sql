@@ -97,4 +97,3 @@ GRANT EXECUTE ON FUNCTION public.ingest_payment_with_onboarding(
   uuid, text, text, text, numeric, numeric, text, text,
   timestamptz, text, text, text, text, text
 ) TO service_role;
-
