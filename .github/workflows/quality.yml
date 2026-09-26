@@ -29,6 +29,10 @@ jobs:
       # Avisos alto/crítico em dependências de produção. Exceções conscientes
       # ficam declaradas em audit-gate.cjs; qualquer aviso novo reprova.
       - run: npm run audit:gate
+      # Valida a migration em PostgreSQL descartável: replay concorrente,
+      # múltiplas compras, estorno, conflito de identidade e RLS.
+      - name: Testar livro-caixa de pagamentos
+        run: python3 scripts/test_payment_ledger.py
 
       # Portão de produção: este passo só roda se todos os anteriores passaram.
       # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy
