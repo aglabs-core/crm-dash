@@ -31,6 +31,7 @@ import { productLabel } from '@/lib/product-label';
 import type { Contact, PaymentTransaction } from '@/lib/types';
 import { netRevenue, paymentProducts, paymentRevenue, paymentsByPeriod } from '@/lib/payment-analytics';
 import { loadPaymentTransactions } from '@/lib/payment-data';
+import { csvFile } from '@/lib/csv';
 import { TONE_HEX, type Tone } from '@/lib/constants';
 import {
   winRate,
@@ -62,11 +63,6 @@ const PERIODS: { label: string; value: number | null }[] = [
   { label: 'Último ano', value: 365 },
   { label: 'Todo o período', value: null },
 ];
-
-function csvCell(v: string | number | null | undefined): string {
-  const s = String(v ?? '');
-  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 /** Refined section card with a tone-colored icon chip in the header. */
 function Panel({
@@ -196,7 +192,17 @@ export default function Reports() {
 
   const periodLabel = PERIODS.find((p) => p.value === periodDays)?.label ?? 'Todo o período';
 
-  const exportCSV = () => {
+  const downloadCSV = (rows: Array<Array<string | number | null | undefined>>, filename: string) => {
+    const blob = new Blob([csvFile(rows)], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCommercialCSV = () => {
     const headers = ['Nome', 'Empresa', 'Produto', 'Status', 'Origem', 'Valor', 'Prioridade', 'Criado', 'Fechado'];
     const rows = contacts.map((c) => [
       c.name,
@@ -209,14 +215,23 @@ export default function Reports() {
       c.created_at ? formatDate(c.created_at) : '',
       c.closed_at ? formatDate(c.closed_at) : '',
     ]);
-    const csv = [headers, ...rows].map((r) => r.map(csvCell).join(';')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV([headers, ...rows], `negocios-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const exportPaymentsCSV = () => {
+    const headers = ['Gateway', 'ID externo', 'Produto', 'Status', 'Moeda', 'Valor bruto', 'Estornado', 'Receita após estornos', 'Pago em'];
+    const rows = payments.map((payment) => [
+      payment.gateway,
+      payment.external_id,
+      payment.product || '',
+      payment.status,
+      payment.currency,
+      payment.amount,
+      payment.refunded_amount,
+      netRevenue(payment),
+      payment.paid_at || '',
+    ]);
+    downloadCSV([headers, ...rows], `pagamentos-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   if (isLoading) return <PageLoader />;
@@ -257,9 +272,13 @@ export default function Reports() {
               </option>
             ))}
           </Select>
-          <Button variant="secondary" onClick={exportCSV}>
+          <Button variant="secondary" onClick={exportPaymentsCSV}>
             <Download className="h-4 w-4" />
-            Exportar CSV
+            Exportar pagamentos
+          </Button>
+          <Button variant="secondary" onClick={exportCommercialCSV}>
+            <Download className="h-4 w-4" />
+            Exportar negócios
           </Button>
         </div>
       </div>
