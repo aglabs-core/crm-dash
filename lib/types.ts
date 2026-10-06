@@ -21,10 +21,13 @@ export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manua
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
 export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';
 
+/** Ledger origins; direct Pix is manually confirmed, not a webhook gateway. */
+export type PaymentSource = Gateway | 'pix';
+
 export type PaymentTransaction = {
   id: string;
   contact_id: string | null;
-  gateway: Gateway;
+  gateway: PaymentSource;
   external_id: string;
   status: 'paid' | 'partially_refunded' | 'refunded' | 'chargeback' | 'canceled';
   product: string | null;
