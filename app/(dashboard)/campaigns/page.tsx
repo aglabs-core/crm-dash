@@ -18,6 +18,7 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
 
   const refresh = async () => {
@@ -25,10 +26,11 @@ export default function CampaignsPage() {
       .order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
     setCampaigns((data ?? []) as EmailCampaign[]);
+    setLoadError(false);
   };
 
   useEffect(() => {
-    refresh().catch(() => toast.error('Não foi possível carregar as campanhas. Confira a migration.'))
+    refresh().catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -63,10 +65,16 @@ export default function CampaignsPage() {
           <h1 className="text-2xl font-bold text-fg">Campanhas de e-mail</h1>
           <p className="mt-1 text-sm text-muted">Planejamento e observabilidade por contato, sem misturar envios ao funil comercial.</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Nova campanha</Button>
+        {!loadError && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Nova campanha</Button>}
       </div>
 
-      {loading ? <PageLoader /> : campaigns.length === 0 ? (
+      {loading ? <PageLoader /> : loadError ? (
+        <Card className="p-10 text-center">
+          <h2 className="font-semibold text-fg">Campanhas indisponíveis</h2>
+          <p className="mt-1 text-sm text-muted">Não foi possível consultar o módulo. Verifique a conexão e a migração do banco antes de criar uma campanha.</p>
+          <Button className="mt-4" onClick={() => { setLoading(true); refresh().catch(() => setLoadError(true)).finally(() => setLoading(false)); }}>Tentar novamente</Button>
+        </Card>
+      ) : campaigns.length === 0 ? (
         <Card className="p-10 text-center">
           <MailPlus className="mx-auto mb-3 h-9 w-9 text-muted" />
           <h2 className="font-semibold text-fg">Nenhuma campanha registrada</h2>
