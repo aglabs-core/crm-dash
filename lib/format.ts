@@ -33,7 +33,10 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
 
 function toDate(date: string | Date | null | undefined): Date | null {
   if (!date) return null;
-  const d = typeof date === 'string' ? new Date(date) : date;
+  // SQL DATE is a calendar day, not midnight UTC.
+  const d = typeof date === 'string'
+    ? /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00`) : new Date(date)
+    : date;
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

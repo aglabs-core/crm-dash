@@ -25,3 +25,11 @@ Cartões mostram a tarefa pendente de menor prazo (incluindo vencidas; sem prazo
 ## Próximas fases (não implementadas)
 
 Confirmar mapeamento de AG LABS/Barberias, produtos e provedores Brevo/Resend; definir permissão/supressão por canal e reconciliação de identidade. A estrutura de rascunhos, destinatários e eventos já existe; confirmar aplicação da migration e integração server-side antes de usar entrega/falhas, respostas e atribuição de resultado como dados operacionais. Aberturas/cliques são sinais auxiliares, nunca qualificação ou compra. Contratações simultâneas e entrada histórica em etapa exigem modelo próprio e migração. Nenhum email, campanha ou integração foi ativado nesta entrega.
+
+## Correções após revisão independente
+
+Datas de calendário (`DATE`) são formatadas no dia local, enquanto timestamps mantêm seu fuso. A proteção do vínculo de Cliente/Inativo é compartilhada entre edição individual, ações em massa, formulário do funil, movimentação e promoção pela ficha; Cliente ↔ Inativo e arquivamento continuam possíveis.
+
+O carregamento dos contatos libera os cartões antes do contexto. Tarefas/atividades têm atualização realtime separada e não recarregam a carteira. O contexto usa relações embutidas do PostgREST, filtradas e ordenadas no servidor, com limite de uma tarefa pendente e uma interação por contato. Paginação por ID continua até página vazia, inclusive quando o servidor retorna páginas menores que 500. Para 1.000 contatos, com limite padrão, são três requisições de resumo, sem baixar histórico completo nem tarefas concluídas. RLS permanece em cada relação. Atualização/unmount aborta a consulta anterior; respostas ou erros atrasados não substituem o contexto atual. Falha mantém acompanhamento indisponível, sem declarar ausência de tarefas. Se o filtro de tarefas já estava ativo, a tela avisa que está mostrando todos os contatos e permite desligá-lo.
+
+Validação de consulta usa o cliente Supabase real com transporte HTTP sintético (parâmetros, paginação, erro e cancelamento). Não substitui execução autenticada contra PostgREST em produção; relações e políticas reais ainda precisam desse teste antes da publicação.

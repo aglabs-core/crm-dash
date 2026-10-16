@@ -1,6 +1,7 @@
 'use client';
 
 import { contactNameInput, contactNamePayload, contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+import { isCustomerDowngrade, CLIENT_TRANSITION_MESSAGE } from '@/lib/contact-transition';
 import { productLabel } from '@/lib/product-label';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -147,6 +148,10 @@ export default function Contacts() {
 
   const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingContact && isCustomerDowngrade(editingContact, formData.status, formData.prospecting_pool)) {
+      toast.error(CLIENT_TRANSITION_MESSAGE);
+      return;
+    }
     try {
       setIsSubmitting(true);
       const { data: userData } = await supabase.auth.getUser();
@@ -276,8 +281,8 @@ export default function Contacts() {
   const bulkSetStatus = async (status: ContactStatus) => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    if (status === 'Lead' && contacts.some((c) => selected.has(c.id) && isClientStatus(c.status))) {
-      toast.error('Clientes mantêm seu vínculo. Registre a nova necessidade na ficha com atividade e tarefa.');
+    if (contacts.some((c) => selected.has(c.id) && isCustomerDowngrade(c, status))) {
+      toast.error(CLIENT_TRANSITION_MESSAGE);
       return;
     }
     setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status, prospecting_pool: status === 'Arquivado' && c.prospecting_pool } : c)));

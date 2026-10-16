@@ -1,6 +1,7 @@
 'use client';
 
 import { contactName, contactInitials } from '@/lib/contact-name';
+import { isCustomerDowngrade, CLIENT_TRANSITION_MESSAGE } from '@/lib/contact-transition';
 import { productLabel } from '@/lib/product-label';
 
 import { useEffect, useState } from 'react';
@@ -99,6 +100,7 @@ export default function ContactDetail() {
   };
 
   const promoteToLead = async () => {
+    if (!contact || isCustomerDowngrade(contact, 'Lead')) { toast.error(CLIENT_TRANSITION_MESSAGE); return; }
     setIsPromoting(true);
     const { data, error } = await supabase.from('contacts')
       .update({ status: 'Lead', prospecting_pool: false }).eq('id', id).select().single();
