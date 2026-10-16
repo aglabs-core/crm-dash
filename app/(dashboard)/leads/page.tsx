@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { InstitutionalLead, LeadStatus } from '@/lib/types';
+import { productLabel } from '@/lib/product-label';
 import { LEAD_STATUSES } from '@/lib/constants';
 import { formatRelative } from '@/lib/format';
 import {
@@ -47,6 +48,8 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<InstitutionalLead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [productFilter, setProductFilter] = useState('Todos');
+  const products = useMemo(() => [...new Set(leads.map((l) => l.produto?.trim()).filter((p): p is string => !!p))].sort(), [leads]);
   // Default to "pendentes": converted/discarded leads have left the inbox.
   const [statusFilter, setStatusFilter] = useState<'pendentes' | 'Todos' | LeadStatus>('pendentes');
 
@@ -170,9 +173,9 @@ export default function LeadsPage() {
           : statusFilter === 'pendentes'
             ? l.status === 'novo' || l.status === 'contatado'
             : l.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && (productFilter === 'Todos' || (productFilter === '__undefined__' ? !l.produto?.trim() : l.produto?.trim() === productFilter));
     });
-  }, [leads, searchTerm, statusFilter]);
+  }, [leads, searchTerm, statusFilter, productFilter]);
 
   const totals = useMemo(() => {
     const total = leads.length;
@@ -202,8 +205,12 @@ export default function LeadsPage() {
         <StatCard label="Taxa de conversão" value={totals.taxa} icon={TrendingUp} hint="convertidos / total" />
       </div>
 
+      <div className="flex flex-wrap gap-2" aria-label="Filas de entrada">
+        {(['novo', 'contatado'] as const).map((status) => <Button key={status} variant="secondary" aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'novo' ? 'Aguardando triagem' : 'Em contato'} · {leads.filter((l) => l.status === status && (productFilter === 'Todos' || (productFilter === '__undefined__' ? !l.produto?.trim() : l.produto?.trim() === productFilter))).length}</Button>)}
+        <Link href="/contacts" className="self-center text-sm text-brand underline">Revisar base de prospecção</Link>
+      </div>
       <Card className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative w-full max-w-sm">
             <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted" />
             <Input
@@ -213,7 +220,13 @@ export default function LeadsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <Select aria-label="Filtrar aplicação ou produto" value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
+            <option value="Todos">Todas as aplicações / produtos</option>
+            <option value="__undefined__">Produto a definir</option>
+            {products.map((p) => <option key={p} value={p}>{productLabel(p)}</option>)}
+          </Select>
           <Select
+            aria-label="Filtrar situação da entrada"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as 'pendentes' | 'Todos' | LeadStatus)}
             className="sm:w-48"

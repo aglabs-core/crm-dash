@@ -67,6 +67,7 @@ const emptyForm = {
 export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
+  const [originFilter, setOriginFilter] = useState('Todos');
   const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados' | 'prospeccao'>('Todos');
   const [outreachFilter, setOutreachFilter] = useState<'Todos' | NonNullable<Contact['outreach_status']>>('Todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -206,11 +207,11 @@ export default function Contacts() {
     [contacts],
   );
 
-  // Scoped only by product — the stat cards always reflect the true split,
+  // Scoped by product and origin — stat cards reflect the true split,
   // independent of the text search or the situação filter.
   const productScoped = useMemo(
-    () => contacts.filter((c) => productFilter === 'Todos' || c.produto === productFilter),
-    [contacts, productFilter],
+    () => contacts.filter((c) => (productFilter === 'Todos' || (productFilter === '__undefined__' ? !c.produto?.trim() : c.produto?.trim() === productFilter)) && (originFilter === 'Todos' || c.origin === originFilter)),
+    [contacts, productFilter, originFilter],
   );
 
   const filteredContacts = useMemo(
@@ -255,6 +256,8 @@ export default function Contacts() {
     };
   }, [productScoped]);
 
+  useEffect(() => { setSelected(new Set()); }, [searchTerm, productFilter, originFilter, situacao, outreachFilter]);
+
   const allSelected = filteredContacts.length > 0 && filteredContacts.every((c) => selected.has(c.id));
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -273,6 +276,10 @@ export default function Contacts() {
   const bulkSetStatus = async (status: ContactStatus) => {
     const ids = [...selected];
     if (ids.length === 0) return;
+    if (status === 'Lead' && contacts.some((c) => selected.has(c.id) && isClientStatus(c.status))) {
+      toast.error('Clientes mantêm seu vínculo. Registre a nova necessidade na ficha com atividade e tarefa.');
+      return;
+    }
     setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status, prospecting_pool: status === 'Arquivado' && c.prospecting_pool } : c)));
     setSelected(new Set());
     const { error } = await supabase.from('contacts').update({ status }).in('id', ids);
@@ -327,8 +334,21 @@ export default function Contacts() {
         <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="ganhos / fechados" />
       </div>
 
+      <section aria-label="Filas de prospecção" className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {([['unreviewed', 'Revisão pendente'], ['contactable', 'Aptos para contato'], ['blocked', 'Não contatar']] as const).map(([id, label]) => (
+            <Button key={id} variant={situacao === 'prospeccao' && outreachFilter === id ? 'primary' : 'secondary'}
+              aria-pressed={situacao === 'prospeccao' && outreachFilter === id}
+              onClick={() => { setSituacao('prospeccao'); setOutreachFilter(id); }}>
+              {label} · {productScoped.filter((c) => c.prospecting_pool && (c.outreach_status || 'unreviewed') === id).length}
+            </Button>
+          ))}
+          <Link href="/leads" className="self-center text-sm text-brand underline">Entradas do site</Link>
+        </div>
+        <p className="text-sm text-muted">Revise origem, contexto e permissão antes da abordagem. Apto não significa envio autorizado ou interesse comercial. Abra a ficha para registrar a próxima tarefa.</p>
+      </section>
       <Card className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative w-full max-w-sm">
             <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted" />
             <Input
@@ -338,7 +358,7 @@ export default function Contacts() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select value={situacao} onChange={(e) => setSituacao(e.target.value as typeof situacao)} className="sm:w-44">
+          <Select aria-label="Filtrar situação" value={situacao} onChange={(e) => setSituacao(e.target.value as typeof situacao)} className="sm:w-44">
             <option value="Todos">Todas as situações</option>
             <option value="pipeline">Em pipeline</option>
             <option value="clientes">Clientes</option>
@@ -346,19 +366,25 @@ export default function Contacts() {
             <option value="arquivados">Arquivados</option>
           </Select>
           <Select
+            aria-label="Filtrar aplicação ou produto"
             value={productFilter}
             onChange={(e) => setProductFilter(e.target.value)}
             className="sm:w-48"
           >
-            <option value="Todos">Todos os Produtos</option>
+            <option value="Todos">Todas as aplicações / produtos</option>
+            <option value="__undefined__">Produto a definir</option>
             {products.map((p) => (
               <option key={p} value={p}>
                 {productLabel(p)}
               </option>
             ))}
           </Select>
+          <Select aria-label="Filtrar por origem" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)} className="sm:w-44">
+            <option value="Todos">Todas as origens</option>
+            {ORIGINS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </Select>
           {situacao === 'prospeccao' && (
-            <Select value={outreachFilter} onChange={(e) => setOutreachFilter(e.target.value as typeof outreachFilter)} className="sm:w-44">
+            <Select aria-label="Filtrar revisão de abordagem" value={outreachFilter} onChange={(e) => setOutreachFilter(e.target.value as typeof outreachFilter)} className="sm:w-44">
               <option value="Todos">Toda a base</option>
               <option value="unreviewed">Revisão pendente</option>
               <option value="contactable">Apto para contato</option>
@@ -443,7 +469,7 @@ export default function Contacts() {
                         {contact.prospecting_pool
                           ? <Badge tone="purple">Prospecção</Badge>
                           : <Badge tone={statusTone(contact.status)}>{statusLabel(contact.status)}</Badge>}
-                        {contact.prospecting_pool && (
+                        {(contact.prospecting_pool || contact.outreach_status === 'blocked') && (
                           <Badge tone={contact.outreach_status === 'blocked' ? 'red' : contact.outreach_status === 'contactable' ? 'emerald' : 'gray'}>
                             {contact.outreach_status === 'blocked' ? 'Não contatar' : contact.outreach_status === 'contactable' ? 'Apto para contato' : 'Revisão pendente'}
                           </Badge>
@@ -619,7 +645,7 @@ export default function Contacts() {
               />
             </Field>
           </div>
-          <Field label="Campanhas" htmlFor="outreach_status">
+          <Field label="Revisão de abordagem" htmlFor="outreach_status">
             <Select id="outreach_status" value={formData.outreach_status}
               onChange={(e) => setFormData({ ...formData, outreach_status: e.target.value as NonNullable<Contact['outreach_status']> })}>
               <option value="unreviewed">Revisão pendente</option>

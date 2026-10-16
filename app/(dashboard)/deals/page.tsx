@@ -1,6 +1,8 @@
 'use client';
 
 import { productLabel } from '@/lib/product-label';
+import { PipelineContext } from '@/components/PipelineContext';
+import { nextTask, byContact } from '@/lib/pipeline-context';
 import { loadContacts } from '@/lib/contact-data';
 
 import { contactNameInput, contactNamePayload, contactName } from '@/lib/contact-name';
@@ -24,7 +26,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
+import type { Contact, ContactStatus, ContactOrigin, Task, Activity } from '@/lib/types';
 import {
   KANBAN_STATUSES,
   CONTACT_STATUSES,
@@ -62,6 +64,11 @@ function PipelineContent() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [productFilter, setProductFilter] = useState('Todos');
+  const [originFilter, setOriginFilter] = useState('Todos');
+  const [needsTask, setNeedsTask] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [contextAvailable, setContextAvailable] = useState(false);
   const [view, setView] = useState<'board' | 'archived'>('board');
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +111,8 @@ function PipelineContent() {
     const sub = supabase
       .channel('pipeline-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, debouncedFetch)
       .subscribe();
     return () => {
       supabase.removeChannel(sub);
@@ -120,7 +129,35 @@ function PipelineContent() {
   const fetchContacts = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      setContacts(await loadContacts('updated_at'));
+      const loaded = await loadContacts('updated_at');
+      setContacts(loaded);
+      setContextAvailable(false);
+      try {
+        const taskRows: Task[] = [];
+        const activityRows: Activity[] = [];
+        const ids = loaded.filter((c) => !c.prospecting_pool && KANBAN_STATUSES.some((s) => s.id === c.status)).map((c) => c.id);
+        for (let start = 0; start < ids.length; start += 50) {
+          const batch = ids.slice(start, start + 50);
+          // Stable pagination avoids silently truncating histories at the API row limit.
+          for (const table of ['tasks', 'activities'] as const) {
+            for (let offset = 0; ; offset += 500) {
+              const { data, error } = await supabase.from(table)
+                .select(table === 'tasks' ? 'id,contact_id,title,status,due_date,assigned_to' : 'id,contact_id,type,channel,created_at')
+                .in('contact_id', batch).order('id').range(offset, offset + 499);
+              if (error) throw error;
+              if (table === 'tasks') taskRows.push(...(data as unknown as Task[]));
+              else activityRows.push(...(data as unknown as Activity[]));
+              if (data.length < 500) break;
+            }
+          }
+        }
+        setTasks(taskRows);
+        setActivities(activityRows);
+        setContextAvailable(true);
+      } catch {
+        setTasks([]);
+        setActivities([]);
+      }
     } catch (error) {
       console.error('Error fetching pipeline:', error);
       toast.error('Erro ao carregar o funil.');
@@ -222,11 +259,13 @@ function PipelineContent() {
   };
 
   const products = useMemo(() => uniqueProducts(contacts), [contacts]);
-  const byProduct = (c: Contact) => productFilter === 'Todos' || c.produto === productFilter;
+  const taskMap = useMemo(() => byContact(tasks), [tasks]);
+  const activityMap = useMemo(() => byContact(activities), [activities]);
+  const byProduct = (c: Contact) => (productFilter === 'Todos' || (productFilter === '__undefined__' ? !c.produto?.trim() : c.produto?.trim() === productFilter)) && (originFilter === 'Todos' || c.origin === originFilter) && (view !== 'board' || !needsTask || (contextAvailable && !nextTask(taskMap.get(c.id) || [])));
   const archivedList = useMemo(
     () => contacts.filter((c) => c.status === 'Arquivado' && !c.prospecting_pool && byProduct(c)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contacts, productFilter],
+    [contacts, productFilter, originFilter, needsTask, contextAvailable, taskMap, view],
   );
 
   if (!isMounted) return null; // avoid dnd hydration mismatch
@@ -262,15 +301,21 @@ function PipelineContent() {
             </button>
           </div>
         </div>
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
-            <option value="Todos">Todos os Produtos</option>
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <Select aria-label="Filtrar aplicação ou produto no funil" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
+            <option value="Todos">Todas as aplicações / produtos</option>
+            <option value="__undefined__">Produto a definir</option>
             {products.map((p) => (
               <option key={p} value={p}>
                 {productLabel(p)}
               </option>
             ))}
           </Select>
+          <Select aria-label="Filtrar origem do funil" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)}>
+            <option value="Todos">Todas as origens</option>
+            {ORIGINS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </Select>
+          <Button variant="secondary" disabled={!contextAvailable || view !== 'board'} aria-pressed={needsTask && view === 'board'} onClick={() => setNeedsTask(!needsTask)}>Sem próxima tarefa</Button>
           <Button onClick={() => openNew()}>
             <Plus className="h-4 w-4" />
             Novo Lead
@@ -324,7 +369,7 @@ function PipelineContent() {
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex h-full min-w-max items-start gap-5">
               {KANBAN_STATUSES.map((stage) => {
-                const columnContacts = contacts.filter((c) => c.status === stage.id && byProduct(c));
+                const columnContacts = contacts.filter((c) => c.status === stage.id && !c.prospecting_pool && byProduct(c));
                 const columnTotal = columnContacts.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
                 return (
                   <div
@@ -381,7 +426,7 @@ function PipelineContent() {
                                     <div className="flex items-center gap-1 text-muted">
                                       <button
                                         onClick={() => setStatus(c, 'Cliente', 'Ganho! Virou cliente. 🎉')}
-                                        className="opacity-0 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
                                         aria-label="Marcar como cliente"
                                         title="Ganhou (vira Cliente)"
                                       >
@@ -389,14 +434,14 @@ function PipelineContent() {
                                       </button>
                                       <button
                                         onClick={() => openEdit(c)}
-                                        className="opacity-0 transition-opacity hover:text-brand group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-brand group-hover:opacity-100"
                                         aria-label="Editar"
                                       >
                                         <Pencil className="h-4 w-4" />
                                       </button>
                                       <button
                                         onClick={() => setStatus(c, 'Arquivado', 'Contato arquivado.')}
-                                        className="opacity-0 transition-opacity hover:text-amber-500 group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-amber-500 group-hover:opacity-100"
                                         aria-label="Arquivar"
                                         title="Arquivar (não fechou)"
                                       >
@@ -405,6 +450,7 @@ function PipelineContent() {
                                       <GripVertical className="ml-1 h-4 w-4 cursor-grab opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing" />
                                     </div>
                                   </div>
+                                  {c.outreach_status === 'blocked' && <Badge tone="red">Não contatar</Badge>}
                                   <Link
                                     href={`/contacts/${c.id}`}
                                     className="mb-1 block text-sm font-semibold text-fg hover:text-brand"
@@ -434,6 +480,7 @@ function PipelineContent() {
                                       </span>
                                     )}
                                   </div>
+                                  <PipelineContext contactId={c.id} tasks={taskMap.get(c.id) || []} activities={activityMap.get(c.id) || []} available={contextAvailable} />
                                 </div>
                               )}
                             </Draggable>
