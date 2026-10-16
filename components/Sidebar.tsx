@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Settings,
   BarChart3,
+  Mails,
   LogOut,
   Magnet,
   UserCheck,
@@ -36,6 +37,7 @@ const navGroups: NavGroup[] = [
     label: 'Gestão',
     items: [
       { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
+      { name: 'Campanhas de e-mail', href: '/campaigns', icon: Mails },
       { name: 'Relatórios', href: '/reports', icon: BarChart3 },
     ],
   },
