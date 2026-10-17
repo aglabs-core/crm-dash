@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Mail, MailOpen, MousePointerClick, Reply, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { BrevoMessageLink } from '@/components/BrevoMessageLink';
 import { CampaignPreparation } from '@/components/CampaignPreparation';
 import { loadContacts } from '@/lib/contact-data';
 import type { Contact } from '@/lib/types';
 import {
-  campaignMetrics, type EmailCampaign, type EmailCampaignEvent,
+  campaignMetrics, recipientEventSummary, emailEventLabel, type EmailCampaign, type EmailCampaignEvent,
   type EmailCampaignRecipient,
 } from '@/lib/email-campaign';
 import { Badge, Button, Card, PageLoader, StatCard } from '@/components/ui';
@@ -34,7 +35,7 @@ async function loadEvents(recipientIds: string[]): Promise<EmailCampaignEvent[]>
     const ids = recipientIds.slice(start, start + 100);
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await supabase.from('email_campaign_events')
-        .select('id,recipient_id,event_type,occurred_at').in('recipient_id', ids)
+        .select('id,recipient_id,event_type,occurred_at,provider_event_type').in('recipient_id', ids)
         .order('occurred_at', { ascending: true }).range(offset, offset + 499);
       if (error) throw error;
       rows.push(...(data ?? []) as EmailCampaignEvent[]);
@@ -98,11 +99,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
   if (error || !campaign) return <p className="text-sm text-red-500">Campanha indisponível. Confira o acesso e a migration.</p>;
 
   const contactNames = new Map(contacts.map((contact) => [contact.id, contact.name || contact.email || 'Contato']));
-  const latestEvents = new Map<string, EmailCampaignEvent>();
-  for (const item of events) {
-    const previous = latestEvents.get(item.recipient_id);
-    if (!previous || previous.occurred_at < item.occurred_at) latestEvents.set(item.recipient_id, item);
-  }
+  const eventSummaries = recipientEventSummary(events);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -115,7 +112,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         </div>
         <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>
       </div>
-      {campaign.status === 'draft' && campaign.user_id === viewerId && events.length === 0 && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
+      {campaign.status === 'draft' && campaign.user_id === viewerId && events.length === 0 && !recipients.some((recipient) => recipient.provider_message_id) && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Na audiência" value={metrics.recipients} icon={Mail} hint={`${metrics.pending} sem qualquer evento`} />
         <StatCard label="Entregues" value={metrics.delivered} icon={CheckCircle2} hint={`${metrics.sent} envios registrados`} />
@@ -127,7 +124,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         <div className="mt-3 flex flex-wrap gap-5 text-sm text-muted">
           <span className="inline-flex items-center gap-1"><MousePointerClick className="h-4 w-4" /> Cliques: {metrics.clicked}</span>
           <span className="inline-flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> Bounces: {metrics.bounced}</span>
-          <span>Reclamações: {metrics.complained}</span><span>Descadastros: {metrics.unsubscribed}</span>
+          <span>Adiadas: {metrics.deferred}</span><span>Bloqueadas: {metrics.blocked}</span><span>Erros: {metrics.error}</span><span>Aberturas por proxy: {metrics.proxy_open}</span><span>Reclamações: {metrics.complained}</span><span>Descadastros: {metrics.unsubscribed}</span>
         </div>
         <p className="mt-3 text-xs text-muted">Indicadores contam destinatários únicos. Eventos só aparecem quando o conector do provedor os registrar; zero não significa que houve entrega.</p>
       </Card>
@@ -143,17 +140,20 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
                   <p className="text-muted">{recipient.email_snapshot}</p>
                   <p className="mt-1 text-xs text-muted">Revisão: {recipient.review_note}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge tone={latestEvents.has(recipient.id) ? 'indigo' : 'gray'}>
-                    {latestEvents.get(recipient.id)?.event_type ?? 'Sem evento'}
-                  </Badge>
-                  {campaign.status === 'draft' && campaign.user_id === viewerId && !events.some((item) => item.recipient_id === recipient.id) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={eventSummaries.get(recipient.id)?.delivery ? 'indigo' : 'gray'}>{eventSummaries.get(recipient.id)?.delivery ? emailEventLabel(eventSummaries.get(recipient.id)!.delivery!.event_type) : 'Sem evento de entrega'}</Badge>
+                  {eventSummaries.get(recipient.id)?.engagement && <Badge tone="blue">{emailEventLabel(eventSummaries.get(recipient.id)!.engagement!.event_type)}</Badge>}
+                  {eventSummaries.get(recipient.id)?.unsubscribed && <Badge tone="red">Descadastrado</Badge>}
+                  {eventSummaries.get(recipient.id)?.complained && <Badge tone="red">Reclamação</Badge>}
+                  {eventSummaries.get(recipient.id)?.hardBounce && <Badge tone="red">Falha permanente</Badge>}
+                  {campaign.status === 'draft' && campaign.user_id === viewerId && !recipient.provider_message_id && !events.some((item) => item.recipient_id === recipient.id) && (
                     <button type="button" onClick={() => removeRecipient(recipient)}
                       aria-label={`Remover ${recipient.email_snapshot}`} className="text-muted hover:text-red-500">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
                 </div>
+                {campaign.provider === 'brevo' && campaign.user_id === viewerId && !recipient.provider_message_id && <BrevoMessageLink recipientId={recipient.id} onLinked={refresh} />}
               </div>
             ))}
           </div>

@@ -2,7 +2,7 @@ export type EmailProvider = 'brevo' | 'resend';
 export type AudienceBasis = 'opt_in' | 'individual_review';
 export type EmailEventType =
   | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied'
-  | 'bounced' | 'complained' | 'unsubscribed';
+  | 'bounced' | 'complained' | 'unsubscribed' | 'deferred' | 'blocked' | 'error' | 'proxy_open';
 
 export type EmailCampaign = {
   id: string;
@@ -25,6 +25,7 @@ export type EmailCampaignEvent = {
   recipient_id: string;
   event_type: EmailEventType;
   occurred_at: string;
+  provider_event_type?: string | null;
 };
 
 export type EmailCampaignRecipient = {
@@ -68,5 +69,25 @@ export function campaignMetrics(
     bounced: count('bounced'),
     complained: count('complained'),
     unsubscribed: count('unsubscribed'),
+    deferred: count('deferred'), blocked: count('blocked'), error: count('error'), proxy_open: count('proxy_open'),
   };
+}
+
+export function recipientEventSummary(events: EmailCampaignEvent[]) {
+  const result = new Map<string, { delivery?: EmailCampaignEvent; engagement?: EmailCampaignEvent; unsubscribed: boolean; complained: boolean; hardBounce: boolean }>();
+  for (const event of events) {
+    const summary = result.get(event.recipient_id) || { unsubscribed: false, complained: false, hardBounce: false };
+    if (['sent', 'delivered', 'bounced', 'deferred', 'blocked', 'error'].includes(event.event_type)
+      && (!summary.delivery || summary.delivery.occurred_at < event.occurred_at)) summary.delivery = event;
+    if (['opened', 'clicked', 'proxy_open', 'replied'].includes(event.event_type)
+      && (!summary.engagement || summary.engagement.occurred_at < event.occurred_at)) summary.engagement = event;
+    summary.unsubscribed ||= event.event_type === 'unsubscribed';
+    summary.complained ||= event.event_type === 'complained';
+    summary.hardBounce ||= ['hard_bounce', 'invalid_email'].includes(event.provider_event_type || '');
+    result.set(event.recipient_id, summary);
+  }
+  return result;
+}
+export function emailEventLabel(event: EmailEventType): string {
+  return ({ sent: 'Enviado', delivered: 'Entregue', opened: 'Abertura', clicked: 'Clique', replied: 'Resposta registrada', bounced: 'Falha na entrega', complained: 'Reclamação', unsubscribed: 'Descadastrado', deferred: 'Adiado', blocked: 'Bloqueado', error: 'Erro no envio', proxy_open: 'Abertura por proxy' })[event];
 }
