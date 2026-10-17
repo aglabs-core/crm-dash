@@ -34,7 +34,16 @@ export async function receiveBrevoWebhook(request: Request, dependencies?: {
   const config = dependencies?.config ?? receiverConfig();
   if (!validReceiverConfig(config)) return response(503, { error: 'Receiver unavailable' });
   const expected = Buffer.from(`Bearer ${config.token}`); const actual = Buffer.from(request.headers.get('authorization') || '');
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return response(401, { error: 'Unauthorized' });
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    // Shape only: never log the header, token, payload, address or a credential hash.
+    console.warn('Brevo webhook authentication refused', {
+      headerPresent: actual.length > 0,
+      bearerScheme: /^Bearer /i.test(actual.toString()),
+      headerLength: actual.length,
+      expectedLength: expected.length,
+    });
+    return response(401, { error: 'Unauthorized' });
+  }
   let normalized: BrevoEvent[];
   try {
     const body = await readLimitedJson(request); const batch = Array.isArray(body) ? body : [body];
