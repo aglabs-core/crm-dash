@@ -37,7 +37,7 @@ test('guided campaign migration enforces audience isolation, atomicity and repla
         ('${wrongProduct}','${owner}','wrong@example.invalid','members','contactable'),
         ('${unreviewed}','${owner}','review@example.invalid','barberias','unreviewed');
     `);
-    await db.exec(await readFile('supabase/migrations/20261016120000_email_campaign_observability.sql', 'utf8'));
+    await db.exec(await readFile('supabase/migrations/20261016052215_email_campaign_observability.sql', 'utf8'));
     const migration = await readFile('supabase/migrations/20261017034819_guided_campaign_preparation.sql', 'utf8');
     await db.exec(migration); await db.exec(migration);
     await db.exec(`INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis)

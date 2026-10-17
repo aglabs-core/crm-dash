@@ -23,7 +23,7 @@ test('Brevo inbox isolates accounts, reconciles early events and suppresses futu
       CREATE POLICY owner_contacts ON public.contacts TO authenticated USING(user_id=auth.uid()) WITH CHECK(user_id=auth.uid());
       GRANT ALL ON public.contacts TO authenticated;
       INSERT INTO public.contacts(id,user_id,email,produto,outreach_status) VALUES('${owner}','${owner}','person@example.invalid','barberias','contactable'),('${other}','${other}','person@example.invalid','barberias','contactable');`);
-    for(const file of ['20261016120000_email_campaign_observability.sql','20261017034819_guided_campaign_preparation.sql','20261017160727_brevo_event_receiver.sql']) await db.exec(await readFile(`supabase/migrations/${file}`,'utf8'));
+    for(const file of ['20261016052215_email_campaign_observability.sql','20261017034819_guided_campaign_preparation.sql','20261017160727_brevo_event_receiver.sql']) await db.exec(await readFile(`supabase/migrations/${file}`,'utf8'));
     await db.exec(await readFile('supabase/migrations/20261017160727_brevo_event_receiver.sql','utf8'));
     await db.exec(`INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${owner}','Synthetic A'),('${foreignConnection}','${other}','Synthetic B');
       INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis) VALUES
