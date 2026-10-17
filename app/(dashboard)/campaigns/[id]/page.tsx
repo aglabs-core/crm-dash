@@ -122,6 +122,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         </div>
         <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>
       </div>
+      <Link href={`/campaigns/templates?product=${encodeURIComponent(campaign.product)}`} className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline"><Mail className="h-4 w-4" /> Consultar templates do produto</Link>
       {canPrepare && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
       {campaign.provider === 'brevo' && campaign.user_id === viewerId && <CampaignApproval campaignId={campaign.id} onChanged={refresh} canReview={!reviewUnavailableReason} reviewUnavailableReason={reviewUnavailableReason} onLockChange={setApprovalLocked} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
