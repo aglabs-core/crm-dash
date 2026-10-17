@@ -22,3 +22,19 @@
 Os painéis ficam sem eventos até o conector ser ligado. Para Resend, configurar webhook com verificação de assinatura e segredo próprio no servidor; para Brevo, importar eventos pelo identificador da mensagem ou webhook autenticado. O `RESEND_API_KEY` disponível no cofre do OpenClaw validou a conta/domínio, mas **não** é um segredo de assinatura do webhook nem foi copiado para o CRM.
 
 O piloto Barberias de 09/10 (cinco mensagens Brevo) já consta em `activities`. Pode ser conciliado no novo ledger após a migration, sem reenviar: quatro entregues e um soft bounce. Não converter automaticamente esses cinco contatos em novo lote.
+
+## Preparação guiada no CRM — evolução local de 17/10
+
+Decisão: o CRM concentra público, conteúdo, revisão e acompanhamento; Brevo continua a infraestrutura de entrega. Alternativas: operar tudo na Brevo é rápido, mas fragmenta contexto; criar um motor de entrega próprio aumenta custo operacional; CRM + provedor aproveita o cadastro e mantém a empresa numa interface. Referências: [fluxo Brevo](https://help.brevo.com/hc/pt/articles/4413566705298-Crie-e-envie-uma-campanha-de-e-mail) e [editor HubSpot](https://knowledge.hubspot.com/marketing-email/create-and-send-marketing-emails).
+
+O atalho Campanha Barberias abre um rascunho e encaminha à preparação em três etapas: Público, Mensagem e Revisão. O público permite grupos Prospecção/Funil/Clientes, origem, busca, exclusões explicadas e seleção explícita de até 200 novos destinatários. Trocar filtros limpa a seleção. A chave `barberpro` é reconhecida como alias de `barberias` apenas para comparação; os valores persistidos das integrações não são reescritos.
+
+Assunto, texto e endereço de resposta ficam salvos no rascunho. A prévia suporta `{{nome}}` e `{{produto}}` e apresenta todo conteúdo como texto: HTML não é executado. Esses tokens são contrato de preparação; o futuro adaptador deverá substituí-los também na mensagem entregue. Remetente verificado, opt-out e layout final ainda dependem da integração de envio.
+
+A migration `20261017034819_guided_campaign_preparation.sql` acrescenta conteúdo e resposta, além da RPC `prepare_email_campaign` com SECURITY INVOKER. Ela revalida dono, estado do rascunho, produto, endereço, revisão, limite e bloqueios; mantém campanha/conteúdo/audiência numa transação. Registros existentes permanecem; repetir inclusão não duplica a participação. Contato, origem e etapa do funil não são alterados. Mudança de produto, bloqueio, descadastro ou reclamação podem fazer uma seleção antiga ser rejeitada no banco. A política de inserção direta também exige revisão/produto/endereço compatíveis e impede recadastrar endereços com supressão já registrada em campanhas do mesmo dono. Isso cobre o histórico conhecido no CRM; não substitui conciliar as listas de bloqueio da Brevo.
+
+A evidência por lote deve corresponder a todos os selecionados; grupos com contextos diferentes devem ser preparados separadamente. `contactable` não comprova opt-in. Conteúdo e audiência ainda são rascunho, nunca autorização para disparo. Após existir histórico do provedor, esta RPC não altera a campanha.
+
+Validação: PostgreSQL embarcado PGlite (somente desenvolvimento) com fixtures sintéticas para reexecução da migration, isolamento entre contas, replay, validação atômica e RLS em inserção direta; testes de interface para seleção, exclusões, prévia, confirmação e falha. Nenhuma migration foi aplicada ao banco remoto.
+
+Próxima entrega: conectar a conta Brevo do ecossistema, registrar identificadores de mensagens dos envios API/SMTP existentes, receber/conferir eventos, estruturar supressões por endereço e implementar fila de envio aprovada. Só depois haverá teste interno por email, envio/agendamento real e parada ao receber resposta/descadastro. O agente pode colaborar nessa mesma fila; não deve manter uma segunda audiência ou disparar campanhas por fora sem registro.

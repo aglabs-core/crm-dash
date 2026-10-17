@@ -1,0 +1,62 @@
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { CampaignPreparation } from '@/components/CampaignPreparation';
+import type { EmailCampaign } from '@/lib/email-campaign';
+import type { Contact } from '@/lib/types';
+const api = vi.hoisted(() => ({ rpc: vi.fn() }));
+vi.mock('@/lib/supabase', () => ({ supabase: { rpc: api.rpc } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
+const campaign: EmailCampaign = { id: 'synthetic-campaign', user_id: 'owner', name: 'Synthetic', product: 'barberias', provider: 'brevo', sender_email: 'sender@example.invalid', subject: 'Assunto inicial', audience_basis: 'individual_review', status: 'draft', provider_campaign_id: null, created_at: '2026-10-17', content_text: 'Mensagem salva' };
+const contact: Contact = { id: 'synthetic-contact', user_id: 'owner', name: 'Contato sintético', produto: 'BarberPRO', email: 'recipient@example.invalid', status: 'Arquivado', prospecting_pool: true, outreach_status: 'contactable', origin: 'prospeccao' };
+const blocked: Contact = { ...contact, id: 'blocked', name: 'Bloqueado sintético', outreach_status: 'blocked' };
+beforeEach(() => {
+  api.rpc.mockReset(); api.rpc.mockResolvedValue({ data: 1, error: null });
+  vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in synthetic UI tests'); }));
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+describe('guided campaign preparation', () => {
+  it('excludes blocked contacts and clears selection when a filter changes', async () => {
+    const user = userEvent.setup();
+    render(<CampaignPreparation campaign={campaign} contacts={[contact, blocked]} recipients={[]} onSaved={vi.fn()} />);
+    expect((screen.getByRole('checkbox', { name: 'Incluir Bloqueado sintético' }) as HTMLInputElement).disabled).toBe(true);
+    const selected = screen.getByRole('checkbox', { name: 'Incluir Contato sintético' }) as HTMLInputElement;
+    await user.click(selected); expect(selected.checked).toBe(true);
+    await user.selectOptions(screen.getByLabelText('Origem do público'), 'web');
+    await user.selectOptions(screen.getByLabelText('Origem do público'), 'all');
+    expect((screen.getByRole('checkbox', { name: 'Incluir Contato sintético' }) as HTMLInputElement).checked).toBe(false);
+    expect(api.rpc).not.toHaveBeenCalled();
+  });
+  it('edits a persistent draft and previews literal text without executing HTML', async () => {
+    const user = userEvent.setup(); const onSaved = vi.fn().mockResolvedValue(undefined);
+    render(<CampaignPreparation campaign={campaign} contacts={[contact]} recipients={[]} onSaved={onSaved} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir Contato sintético' }));
+    await user.click(screen.getByRole('button', { name: '2. Mensagem' }));
+    const body = screen.getByLabelText('Texto do e-mail'); await user.clear(body);
+    await user.paste('Olá, {{nome}}! <img src=x onerror=alert(1)>');
+    expect(screen.getByTestId('campaign-preview').textContent).toContain('Olá, Contato sintético! <img');
+    expect(screen.getByTestId('campaign-preview').querySelector('img')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '3. Revisão' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar preparação' }));
+    expect(api.rpc).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText(/^Evidência da revisão deste público/), 'Synthetic review evidence');
+    await user.click(screen.getByRole('checkbox', { name: 'Confirmar revisão da audiência' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar preparação' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(api.rpc).toHaveBeenCalledWith('prepare_email_campaign', expect.objectContaining({ p_contact_ids: ['synthetic-contact'], p_content_text: 'Olá, {{nome}}! <img src=x onerror=alert(1)>' }));
+    expect(api.rpc).toHaveBeenCalledOnce();
+  });
+  it('keeps the selection when the atomic save fails', async () => {
+    api.rpc.mockResolvedValue({ data: null, error: { message: 'synthetic failure' } });
+    const user = userEvent.setup();
+    render(<CampaignPreparation campaign={campaign} contacts={[contact]} recipients={[]} onSaved={vi.fn()} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir Contato sintético' }));
+    await user.click(screen.getByRole('button', { name: '3. Revisão' }));
+    await user.type(screen.getByLabelText(/^Evidência da revisão deste público/), 'Synthetic review evidence');
+    await user.click(screen.getByRole('checkbox', { name: 'Confirmar revisão da audiência' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar preparação' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '1. Público' }));
+    expect((screen.getByRole('checkbox', { name: 'Incluir Contato sintético' }) as HTMLInputElement).checked).toBe(true);
+  });
+});

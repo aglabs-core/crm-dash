@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Mail, MailOpen, MousePointerClick, Reply, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { CampaignPreparation } from '@/components/CampaignPreparation';
 import { loadContacts } from '@/lib/contact-data';
 import type { Contact } from '@/lib/types';
 import {
   campaignMetrics, type EmailCampaign, type EmailCampaignEvent,
   type EmailCampaignRecipient,
 } from '@/lib/email-campaign';
-import { Badge, Button, Card, Field, Input, PageLoader, Select, StatCard } from '@/components/ui';
+import { Badge, Button, Card, PageLoader, StatCard } from '@/components/ui';
 import { useConfirm } from '@/components/ConfirmDialog';
 
 async function loadRecipients(campaignId: string): Promise<EmailCampaignRecipient[]> {
@@ -43,6 +44,14 @@ async function loadEvents(recipientIds: string[]): Promise<EmailCampaignEvent[]>
   return rows;
 }
 
+async function loadCampaignSnapshot(id: string) {
+  const { data, error } = await supabase.from('email_campaigns').select('*').eq('id', id).single();
+  if (error) throw error;
+  const recipients = await loadRecipients(id);
+  const events = await loadEvents(recipients.map((row) => row.id));
+  return { campaign: data as EmailCampaign, recipients, events };
+}
+
 export default function CampaignDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [campaign, setCampaign] = useState<EmailCampaign | null>(null);
@@ -51,59 +60,26 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [contactId, setContactId] = useState('');
-  const [reviewNote, setReviewNote] = useState('');
-  const [saving, setSaving] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const confirm = useConfirm();
 
-  const refresh = useCallback(async () => {
-    const { data: campaignData, error: campaignError } = await supabase.from('email_campaigns')
-      .select('*').eq('id', id).single();
-    if (campaignError) throw campaignError;
-    const rows = await loadRecipients(id);
-    const eventRows = await loadEvents(rows.map((row) => row.id));
-    setCampaign(campaignData as EmailCampaign);
-    setRecipients(rows);
-    setEvents(eventRows);
-  }, [id]);
+  const applySnapshot = useCallback((snapshot: { campaign: EmailCampaign; recipients: EmailCampaignRecipient[]; events: EmailCampaignEvent[] }) => {
+    setCampaign(snapshot.campaign); setRecipients(snapshot.recipients); setEvents(snapshot.events);
+  }, []);
+  const refresh = useCallback(() => loadCampaignSnapshot(id).then(applySnapshot), [id, applySnapshot]);
 
   useEffect(() => {
-    Promise.all([refresh(), loadContacts().then(setContacts),
-      supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null))])
-      .catch(() => setError(true)).finally(() => setLoading(false));
-  }, [refresh]);
+    let active = true;
+    Promise.all([loadCampaignSnapshot(id), loadContacts(), supabase.auth.getUser()])
+      .then(([snapshot, rows, auth]) => {
+        if (!active) return;
+        applySnapshot(snapshot); setContacts(rows); setViewerId(auth.data.user?.id ?? null);
+      }).catch(() => { if (active) setError(true); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id, applySnapshot]);
 
   const metrics = useMemo(() => campaignMetrics(recipients, events), [recipients, events]);
-  const existingContactIds = useMemo(() => new Set(recipients.map((row) => row.contact_id)), [recipients]);
-  const eligibleContacts = useMemo(() => contacts.filter((contact) =>
-    contact.user_id === viewerId && contact.email && contact.outreach_status !== 'blocked'
-    && !existingContactIds.has(contact.id)
-    && (!campaign?.product || contact.produto?.trim().toLowerCase() === campaign.product.trim().toLowerCase()),
-  ), [contacts, existingContactIds, campaign, viewerId]);
-
-  const addRecipient = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!campaign || campaign.status !== 'draft') return;
-    const contact = eligibleContacts.find((item) => item.id === contactId);
-    if (!contact?.email || reviewNote.trim().length < 8) return;
-    setSaving(true);
-    try {
-      const { error: insertError } = await supabase.from('email_campaign_recipients').insert({
-        campaign_id: campaign.id, user_id: campaign.user_id, contact_id: contact.id,
-        email_snapshot: contact.email.trim().toLowerCase(), review_note: reviewNote.trim(),
-      });
-      if (insertError) throw insertError;
-      setContactId(''); setReviewNote('');
-      await refresh();
-      toast.success('Contato incluído para revisão. Nenhum e-mail foi enviado.');
-    } catch {
-      toast.error('Não foi possível incluir o contato. Verifique a conta e o estado de revisão.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const removeRecipient = async (recipient: EmailCampaignRecipient) => {
     if (!campaign || campaign.status !== 'draft' || campaign.user_id !== viewerId) return;
     const approved = await confirm({
@@ -139,6 +115,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         </div>
         <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>
       </div>
+      {campaign.status === 'draft' && campaign.user_id === viewerId && events.length === 0 && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Na audiência" value={metrics.recipients} icon={Mail} hint={`${metrics.pending} sem qualquer evento`} />
         <StatCard label="Entregues" value={metrics.delivered} icon={CheckCircle2} hint={`${metrics.sent} envios registrados`} />
@@ -154,28 +131,6 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         </div>
         <p className="mt-3 text-xs text-muted">Indicadores contam destinatários únicos. Eventos só aparecem quando o conector do provedor os registrar; zero não significa que houve entrega.</p>
       </Card>
-
-      {campaign.status === 'draft' && campaign.user_id === viewerId && (
-        <Card className="p-5">
-          <h2 className="font-semibold text-fg">Adicionar contato revisado</h2>
-          <p className="mt-1 text-sm text-muted">Um contato por vez. Registre por que esse endereço pode receber a campanha.
-            {campaign.audience_basis === 'opt_in' ? ' Informe quando e onde o opt-in foi obtido.' : ' Registre a revisão individual do contexto.'}</p>
-          <form onSubmit={addRecipient} className="mt-4 grid gap-4 md:grid-cols-[1fr_1.5fr_auto] md:items-end">
-            <Field label="Contato" htmlFor="recipient-contact" required>
-              <Select id="recipient-contact" required value={contactId} onChange={(e) => setContactId(e.target.value)}>
-                <option value="">Selecione</option>
-                {eligibleContacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name} — {contact.email}</option>)}
-              </Select>
-            </Field>
-            <Field label="Evidência da permissão/revisão" htmlFor="recipient-note" required>
-              <Input id="recipient-note" required minLength={8} maxLength={1000} value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)} placeholder="Origem, data e contexto" />
-            </Field>
-            <Button type="submit" loading={saving}>Adicionar</Button>
-          </form>
-          <p className="mt-3 text-xs text-muted">A lista é uma preparação interna; não existe botão de disparo nesta tela.</p>
-        </Card>
-      )}
 
       <Card className="overflow-hidden">
         <div className="border-b border-border p-5"><h2 className="font-semibold text-fg">Destinatários e eventos</h2></div>

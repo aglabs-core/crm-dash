@@ -12,6 +12,8 @@ export type EmailCampaign = {
   provider: EmailProvider;
   sender_email: string;
   subject: string;
+  content_text?: string;
+  reply_to?: string | null;
   audience_basis: AudienceBasis;
   status: 'draft' | 'active' | 'completed' | 'paused';
   provider_campaign_id: string | null;
