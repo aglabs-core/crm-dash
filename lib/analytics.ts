@@ -15,7 +15,7 @@ const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 const amount = (c: Contact) => Number(c.amount) || 0;
 
 /** Cold outreach remains in the contact history, outside sales conversion. */
-export const salesContacts = (contacts: Contact[]) => contacts.filter((c) => !c.prospecting_pool);
+export const salesContacts = (contacts: Contact[]) => contacts.filter((c) => !c.prospecting_pool && c.status !== 'Contato');
 
 /** Won = a client (active or inactive). Lost = archived. Open = active funnel. */
 export const isWon = (c: Contact) => isClientStatus(c.status);
@@ -292,6 +292,7 @@ export type ClientRow = {
   contact: Contact;
   wonRevenue: number;
   active: boolean;
+  canReactivate: boolean;
   products: string[];
   lastWonAt: string | null;
 };
@@ -316,6 +317,7 @@ export function buildClients(contacts: Contact[], payments: PaymentTransaction[]
         contact,
         wonRevenue: paid.reduce((total, payment) => total + netRevenue(payment), 0),
         active: contact.status === 'Cliente' && (!paid.length || purchased.length > 0),
+        canReactivate: !paid.length || purchased.length > 0,
         products: products.length ? products : contact.produto ? [contact.produto.trim()] : [],
         lastWonAt: paidDates.at(-1) || contact.closed_at || contact.updated_at || null,
       };

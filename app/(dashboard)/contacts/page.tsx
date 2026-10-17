@@ -14,7 +14,6 @@ import {
   Users,
   UserCheck,
   Headset,
-  TrendingUp,
   Pencil,
   Trash2,
   ExternalLink,
@@ -58,11 +57,11 @@ const emptyForm = {
   email: '',
   phone: '',
   company: '',
-  status: 'Arquivado' as ContactStatus,
-  origin: 'prospeccao' as ContactOrigin,
+  status: 'Contato' as ContactStatus,
+  origin: 'manual' as ContactOrigin,
   lp_url: '',
   produto: '',
-  prospecting_pool: true,
+  prospecting_pool: false,
   outreach_status: 'unreviewed' as NonNullable<Contact['outreach_status']>,
 };
 
@@ -71,7 +70,7 @@ export default function Contacts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
   const [originFilter, setOriginFilter] = useState('Todos');
-  const [situacao, setSituacao] = useState<'Todos' | 'pipeline' | 'clientes' | 'arquivados' | 'prospeccao'>('Todos');
+  const [situacao, setSituacao] = useState<'Todos' | 'base' | 'pipeline' | 'clientes' | 'arquivados' | 'prospeccao'>('Todos');
   const [outreachFilter, setOutreachFilter] = useState<'Todos' | NonNullable<Contact['outreach_status']>>('Todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -159,7 +158,6 @@ export default function Contacts() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
 
-      if (editingContact && isClientStatus(editingContact.status) && isActiveStatus(formData.status)) { toast.error('Use Cliente inativo para encerrar o relacionamento.'); return; }
       const payload = {
         name: contactNamePayload(formData.name),
         email: formData.email || null,
@@ -231,6 +229,8 @@ export default function Contacts() {
         const matchesSituacao =
           situacao === 'Todos'
             ? true
+            : situacao === 'base'
+              ? contact.status === 'Contato' && !contact.prospecting_pool
             : situacao === 'pipeline'
               ? !contact.prospecting_pool && isActiveStatus(contact.status)
               : situacao === 'clientes'
@@ -333,13 +333,11 @@ export default function Contacts() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard label="Total" value={totals.total} icon={Users} hint="na carteira" />
-        <StatCard label="Em pipeline" value={totals.emPipeline} icon={Headset} hint="em atendimento" />
+        <StatCard label="Em pipeline" value={totals.emPipeline} icon={Headset} hint="oportunidades comerciais" />
         <StatCard label="Clientes" value={totals.clientes} icon={UserCheck} hint="fecharam negócio" />
-        <StatCard label="Prospecção" value={totals.prospeccao} icon={Users} hint="base para contato" />
-        <StatCard label="Arquivados" value={totals.arquivados} icon={Archive} hint="fora do funil" />
-        <StatCard label="Conversão" value={totals.conversao} icon={TrendingUp} hint="ganhos / fechados" />
+        <StatCard label="A qualificar" value={productScoped.filter((c) => c.status === 'Contato' && !c.prospecting_pool).length} icon={Users} hint="fora do funil comercial" />
       </div>
 
       <section aria-label="Filas de prospecção" className="space-y-3">
@@ -368,10 +366,12 @@ export default function Contacts() {
           </div>
           <Button variant="secondary" onClick={() => setFiltersOpen(true)} className="sm:ml-auto"><SlidersHorizontal className="h-4 w-4" /> Filtrar contatos</Button>
           <span className="text-xs text-muted">{filteredContacts.length} contatos encontrados</span>
+          {(situacao !== 'Todos' || productFilter !== 'Todos' || originFilter !== 'Todos') && <p className="w-full text-xs text-muted">Exibindo: {situacao === 'Todos' ? 'toda a base' : situacao === 'base' ? 'contatos a qualificar' : situacao === 'pipeline' ? 'funil' : situacao === 'clientes' ? 'clientes' : situacao === 'prospeccao' ? 'prospecção' : 'arquivados'}{productFilter !== 'Todos' ? ` · ${productFilter === '__undefined__' ? 'Produto a definir' : productLabel(productFilter)}` : ''}{originFilter !== 'Todos' ? ` · ${originLabel(originFilter)}` : ''}</p>}
           <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Organizar contatos">
             <div className="space-y-4 [&_select]:w-full">
           <Select aria-label="Filtrar situação" value={situacao} onChange={(e) => setSituacao(e.target.value as typeof situacao)} className="sm:w-44">
             <option value="Todos">Todas as situações</option>
+            <option value="base">Contatos a qualificar</option>
             <option value="pipeline">Em pipeline</option>
             <option value="clientes">Clientes</option>
             <option value="prospeccao">Prospecção</option>
@@ -608,7 +608,7 @@ export default function Contacts() {
                 placeholder="Nome da Empresa"
               />
             </Field>
-            <Field label="Etapa" htmlFor="status">
+            <Field label="Etapa" htmlFor="status" hint="Contato a qualificar: cadastro sem intenção comercial definida. Prospecção: base fria para abordagem.">
               <Select
                 id="status"
                 value={formData.prospecting_pool ? '__prospeccao__' : formData.status}

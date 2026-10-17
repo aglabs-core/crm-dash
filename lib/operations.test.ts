@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { contactMatchesSearch } from './contact-name';
 import { toDate, formatChange } from './format';
-import { buildClients, conversionFunnel, pipelineByStage } from './analytics';
+import { buildClients, conversionFunnel, pipelineByStage, salesContacts, productPerformance } from './analytics';
 import { netRevenue } from './payment-analytics';
 import type { Contact, PaymentTransaction } from './types';
 
@@ -26,4 +26,11 @@ test('full refunds contribute no revenue and do not imply an active customer', (
   const rows = buildClients([{ id: 'c', name: null, status: 'Cliente' }], [payment]);
   assert.equal(rows[0].active, false);
   assert.equal(rows[0].wonRevenue, 0);
+});
+
+test('general contacts are outside commercial counts', () => {
+  const contact: Contact = { id: 'general', name: null, status: 'Contato' };
+  assert.equal(salesContacts([contact]).length, 0);
+  assert.equal(productPerformance([contact]).length, 0);
+  assert.equal(conversionFunnel([contact])[0].reached, 0);
 });

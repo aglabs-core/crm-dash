@@ -1,5 +1,7 @@
 'use client';
 
+import { loadTasks } from '@/lib/task-data';
+import { loadContacts } from '@/lib/contact-data';
 import { contactName } from '@/lib/contact-name';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -37,6 +39,7 @@ const emptyForm = {
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,21 +100,17 @@ export default function Tasks() {
   }, [debouncedFetch]);
 
   const fetchContacts = async () => {
-    const { data } = await supabase.from('contacts').select('id, name').order('name', { ascending: true });
-    setContacts((data as Contact[]) || []);
+    try { setContacts(await loadContacts()); } catch { toast.error('Não foi possível carregar os contatos das tarefas.'); }
   };
 
   const fetchTasks = async (showLoader = false) => {
     try {
       if (showLoader) setIsLoading(true);
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(TASK_SELECT)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setTasks((data as Task[]) || []);
+      setTasks(await loadTasks());
+      setLoadError(false);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -216,7 +215,7 @@ export default function Tasks() {
           </Select>
         </div>
       </div>
-      {isLoading ? (
+      {loadError ? <p role="alert" className="rounded-xl border border-border p-6 text-sm text-red-600">Não foi possível carregar as tarefas. <button onClick={() => fetchTasks(true)} className="underline">Tentar novamente</button></p> : isLoading ? (
         <PageLoader />
       ) : (
         <>

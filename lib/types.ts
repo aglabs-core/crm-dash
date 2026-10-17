@@ -1,12 +1,12 @@
 // Domain types — single source of truth, replacing the per-file `any[]` usage.
 
-// The funnel lives on the contact now (one flow per contact). The active
-// stages mirror the WhatsApp/message attendance flow:
+// The funnel lives on the contact now (one flow per contact). Contato remains outside the active sales pipeline. Commercial stages:
 //   Lead (waiting) · Contatado · Atendimento (in conversation) ·
 //   Proposta (quote sent) · Pagamento (awaiting payment)   -> Kanban
 //   Cliente · Inativo (inactive client)                    -> won
 //   Arquivado (didn't close)                               -> lost
 export type ContactStatus =
+  | 'Contato'
   | 'Lead'
   | 'Contatado'
   | 'Atendimento'

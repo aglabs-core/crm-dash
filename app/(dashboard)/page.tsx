@@ -1,5 +1,7 @@
 'use client';
 
+import { loadTasks } from '@/lib/task-data';
+
 import { contactName } from '@/lib/contact-name';
 import { productLabel } from '@/lib/product-label';
 import { loadContacts } from '@/lib/contact-data';
@@ -106,11 +108,11 @@ export default function Dashboard() {
       if (showLoader) setIsLoading(true);
       const [contactRows, tasksRes, paymentRows] = await Promise.all([
         loadContacts('updated_at'),
-        supabase.from('tasks').select('*, contacts ( id, name )').order('due_date', { ascending: true }),
+        loadTasks(),
         loadPaymentTransactions(),
       ]);
       setContacts(contactRows);
-      setTasks((tasksRes.data as Task[]) || []);
+      setTasks(tasksRes);
       setPayments(paymentRows);
       setPaymentError(false);
     } catch (error) {
@@ -162,19 +164,19 @@ export default function Dashboard() {
   }, [contacts, tasks, payments]);
 
   if (isLoading) return <PageLoader />;
-  if (paymentError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar as transações. Os totais financeiros estão indisponíveis.</p>;
+  if (paymentError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar os dados do painel. Os indicadores estão indisponíveis.</p>;
 
   const kpis: { id: string; label: string; value: React.ReactNode; icon: LucideIcon; color: string; spark: number[]; change?: Change | null; hint?: string }[] = [
     { id: 'sp-rev', label: 'Receita após estornos', value: formatCurrency(m.revenue), icon: DollarSign, color: TONE_HEX.indigo, spark: m.sparkRevenue, change: m.revenueChange },
     { id: 'sp-pipe', label: 'Em Pipeline', value: formatCurrency(m.pipeline), icon: Briefcase, color: TONE_HEX.emerald, spark: m.sparkPipeline, hint: `${m.openCount} abertos` },
     { id: 'sp-rate', label: 'Taxa de Ganho', value: formatPercent(m.winRate), icon: TrendingUp, color: TONE_HEX.amber, spark: m.sparkRate, hint: 'fechados' },
-    { id: 'sp-new', label: 'Novos contatos', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
+    { id: 'sp-new', label: 'Novos no funil', value: m.newThis, icon: Sparkles, color: TONE_HEX.blue, spark: m.sparkNew, change: m.newChange },
   ];
 
   const attn = [
     { label: 'Tarefas vencidas', icon: AlertTriangle, color: TONE_HEX.red, count: m.overdue.length, sub: m.overdue[0]?.title ?? '', href: '/tasks' },
     { label: 'Fechando em 30 dias', icon: CalendarClock, color: TONE_HEX.amber, count: m.closing.length, sub: m.closing[0] ? contactName(m.closing[0].name) : '', href: '/deals' },
-    { label: `Parados (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0] ? contactName(m.stalled[0].name) : '', href: '/deals' },
+    { label: `Sem atualização (+${STALE_DAYS} dias)`, icon: PauseCircle, color: TONE_HEX.gray, count: m.stalled.length, sub: m.stalled[0] ? contactName(m.stalled[0].name) : '', href: '/deals' },
   ];
 
   return (

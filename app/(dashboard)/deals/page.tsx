@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
 import {
   KANBAN_STATUSES,
+  PIPELINE_STAGE_HINTS,
   CONTACT_STATUSES,
   PRIORITIES,
   ORIGINS,
@@ -57,7 +58,7 @@ const emptyForm = {
   amount: '',
   expected_close_date: '',
   priority: 'Média',
-  origin: 'prospeccao' as ContactOrigin,
+  origin: 'manual' as ContactOrigin,
   status: 'Lead' as ContactStatus,
   lost_reason: '',
 };
@@ -295,7 +296,7 @@ function PipelineContent() {
         </div>
       </div>
 
-      {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todas as oportunidades.</p>}
+      {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todos os contatos.</p>}
       <p className="text-sm text-muted">Oportunidades comerciais qualificadas. Uma conversa de atendimento, por si só, não representa uma oportunidade.</p>
       <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtros do funil">
         <Field label="Produto" htmlFor="pipeline-product">
@@ -380,7 +381,8 @@ function PipelineContent() {
                             {columnContacts.length}
                           </span>
                         </h3>
-                        <p className="mt-1 text-xs font-medium text-muted">{formatCurrency(columnTotal)}</p>
+                        <p className="mt-1 text-xs text-muted">{PIPELINE_STAGE_HINTS[stage.id]}</p>
+                        <p className="mt-2 text-xs font-medium text-muted">{formatCurrency(columnTotal)}</p>
                       </div>
                       <button
                         onClick={() => openNew(stage.id)}

@@ -12,3 +12,7 @@ test('customers keep relationship while lifecycle transitions remain possible', 
   }
   assert.equal(isCustomerDowngrade({ status: 'Arquivado' }, 'Lead'), false);
 });
+
+test('customer cannot be moved to the neutral unqualified state', () => {
+  assert.equal(isCustomerDowngrade({ status: 'Cliente' }, 'Contato'), true);
+});
