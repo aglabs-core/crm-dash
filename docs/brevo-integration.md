@@ -2,7 +2,7 @@
 
 ## Estado desta entrega
 
-Versão publicada em 17/10/2026 pelo PR #27, com as migrations de preparação e recepção aplicadas ao projeto correto. O dry-run posterior confirmou o banco atualizado. A conexão foi preparada pela sessão autenticada do CRM e o webhook transacional foi cadastrado na Brevo; a validação do recebimento está em andamento. Nenhum e-mail foi enviado.
+Versão publicada em 17/10/2026 pelo PR #27, com as migrations de preparação e recepção aplicadas ao projeto correto. O dry-run posterior confirmou o banco atualizado. A conexão foi preparada pela sessão autenticada do CRM e o webhook transacional foi cadastrado na Brevo; o recebimento foi validado por solicitações sintéticas emitidas pela própria Brevo. Nenhum e-mail foi enviado.
 
 Os nomes das migrations de Pix, marketplace e observabilidade foram alinhados às versões já existentes no histórico remoto, após confirmar equivalência do SQL. O histórico do banco não foi reescrito e essas três migrations não foram reaplicadas.
 
@@ -35,3 +35,13 @@ Esta versão aceita uma conexão Brevo por dono e um vínculo de mensagem por pa
 Testes locais com PostgreSQL embarcado PGlite e dados sintéticos cobrem reexecução da migration, RLS, isolamento entre contas, eventos pendentes, vínculo, replay e supressão. Testes HTTP cobrem autenticação, limites, lote inválido e falha de persistência. Testes de interface cobrem preparação do cadastro e vínculo externo. Isso não comprova configuração do ambiente remoto nem recebimento real da Brevo.
 
 Referências oficiais: [payloads transacionais](https://developers.brevo.com/docs/transactional-webhooks), [autenticação do webhook](https://developers.brevo.com/docs/secured-webhooks) e [configuração de saída](https://help.brevo.com/hc/en-us/articles/27824932835474-Create-outbound-webhooks-to-send-real-time-data-from-Brevo-to-an-external-app).
+
+## Evidência de ativação — 17/10/2026
+
+- PRs #27, #28 e #29 integrados, com CI aprovado. Versão funcional verificada em produção: `bf2401798b024666569b110425866dabac7b833d`.
+- Domínio verificado: `https://crm.aglabs.api.br`. Os três valores do receptor estão limitados à produção; chaves e token não estão no código nem nesta documentação.
+- Webhook de saída transacional **CRM AG LABS - status API SMTP** ativo. Autenticação por token, sem cabeçalho Authorization adicional. O receptor aceita a caixa do esquema HTTP Bearer conforme o protocolo e mantém a chave exata.
+- Duas solicitações sintéticas de entrega da Brevo retornaram HTTP 200, às 17:08:33 e 17:09:22 UTC. A tela Integrações confirmou um evento único, um aguardando vínculo e zero tipos não reconhecidos; o segundo teste não duplicou o registro.
+- O evento é sintético e não pertence a uma campanha: permanecer pendente é o resultado esperado. Isso valida transporte, autenticação, persistência, deduplicação e leitura autenticada no CRM; não comprova entrega de e-mail real ou conciliação de campanha existente.
+- Dry-run após aplicação: banco atualizado, sem migrations pendentes. Testes finais: 74, incluindo PostgreSQL/RLS e interface; lint, TypeScript, build, auditoria e checks de pagamentos/formulários aprovados.
+- Nenhum e-mail real foi disparado. Preparação da campanha já está disponível no front; envio, agendamento e fila aprovada continuam como próxima etapa.
