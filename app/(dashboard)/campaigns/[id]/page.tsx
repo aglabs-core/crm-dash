@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { BrevoMessageLink } from '@/components/BrevoMessageLink';
 import { CampaignPreparation } from '@/components/CampaignPreparation';
+import { CampaignApproval } from '@/components/CampaignApproval';
 import { loadContacts } from '@/lib/contact-data';
 import type { Contact } from '@/lib/types';
 import {
@@ -62,6 +63,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [approvalLocked, setApprovalLocked] = useState(true);
   const confirm = useConfirm();
 
   const applySnapshot = useCallback((snapshot: { campaign: EmailCampaign; recipients: EmailCampaignRecipient[]; events: EmailCampaignEvent[] }) => {
@@ -82,7 +84,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
 
   const metrics = useMemo(() => campaignMetrics(recipients, events), [recipients, events]);
   const removeRecipient = async (recipient: EmailCampaignRecipient) => {
-    if (!campaign || campaign.status !== 'draft' || campaign.user_id !== viewerId) return;
+    if (!campaign || campaign.status !== 'draft' || campaign.user_id !== viewerId || (campaign.provider === 'brevo' && approvalLocked)) return;
     const approved = await confirm({
       title: 'Remover destinatário',
       description: 'Este contato sairá do rascunho. Nenhum evento de envio será alterado.',
@@ -100,6 +102,14 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
 
   const contactNames = new Map(contacts.map((contact) => [contact.id, contact.name || contact.email || 'Contato']));
   const eventSummaries = recipientEventSummary(events);
+  const hasProviderHistory = events.length > 0 || recipients.some((recipient) => recipient.provider_message_id);
+  const canPrepare = campaign.status === 'draft' && campaign.user_id === viewerId
+    && (campaign.provider !== 'brevo' || !approvalLocked) && !hasProviderHistory;
+  const reviewUnavailableReason = campaign.status !== 'draft' || hasProviderHistory
+    ? 'A revisão para aprovação está disponível apenas em rascunhos sem histórico de envio.'
+    : recipients.length === 0 || !campaign.content_text?.trim()
+      ? 'Salve o público e o texto em Preparar campanha antes de revisar a aprovação.'
+      : recipients.length > 200 ? 'A aprovação aceita até 200 destinatários por versão. Ajuste o público antes de revisar.' : undefined;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -112,7 +122,8 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
         </div>
         <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>
       </div>
-      {campaign.status === 'draft' && campaign.user_id === viewerId && events.length === 0 && !recipients.some((recipient) => recipient.provider_message_id) && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
+      {canPrepare && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
+      {campaign.provider === 'brevo' && campaign.user_id === viewerId && <CampaignApproval campaignId={campaign.id} onChanged={refresh} canReview={!reviewUnavailableReason} reviewUnavailableReason={reviewUnavailableReason} onLockChange={setApprovalLocked} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Na audiência" value={metrics.recipients} icon={Mail} hint={`${metrics.pending} sem qualquer evento`} />
         <StatCard label="Entregues" value={metrics.delivered} icon={CheckCircle2} hint={`${metrics.sent} envios registrados`} />
@@ -146,7 +157,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
                   {eventSummaries.get(recipient.id)?.unsubscribed && <Badge tone="red">Descadastrado</Badge>}
                   {eventSummaries.get(recipient.id)?.complained && <Badge tone="red">Reclamação</Badge>}
                   {eventSummaries.get(recipient.id)?.hardBounce && <Badge tone="red">Falha permanente</Badge>}
-                  {campaign.status === 'draft' && campaign.user_id === viewerId && !recipient.provider_message_id && !events.some((item) => item.recipient_id === recipient.id) && (
+                  {campaign.status === 'draft' && campaign.user_id === viewerId && (campaign.provider !== 'brevo' || !approvalLocked) && !recipient.provider_message_id && !events.some((item) => item.recipient_id === recipient.id) && (
                     <button type="button" onClick={() => removeRecipient(recipient)}
                       aria-label={`Remover ${recipient.email_snapshot}`} className="text-muted hover:text-red-500">
                       <Trash2 className="h-4 w-4" />

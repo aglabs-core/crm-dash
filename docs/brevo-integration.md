@@ -6,7 +6,7 @@ Versão publicada em 17/10/2026 pelo PR #27, com as migrations de preparação e
 
 Os nomes das migrations de Pix, marketplace e observabilidade foram alinhados às versões já existentes no histórico remoto, após confirmar equivalência do SQL. O histórico do banco não foi reescrito e essas três migrations não foram reaplicadas.
 
-O CRM organiza audiência, mensagem, revisão e acompanhamento. A Brevo entrega as mensagens. O receptor desta entrega somente recebe resultados; a fila de envio pelo CRM continua pendente. O esquema HTTP Bearer aceita variações de caixa; a chave continua exata e é comparada em tempo constante. Diagnósticos de recusa registram apenas presença, formato e tamanho do cabeçalho, sem seu conteúdo.
+O CRM organiza audiência, mensagem, revisão e acompanhamento. A Brevo entrega as mensagens. O receptor desta entrega somente recebe resultados. A [preparação aprovada](campaign-approval.md) acrescenta versões imutáveis para front e agente; o executor de envio pelo CRM continua pendente. O esquema HTTP Bearer aceita variações de caixa; a chave continua exata e é comparada em tempo constante. Diagnósticos de recusa registram apenas presença, formato e tamanho do cabeçalho, sem seu conteúdo.
 
 ## Como funciona
 
@@ -28,7 +28,7 @@ O CRM organiza audiência, mensagem, revisão e acompanhamento. A Brevo entrega 
 6. Usar evento sintético para verificar autenticação, persistência e replay. Depois, mediante autorização para envio de teste, validar um único e-mail interno: obter o ID, vincular ao destinatário de teste e conferir o evento recebido. Não usar leads reais para testar.
 7. Conferir a tela Integrações e a campanha. **Eventos recebidos** comprova recebimento anterior; não é monitoramento contínuo da conexão. Histórico anterior à ativação não é recuperado automaticamente: será necessária conciliação específica por ID/API.
 
-Esta versão aceita uma conexão Brevo por dono e um vínculo de mensagem por participação na campanha. Reenvios/sequências com múltiplas mensagens exigem um ledger de tentativas antes de implementar a fila. Não sobrescrever o vínculo anterior. Um vínculo existente bloqueia a edição do conteúdo e a remoção desse destinatário, mesmo antes da chegada do primeiro evento; a regra é validada no banco, além da interface. O agente deverá registrar os IDs nessa mesma estrutura ao enviar, com o mesmo fluxo de revisão, supressão e idempotência do futuro envio pelo front.
+Esta versão aceita uma conexão Brevo por dono e um vínculo de mensagem por participação na campanha. Reenvios/sequências com múltiplas mensagens exigem um ledger de tentativas antes de implementar o executor. Não sobrescrever o vínculo anterior. Um vínculo existente bloqueia a edição do conteúdo e a remoção desse destinatário, mesmo antes da chegada do primeiro evento; a regra é validada no banco, além da interface. O agente deverá registrar os IDs nessa mesma estrutura ao enviar, com o mesmo fluxo de revisão, supressão e idempotência do futuro envio pelo front.
 
 ## Validação
 
@@ -44,4 +44,4 @@ Referências oficiais: [payloads transacionais](https://developers.brevo.com/doc
 - Duas solicitações sintéticas de entrega da Brevo retornaram HTTP 200, às 17:08:33 e 17:09:22 UTC. A tela Integrações confirmou um evento único, um aguardando vínculo e zero tipos não reconhecidos; o segundo teste não duplicou o registro.
 - O evento é sintético e não pertence a uma campanha: permanecer pendente é o resultado esperado. Isso valida transporte, autenticação, persistência, deduplicação e leitura autenticada no CRM; não comprova entrega de e-mail real ou conciliação de campanha existente.
 - Dry-run após aplicação: banco atualizado, sem migrations pendentes. Testes finais: 74, incluindo PostgreSQL/RLS e interface; lint, TypeScript, build, auditoria e checks de pagamentos/formulários aprovados.
-- Nenhum e-mail real foi disparado. Preparação da campanha já está disponível no front; envio, agendamento e fila aprovada continuam como próxima etapa.
+- Nenhum e-mail real foi disparado nessa ativação. A preparação guiada foi publicada nessa etapa; a [preparação aprovada](campaign-approval.md) é a evolução seguinte. Envio e agendamento pelo CRM dependem do executor ainda pendente.

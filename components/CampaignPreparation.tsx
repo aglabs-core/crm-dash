@@ -141,8 +141,8 @@ export function CampaignPreparation({ campaign, contacts, recipients, onSaved }:
         </div>
         <div className="space-y-3"><h3 className="flex items-center gap-2 text-sm font-semibold text-fg"><Mail className="h-4 w-4" /> Prévia da mensagem</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
-            <div className="space-y-1 border-b border-border p-4 text-sm"><p className="break-all text-muted">De: {campaign.sender_email}</p><p className="font-semibold text-fg">{personalizePreview(subject, previewName, productLabel(campaign.product)) || 'Sem assunto'}</p></div>
-            <div data-testid="campaign-preview" className="min-h-48 whitespace-pre-wrap break-words p-5 text-sm leading-relaxed text-fg">{personalizePreview(content, previewName, productLabel(campaign.product)) || 'Sua mensagem aparecerá aqui.'}</div>
+            <div className="space-y-1 border-b border-border p-4 text-sm"><p className="break-all text-muted">De: {campaign.sender_email}</p><p className="font-semibold text-fg">{personalizePreview(subject, previewName, campaign.product) || 'Sem assunto'}</p></div>
+            <div data-testid="campaign-preview" className="min-h-48 whitespace-pre-wrap break-words p-5 text-sm leading-relaxed text-fg">{personalizePreview(content, previewName, campaign.product) || 'Sua mensagem aparecerá aqui.'}</div>
           </div><p className="text-xs text-muted">{previewName ? 'Prévia com o primeiro contato selecionado.' : 'Prévia sem destinatário selecionado.'} A aparência final depende do modelo de envio.</p>
         </div>
       </div>}
