@@ -75,7 +75,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 for (const [label, Page, placeholder] of [
-  ['contacts', Contacts, 'Buscar contatos...'],
+  ['contacts', Contacts, 'Buscar nome, telefone, e-mail ou Instagram...'],
   ['clients', Clients, 'Buscar clientes...'],
 ] as const) {
   it(`${label}: renders nullable name and searches without crashing`, async () => {
@@ -102,6 +102,7 @@ for (const [label, Page] of [['contacts', Contacts], ['pipeline', Deals]] as con
       const user = userEvent.setup();
       render(<ConfirmProvider><Page /></ConfirmProvider>);
       expect(await screen.findByText('Sem nome')).toBeTruthy();
+      if (label === 'pipeline') await user.click(screen.getByLabelText('Ações da oportunidade'));
       await user.click(screen.getByRole('button', { name: 'Editar' }));
       const name = screen.getByLabelText(/^Nome/) as HTMLInputElement;
       expect(name.value).toBe('');

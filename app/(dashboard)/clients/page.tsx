@@ -189,7 +189,7 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-6 py-4 text-muted">{lastWonAt ? formatRelative(lastWonAt) : '—'}</td>
                     <td className="px-6 py-4 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => toggleActive(contact.id, !active)}>
+                      <Button size="sm" variant="ghost" disabled={!active && contact.status === 'Cliente'} title={!active && contact.status === 'Cliente' ? 'Sem compra líquida válida; confira os pagamentos antes de reativar.' : undefined} onClick={() => toggleActive(contact.id, !active)}>
                         <Power className="h-4 w-4" />
                         {active ? 'Inativar' : 'Reativar'}
                       </Button>

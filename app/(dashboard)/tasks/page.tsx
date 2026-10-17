@@ -191,6 +191,16 @@ export default function Tasks() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <h1 className="text-2xl font-bold tracking-tight text-fg">Tarefas</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={openNewTaskModal}>
+            <Plus className="h-4 w-4" />
+            Nova Tarefa
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-semibold text-fg">Organize a próxima ação</p><p className="text-xs text-muted">Pendências por prazo, com responsável e contato vinculado.</p></div>
+        <div className="w-full sm:w-60 sm:shrink-0">
           <Select
             aria-label="Filtrar por responsável"
             value={assigneeFilter}
@@ -204,13 +214,8 @@ export default function Tasks() {
               </option>
             ))}
           </Select>
-          <Button onClick={openNewTaskModal}>
-            <Plus className="h-4 w-4" />
-            Nova Tarefa
-          </Button>
         </div>
       </div>
-
       {isLoading ? (
         <PageLoader />
       ) : (
@@ -246,7 +251,7 @@ export default function Tasks() {
                         <h3 className="truncate text-sm font-semibold text-fg">{task.title}</h3>
                         <div className="flex shrink-0 items-center gap-3">
                           <Badge tone={priorityTone(task.priority)}>{task.priority || 'Média'}</Badge>
-                          <div className="flex items-center gap-2 text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="flex items-center gap-2 text-muted transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                             <button onClick={() => openEditTaskModal(task)} className="hover:text-brand" aria-label="Editar">
                               <Pencil className="h-5 w-5" />
                             </button>
@@ -311,7 +316,7 @@ export default function Tasks() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-4">
                       <h3 className="truncate text-sm font-semibold text-muted line-through">{task.title}</h3>
-                      <div className="flex items-center gap-2 text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex items-center gap-2 text-muted transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                         <button onClick={() => openEditTaskModal(task)} className="hover:text-brand" aria-label="Editar">
                           <Pencil className="h-5 w-5" />
                         </button>

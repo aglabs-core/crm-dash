@@ -18,13 +18,15 @@ vi.mock('@/lib/supabase', () => ({ supabase: {
   },
 } }));
 afterEach(() => { cleanup(); api.writes.length = 0; api.push.mockReset(); vi.unstubAllGlobals(); });
-it('Barberias shortcut creates only a draft and opens its preparation', async () => {
+it('campaign entry creates only a draft and opens its preparation', async () => {
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in synthetic UI tests'); }));
   const user = userEvent.setup();
   render(<CampaignsPage />);
   await screen.findByText('Nenhuma campanha registrada');
-  await user.click(screen.getByRole('button', { name: 'Campanha Barberias' }));
+  await user.click(screen.getByRole('button', { name: 'Nova campanha' }));
   expect((screen.getByLabelText(/^Produto/) as HTMLInputElement).value).toBe('barberias');
+  await user.type(screen.getByLabelText(/^Nome interno/), 'Campanha de teste');
+  await user.type(screen.getByLabelText(/^Assunto/), 'Apresentação');
   await user.type(screen.getByLabelText(/^Remetente/), 'sender@example.invalid');
   await user.click(screen.getByRole('button', { name: 'Criar rascunho' }));
   await waitFor(() => expect(api.push).toHaveBeenCalledWith('/campaigns/synthetic-campaign'));

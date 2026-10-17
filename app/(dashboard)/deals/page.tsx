@@ -13,7 +13,8 @@ import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'rea
 import {
   Plus,
   Calendar,
-  GripVertical,
+  MoreHorizontal,
+  SlidersHorizontal,
   Pencil,
   Trash2,
   DollarSign,
@@ -65,6 +66,7 @@ function PipelineContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [productFilter, setProductFilter] = useState('Todos');
   const [originFilter, setOriginFilter] = useState('Todos');
   const [needsTask, setNeedsTask] = useState(false);
@@ -282,8 +284,22 @@ function PipelineContent() {
             </button>
           </div>
         </div>
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <Select aria-label="Filtrar aplicação ou produto no funil" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+          <Button variant="secondary" onClick={() => setFiltersOpen(true)}>
+            <SlidersHorizontal className="h-4 w-4" /> Filtros{[productFilter !== 'Todos', originFilter !== 'Todos', needsTask].filter(Boolean).length > 0 ? ` (${[productFilter !== 'Todos', originFilter !== 'Todos', needsTask].filter(Boolean).length})` : ''}
+          </Button>
+          <Button onClick={() => openNew()}>
+            <Plus className="h-4 w-4" />
+            Novo Lead
+          </Button>
+        </div>
+      </div>
+
+      {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todas as oportunidades.</p>}
+      <p className="text-sm text-muted">Oportunidades comerciais qualificadas. Uma conversa de atendimento, por si só, não representa uma oportunidade.</p>
+      <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtros do funil">
+        <Field label="Produto" htmlFor="pipeline-product">
+          <Select id="pipeline-product" aria-label="Filtrar aplicação ou produto no funil" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
             <option value="Todos">Todas as aplicações / produtos</option>
             <option value="__undefined__">Produto a definir</option>
             {products.map((p) => (
@@ -292,19 +308,16 @@ function PipelineContent() {
               </option>
             ))}
           </Select>
-          <Select aria-label="Filtrar origem do funil" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)}>
+        </Field>
+        <Field label="Origem" htmlFor="pipeline-origin">
+          <Select id="pipeline-origin" aria-label="Filtrar origem do funil" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)}>
             <option value="Todos">Todas as origens</option>
             {ORIGINS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select>
-          <Button variant="secondary" disabled={(!contextAvailable && !needsTask) || view !== 'board'} aria-pressed={needsTask && view === 'board'} onClick={() => setNeedsTask(!needsTask)}>Sem próxima tarefa</Button>
-          <Button onClick={() => openNew()}>
-            <Plus className="h-4 w-4" />
-            Novo Lead
-          </Button>
-        </div>
-      </div>
-
-      {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todos os contatos.</p>}
+        </Field>
+        <Button variant="secondary" className="my-4" disabled={(!contextAvailable && !needsTask) || view !== 'board'} aria-pressed={needsTask && view === 'board'} onClick={() => setNeedsTask(!needsTask)}>Sem próxima tarefa</Button>
+        <Button variant="secondary" onClick={() => { setProductFilter('Todos'); setOriginFilter('Todos'); setNeedsTask(false); }}>Limpar filtros</Button>
+      </Modal>
       <div className="flex-1 overflow-x-auto pb-4">
         {isLoading ? (
           <PageLoader />
@@ -405,32 +418,16 @@ function PipelineContent() {
                                       <Badge tone={priorityTone(c.priority)}>{c.priority || 'Média'}</Badge>
                                       <Badge tone={originTone(c.origin)}>{originLabel(c.origin)}</Badge>
                                     </div>
-                                    <div className="flex items-center gap-1 text-muted">
-                                      <button
-                                        onClick={() => setStatus(c, 'Cliente', 'Ganho! Virou cliente. 🎉')}
-                                        className="opacity-100 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
-                                        aria-label="Marcar como cliente"
-                                        title="Ganhou (vira Cliente)"
-                                      >
-                                        <Trophy className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => openEdit(c)}
-                                        className="opacity-100 transition-opacity hover:text-brand group-hover:opacity-100"
-                                        aria-label="Editar"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => setStatus(c, 'Arquivado', 'Contato arquivado.')}
-                                        className="opacity-100 transition-opacity hover:text-amber-500 group-hover:opacity-100"
-                                        aria-label="Arquivar"
-                                        title="Arquivar (não fechou)"
-                                      >
-                                        <Archive className="h-4 w-4" />
-                                      </button>
-                                      <GripVertical className="ml-1 h-4 w-4 cursor-grab opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing" />
-                                    </div>
+                                    <details className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <summary aria-label="Ações da oportunidade" className="cursor-pointer list-none rounded-md p-1 text-muted hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-brand">
+                                        <MoreHorizontal className="h-5 w-5" />
+                                      </summary>
+                                      <div className="absolute right-0 top-8 z-20 w-48 rounded-xl border border-border bg-surface p-1 shadow-xl">
+                                        <button onClick={() => setStatus(c, 'Cliente', 'Marcado como cliente.')} className="flex w-full items-center gap-2 rounded-lg p-2 text-sm hover:bg-surface-2"><Trophy className="h-4 w-4" /> Marcar como ganho</button>
+                                        <button onClick={() => openEdit(c)} className="flex w-full items-center gap-2 rounded-lg p-2 text-sm hover:bg-surface-2"><Pencil className="h-4 w-4" /> Editar</button>
+                                        <button onClick={() => setStatus(c, 'Arquivado', 'Contato arquivado.')} className="flex w-full items-center gap-2 rounded-lg p-2 text-sm hover:bg-surface-2"><Archive className="h-4 w-4" /> Arquivar</button>
+                                      </div>
+                                    </details>
                                   </div>
                                   {c.outreach_status === 'blocked' && <Badge tone="red">Não contatar</Badge>}
                                   <Link
@@ -439,6 +436,7 @@ function PipelineContent() {
                                   >
                                     {contactName(c.name)}
                                   </Link>
+                                  {(c.whatsapp || c.phone || c.instagram) && <p className="mb-2 text-xs text-muted">{c.whatsapp || c.phone || `@${c.instagram}`}</p>}
                                   {c.company && (
                                     <p className="mb-1 flex items-center gap-1 text-xs text-muted">
                                       <Building2 className="h-3 w-3" />

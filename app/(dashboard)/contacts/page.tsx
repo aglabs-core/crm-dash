@@ -7,6 +7,7 @@ import { productLabel } from '@/lib/product-label';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Search,
+  SlidersHorizontal,
   Mail,
   Phone,
   Plus,
@@ -57,15 +58,16 @@ const emptyForm = {
   email: '',
   phone: '',
   company: '',
-  status: 'Lead' as ContactStatus,
+  status: 'Arquivado' as ContactStatus,
   origin: 'prospeccao' as ContactOrigin,
   lp_url: '',
   produto: '',
-  prospecting_pool: false,
+  prospecting_pool: true,
   outreach_status: 'unreviewed' as NonNullable<Contact['outreach_status']>,
 };
 
 export default function Contacts() {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('Todos');
   const [originFilter, setOriginFilter] = useState('Todos');
@@ -157,6 +159,7 @@ export default function Contacts() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('User not authenticated');
 
+      if (editingContact && isClientStatus(editingContact.status) && isActiveStatus(formData.status)) { toast.error('Use Cliente inativo para encerrar o relacionamento.'); return; }
       const payload = {
         name: contactNamePayload(formData.name),
         email: formData.email || null,
@@ -229,7 +232,7 @@ export default function Contacts() {
           situacao === 'Todos'
             ? true
             : situacao === 'pipeline'
-              ? isActiveStatus(contact.status)
+              ? !contact.prospecting_pool && isActiveStatus(contact.status)
               : situacao === 'clientes'
                 ? isClientStatus(contact.status)
                 : situacao === 'prospeccao'
@@ -246,7 +249,7 @@ export default function Contacts() {
   const totals = useMemo(() => {
     const f = productScoped;
     const total = f.length;
-    const emPipeline = f.filter((c) => isActiveStatus(c.status)).length;
+    const emPipeline = f.filter((c) => !c.prospecting_pool && isActiveStatus(c.status)).length;
     const clientes = f.filter((c) => isClientStatus(c.status)).length;
     const prospeccao = f.filter((c) => c.prospecting_pool).length;
     const arquivados = f.filter((c) => isArchivedStatus(c.status) && !c.prospecting_pool).length;
@@ -287,7 +290,7 @@ export default function Contacts() {
     }
     setContacts((prev) => prev.map((c) => (selected.has(c.id) ? { ...c, status, prospecting_pool: status === 'Arquivado' && c.prospecting_pool } : c)));
     setSelected(new Set());
-    const { error } = await supabase.from('contacts').update({ status }).in('id', ids);
+    const { error } = await supabase.from('contacts').update(status === 'Lead' ? { status, prospecting_pool: false } : { status }).in('id', ids);
     if (error) {
       console.error('Bulk update error:', error);
       toast.error('Erro ao atualizar em massa. Rode a migration mais recente.');
@@ -322,7 +325,7 @@ export default function Contacts() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg">Contatos</h1>
-          <p className="mt-0.5 text-sm text-muted">Uma ficha por pessoa: prospecção, interesse e histórico de cliente.</p>
+          <p className="mt-0.5 text-sm text-muted">Sua base de relacionamento: revise contatos e qualifique o interesse antes de iniciar uma oportunidade.</p>
         </div>
         <Button onClick={openNewContactModal}>
           <Plus className="h-4 w-4" />
@@ -358,11 +361,15 @@ export default function Contacts() {
             <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-muted" />
             <Input
               className="pl-9"
-              placeholder="Buscar contatos..."
+              placeholder="Buscar nome, telefone, e-mail ou Instagram..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <Button variant="secondary" onClick={() => setFiltersOpen(true)} className="sm:ml-auto"><SlidersHorizontal className="h-4 w-4" /> Filtrar contatos</Button>
+          <span className="text-xs text-muted">{filteredContacts.length} contatos encontrados</span>
+          <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Organizar contatos">
+            <div className="space-y-4 [&_select]:w-full">
           <Select aria-label="Filtrar situação" value={situacao} onChange={(e) => setSituacao(e.target.value as typeof situacao)} className="sm:w-44">
             <option value="Todos">Todas as situações</option>
             <option value="pipeline">Em pipeline</option>
@@ -396,6 +403,9 @@ export default function Contacts() {
               <option value="blocked">Não contatar</option>
             </Select>
           )}
+            </div>
+            <Button variant="secondary" className="mt-4" onClick={() => { setSituacao('Todos'); setProductFilter('Todos'); setOriginFilter('Todos'); setOutreachFilter('Todos'); }}>Limpar filtros</Button>
+          </Modal>
         </div>
 
         <div className="min-h-[300px] overflow-x-auto">
@@ -460,13 +470,14 @@ export default function Contacts() {
                             {contact.email}
                           </span>
                         )}
-                        {contact.phone && (
+                        {(contact.whatsapp || contact.phone) && (
                           <span className="flex items-center gap-2">
                             <Phone className="h-3.5 w-3.5" />
-                            {contact.phone}
+                            {contact.whatsapp || contact.phone}
                           </span>
                         )}
-                        {!contact.email && !contact.phone && '—'}
+                        {contact.instagram && <span className="text-brand">@{contact.instagram.replace(/^@/, '')}</span>}
+                        {!contact.email && !contact.phone && !contact.whatsapp && !contact.instagram && 'Sem canal cadastrado'}
                       </div>
                     </td>
                     <td className="px-6 py-4">

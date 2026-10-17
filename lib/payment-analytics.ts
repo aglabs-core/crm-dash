@@ -7,7 +7,7 @@ export function paymentRevenue(payments: PaymentTransaction[]): number {
 }
 
 export function netRevenue(payment: PaymentTransaction): number {
-  if (payment.currency !== 'BRL' || payment.status === 'canceled' || payment.status === 'chargeback') return 0;
+  if (payment.currency !== 'BRL' || payment.status === 'refunded' || payment.status === 'canceled' || payment.status === 'chargeback') return 0;
   return Number(payment.net_amount) || 0;
 }
 

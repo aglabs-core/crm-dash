@@ -182,10 +182,10 @@ export default function ContactDetail() {
                     {contact.email}
                   </a>
                 )}
-                {contact.phone && (
+                {(contact.whatsapp || contact.phone) && (
                   <span className="inline-flex items-center gap-1.5">
                     <Phone className="h-4 w-4" />
-                    {contact.phone}
+                    {contact.whatsapp || contact.phone}
                   </span>
                 )}
                 {contact.lp_url && !contact.prospecting_pool && (

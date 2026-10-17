@@ -31,7 +31,7 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   return `${Number(value).toFixed(digits)}%`;
 }
 
-function toDate(date: string | Date | null | undefined): Date | null {
+export function toDate(date: string | Date | null | undefined): Date | null {
   if (!date) return null;
   // SQL DATE is a calendar day, not midnight UTC.
   const d = typeof date === 'string'
@@ -64,7 +64,7 @@ export type Change = { text: string; type: 'positive' | 'negative' | 'neutral' }
  */
 export function formatChange(current: number, previous: number): Change | null {
   if (previous === 0 && current === 0) return null;
-  if (previous === 0) return { text: '+100%', type: 'positive' };
+  if (previous === 0) return null;
   const change = ((current - previous) / previous) * 100;
   const type = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
   return { text: `${change > 0 ? '+' : ''}${change.toFixed(1)}%`, type };

@@ -294,7 +294,7 @@ export default function Reports() {
       {/* Conversion funnel — hero */}
       <Panel
         title="Funil de Conversão"
-        subtitle="Quantos contatos alcançam cada etapa, do Lead ao Cliente"
+        subtitle="Estimativa pelo estágio atual; não representa o histórico de passagem"
         icon={Filter}
         tone="indigo"
         action={
