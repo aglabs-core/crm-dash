@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { AudienceBasis, EmailCampaign, EmailProvider } from '@/lib/email-campaign';
 import { Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '@/components/ui';
+import { CampaignNavigation } from '@/components/CampaignNavigation';
 
 const emptyDraft = {
   name: '', product: 'barberias', provider: 'brevo' as EmailProvider,
@@ -70,6 +71,7 @@ export default function CampaignsPage() {
         {!loadError && <Button onClick={() => { setDraft(emptyDraft); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button>}
       </div>
 
+      <CampaignNavigation active="campaigns" />
       {loading ? <PageLoader /> : loadError ? (
         <Card className="p-10 text-center">
           <h2 className="font-semibold text-fg">Campanhas indisponíveis</h2>
