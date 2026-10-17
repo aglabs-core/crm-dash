@@ -29,6 +29,20 @@ test('receiver acknowledges only after durable ingestion and never echoes recipi
   const failed=await receiveBrevoWebhook(request(payload),{config,ingest:async()=>{throw new Error('synthetic');}});
   assert.equal(failed.status,503);assert.equal((await failed.text()).includes(payload.email),false);
 });
+
+test('Bearer scheme accepts HTTP casing variations while the token remains exact',async()=>{
+  let persisted=0;
+  const deps={config,ingest:async()=>{persisted++;}};
+  for(const header of [`bearer ${config.token}`,`BEARER ${config.token}`,`Bearer\t${config.token}`]){
+    const req=request(payload);req.headers.set('Authorization',header);
+    assert.equal((await receiveBrevoWebhook(req,deps)).status,200);
+  }
+  for(const header of [config.token,`Basic ${config.token}`,`Bearer ${config.token.toUpperCase()}`,`Bearer Bearer ${config.token}`]){
+    const req=request(payload);req.headers.set('Authorization',header);
+    assert.equal((await receiveBrevoWebhook(req,deps)).status,401);
+  }
+  assert.equal(persisted,3);
+});
 test('association validates the caller on the server and ignores a forged actor id',async()=>{
   let caller='';
   const req=new Request('https://crm.example.invalid/api/integrations/brevo/associate',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer synthetic-user-token'},body:JSON.stringify({recipient_id:config.connectionId,message_id:'<message-one>',actor_id:'forged'})});
