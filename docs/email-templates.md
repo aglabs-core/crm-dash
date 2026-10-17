@@ -16,10 +16,14 @@ O importador lê arquivos locais, sem carregar `.env`, instanciar provedores ou 
 
 ## AG LABS institucional
 
-A nota `02 - Estrutura Interna/Atendimento/Arquitetura - Suporte por E-mail.md` do vault empresarial documenta o uso do template institucional pela Maia. O HTML original não estava nos arquivos consultados do vault ou do site institucional. A entrada está identificada como pendente e não apresenta um layout inventado como se fosse o aprovado. Para disponibilizá-la, importar o original com dados fictícios e registrar sua origem e versão.
+O responsável pela AG LABS forneceu diretamente o HTML institucional de **pós-entrega e pedido de avaliação**, agora mantido em `lib/email-templates/aglabs.json`. Foram preservados layout, logo, cores, conteúdo, assinatura de relacionamento e link de avaliação do Google. O modelo de pós-entrega não é apresentado como se fosse um modelo genérico de suporte da Maia.
+
+Nome da cliente, empresa e endereço do projeto foram substituídos pelos campos `{{nome}}`, `{{empresa}}`, `{{url_pagina}}` e `{{dominio_pagina}}`. O HTML copiado ou baixado conserva esses campos para reutilização; a prévia os preenche com dados fictícios escapados e um domínio `.invalid`. O catálogo não armazena os dados reais fornecidos no exemplo. A versão em texto acompanha o mesmo conteúdo.
+
+Os blocos opcionais do link da página e da chamada para avaliação mantêm os comentários de remoção do original. O link de avaliação é o endereço empresarial fornecido pelo responsável, com navegação desativada na prévia.
 
 ## Isolamento da prévia
 
-O iframe usa `sandbox=""`, `referrerPolicy="no-referrer"` e CSP que bloqueia scripts, formulários, conexões e recursos externos, exceto imagens do domínio da marca Barberias e estilos inline. Os links ficam sem destino na prévia. O HTML baixado é o exemplo original, sem a CSP adicional ou a remoção de destinos usadas apenas na prévia. Nenhum contato real é inserido nos exemplos.
+O iframe usa `sandbox=""`, `referrerPolicy="no-referrer"` e CSP que bloqueia scripts, formulários, conexões e recursos externos, exceto imagens dos domínios das marcas Barberias e AG LABS e estilos inline. Os links ficam sem destino na prévia. O HTML baixado conserva o modelo e seus campos, sem a CSP adicional ou a remoção de destinos usadas apenas na prévia. Nenhum contato real é inserido nos exemplos.
 
 A fila de aprovação existente continua congelando o **texto da campanha**. Os modelos da biblioteca ainda não integram esse contrato: usar um layout em um executor futuro exige incluir HTML, personalização e versão na mesma aprovação. Não há associação implícita pelo nome do produto.
