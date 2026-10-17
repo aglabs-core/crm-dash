@@ -67,7 +67,7 @@ export default function CampaignsPage() {
           <h1 className="text-2xl font-bold text-fg">Campanhas de e-mail</h1>
           <p className="mt-1 text-sm text-muted">Escolha o público, prepare a mensagem e revise sua campanha em um só lugar.</p>
         </div>
-        {!loadError && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { setDraft({ ...emptyDraft, name: 'Barberias · Apresentação', subject: 'Vamos conversar sobre a sua barbearia?' }); setOpen(true); }}>Campanha Barberias</Button><Button onClick={() => { setDraft(emptyDraft); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button></div>}
+        {!loadError && <Button onClick={() => { setDraft(emptyDraft); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button>}
       </div>
 
       {loading ? <PageLoader /> : loadError ? (

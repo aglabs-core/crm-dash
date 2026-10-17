@@ -75,7 +75,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 for (const [label, Page, placeholder] of [
-  ['contacts', Contacts, 'Buscar contatos...'],
+  ['contacts', Contacts, 'Buscar nome, telefone, e-mail ou Instagram...'],
   ['clients', Clients, 'Buscar clientes...'],
 ] as const) {
   it(`${label}: renders nullable name and searches without crashing`, async () => {
@@ -102,6 +102,7 @@ for (const [label, Page] of [['contacts', Contacts], ['pipeline', Deals]] as con
       const user = userEvent.setup();
       render(<ConfirmProvider><Page /></ConfirmProvider>);
       expect(await screen.findByText('Sem nome')).toBeTruthy();
+      if (label === 'pipeline') await user.click(screen.getByLabelText('Ações da oportunidade'));
       await user.click(screen.getByRole('button', { name: 'Editar' }));
       const name = screen.getByLabelText(/^Nome/) as HTMLInputElement;
       expect(name.value).toBe('');
@@ -171,6 +172,7 @@ it('pipeline task shortcut is enabled only after context loads', async () => {
   const user = userEvent.setup();
   render(<ConfirmProvider><Deals /></ConfirmProvider>);
   await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('button', { name: /^Filtros/ }));
   const shortcut = screen.getByRole('button', { name: 'Sem próxima tarefa' });
   await waitFor(() => expect((shortcut as HTMLButtonElement).disabled).toBe(false));
   await user.click(shortcut);
@@ -204,6 +206,7 @@ it('changing origin clears bulk selection before hiding the contact', async () =
   await screen.findByText('Sem nome');
   await user.click(screen.getByRole('checkbox', { name: 'Selecionar Sem nome' }));
   expect(screen.getByRole('button', { name: 'Mover p/ Lead' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Filtrar contatos' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar por origem' }), 'web');
   expect(screen.queryByText('Sem nome')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Mover p/ Lead' })).toBeNull();
@@ -234,17 +237,21 @@ it('individual editing still permits marking a client inactive', async () => {
 });
 
 it('pipeline cards render while their context request is still pending', async () => {
+  const user = userEvent.setup();
   api.contextPending = true;
   render(<ConfirmProvider><Deals /></ConfirmProvider>);
   expect(await screen.findByText('Sem nome')).toBeTruthy();
-  expect((screen.getByRole('button', { name: 'Sem próxima tarefa' }) as HTMLButtonElement).disabled).toBe(true);
+  await user.click(screen.getByLabelText('Ações da oportunidade'));
   expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: /^Filtros/ }));
+  expect((screen.getByRole('button', { name: 'Sem próxima tarefa' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('context failure leaves cards visible and lets the operator clear the task filter', async () => {
   const user = userEvent.setup();
   render(<ConfirmProvider><Deals /></ConfirmProvider>);
   await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('button', { name: /^Filtros/ }));
   const shortcut = screen.getByRole('button', { name: 'Sem próxima tarefa' });
   await waitFor(() => expect((shortcut as HTMLButtonElement).disabled).toBe(false));
   await user.click(shortcut);

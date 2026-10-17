@@ -5,6 +5,7 @@
 //  - month buckets keyed by year+month
 //  - win-rate and sales-cycle computed from real closed contacts
 
+import { toDate } from './format';
 import type { Contact, ContactStatus, PaymentTransaction, Task } from './types';
 import { netRevenue, paymentMonthRevenue } from './payment-analytics';
 import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus, type Tone } from './constants';
@@ -14,7 +15,7 @@ const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 const amount = (c: Contact) => Number(c.amount) || 0;
 
 /** Cold outreach remains in the contact history, outside sales conversion. */
-export const salesContacts = (contacts: Contact[]) => contacts.filter((c) => !c.prospecting_pool);
+export const salesContacts = (contacts: Contact[]) => contacts.filter((c) => !c.prospecting_pool && c.status !== 'Contato');
 
 /** Won = a client (active or inactive). Lost = archived. Open = active funnel. */
 export const isWon = (c: Contact) => isClientStatus(c.status);
@@ -106,7 +107,7 @@ export function monthlySeries(contacts: Contact[], months = 6, payments?: Paymen
     if (b) fn(b);
   };
 
-  for (const c of contacts) {
+  for (const c of salesContacts(contacts)) {
     if (isWon(c)) {
       at(c.closed_at, (b) => {
         if (!payments) b.revenue += amount(c);
@@ -139,7 +140,7 @@ export type StageDatum = { stage: string; label: string; count: number; value: n
 /** Open pipeline by stage, in funnel order (the active Kanban stages). */
 export function pipelineByStage(contacts: Contact[]): StageDatum[] {
   return KANBAN_STATUSES.map((s) => {
-    const inStage = contacts.filter((c) => c.status === s.id);
+    const inStage = contacts.filter((c) => !c.prospecting_pool && c.status === s.id);
     return {
       stage: s.id,
       label: s.label,
@@ -173,7 +174,7 @@ export function conversionFunnel(contacts: Contact[]): FunnelStageDatum[] {
   let wonCount = 0;
   let wonValue = 0;
 
-  for (const c of contacts) {
+  for (const c of salesContacts(contacts)) {
     if (isWon(c)) {
       wonCount += 1;
       wonValue += amount(c);
@@ -248,7 +249,7 @@ export type ProductPerf = {
  */
 export function productPerformance(contacts: Contact[]): ProductPerf[] {
   const map = new Map<string, ProductPerf>();
-  for (const c of contacts) {
+  for (const c of salesContacts(contacts)) {
     const key = c.produto?.trim() || 'Sem produto';
     const cur =
       map.get(key) ??
@@ -291,6 +292,7 @@ export type ClientRow = {
   contact: Contact;
   wonRevenue: number;
   active: boolean;
+  canReactivate: boolean;
   products: string[];
   lastWonAt: string | null;
 };
@@ -314,7 +316,8 @@ export function buildClients(contacts: Contact[], payments: PaymentTransaction[]
       return {
         contact,
         wonRevenue: paid.reduce((total, payment) => total + netRevenue(payment), 0),
-        active: contact.status !== 'Inativo',
+        active: contact.status === 'Cliente' && (!paid.length || purchased.length > 0),
+        canReactivate: !paid.length || purchased.length > 0,
         products: products.length ? products : contact.produto ? [contact.produto.trim()] : [],
         lastWonAt: paidDates.at(-1) || contact.closed_at || contact.updated_at || null,
       };
@@ -326,14 +329,16 @@ export function buildClients(contacts: Contact[], payments: PaymentTransaction[]
 
 export function isTaskOverdue(t: Task): boolean {
   if (t.status === 'completed' || !t.due_date) return false;
-  const due = new Date(t.due_date);
+  const due = toDate(t.due_date);
+  if (!due) return false;
   due.setHours(23, 59, 59, 999);
   return due.getTime() < Date.now();
 }
 
 export function isTaskDueToday(t: Task): boolean {
   if (t.status === 'completed' || !t.due_date) return false;
-  const due = new Date(t.due_date);
+  const due = toDate(t.due_date);
+  if (!due) return false;
   const now = new Date();
   return (
     due.getFullYear() === now.getFullYear() &&

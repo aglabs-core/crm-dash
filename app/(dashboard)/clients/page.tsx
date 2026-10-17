@@ -150,7 +150,7 @@ export default function ClientsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map(({ contact, products: prods, wonRevenue, active, lastWonAt }) => (
+                {filtered.map(({ contact, products: prods, wonRevenue, active, canReactivate, lastWonAt }) => (
                   <tr key={contact.id} className="transition-colors hover:bg-surface-2/50">
                     <td className="px-6 py-4">
                       <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 group">
@@ -189,7 +189,7 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-6 py-4 text-muted">{lastWonAt ? formatRelative(lastWonAt) : '—'}</td>
                     <td className="px-6 py-4 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => toggleActive(contact.id, !active)}>
+                      <Button size="sm" variant="ghost" disabled={!active && !canReactivate} title={!active && !canReactivate ? 'Sem compra líquida válida; confira os pagamentos antes de reativar.' : undefined} onClick={() => toggleActive(contact.id, !active)}>
                         <Power className="h-4 w-4" />
                         {active ? 'Inativar' : 'Reativar'}
                       </Button>

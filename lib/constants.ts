@@ -43,18 +43,19 @@ export const TONE_HEX: Record<Tone, string> = {
 };
 
 // ---- Contact lifecycle — single source of truth for the funnel ------------
-// One field (`contacts.status`) drives everything. The active stages mirror the
-// message/WhatsApp attendance flow, in order:
+// One field (`contacts.status`) drives everything. Contato remains outside commercial reporting. The active stages track
+// qualified sales opportunities, independently of generic attendance:
 //   Lead (esperando) · Contatado · Atendimento (em conversa) ·
 //   Proposta (orçamento enviado) · Pagamento (aguardando pagamento) -> Kanban
 //   Cliente (ativo) · Inativo (inativo)                             -> won
 //   Arquivado (não fechou)                                          -> lost
 
-export type StatusGroup = 'active' | 'client' | 'archived';
+export type StatusGroup = 'contact' | 'active' | 'client' | 'archived';
 
 export type StatusMeta = { id: ContactStatus; label: string; tone: Tone; group: StatusGroup };
 
 export const CONTACT_STATUSES: StatusMeta[] = [
+  { id: 'Contato', label: 'Contato a qualificar', tone: 'gray', group: 'contact' },
   { id: 'Lead', label: 'Lead', tone: 'gray', group: 'active' },
   { id: 'Contatado', label: 'Contatado', tone: 'blue', group: 'active' },
   { id: 'Atendimento', label: 'Atendimento', tone: 'indigo', group: 'active' },
@@ -67,6 +68,15 @@ export const CONTACT_STATUSES: StatusMeta[] = [
 
 /** Active funnel stages, in order — the Kanban columns. */
 export const KANBAN_STATUSES = CONTACT_STATUSES.filter((s) => s.group === 'active');
+
+/** Commercial criteria; generic service conversations do not advance a sale. */
+export const PIPELINE_STAGE_HINTS: Partial<Record<ContactStatus, string>> = {
+  Lead: 'Interesse qualificado; preparar abordagem',
+  Contatado: 'Abordagem comercial enviada',
+  Atendimento: 'Necessidade comercial em avaliação',
+  Proposta: 'Oferta concreta enviada',
+  Pagamento: 'Aguardando confirmação do pagamento',
+};
 
 const STATUS_BY_ID = new Map(CONTACT_STATUSES.map((s) => [s.id, s]));
 export function statusMeta(status: string): StatusMeta {

@@ -1,0 +1,36 @@
+{
+  "updates": [
+    {
+      "workflowId": "maiaCrmRecord001",
+      "nodeName": "Validar entrada",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b=$json.body??$json;\nconst clean=(v,max)=>{const s=String(v??'').trim(); return s?s.slice(0,max):null};\nconst digits=String(b.whatsapp??'').replace(/\\D/g,'');\nif(digits.length<10||digits.length>13) throw new Error('WhatsApp inválido');\nconst whatsapp=digits;\nconst phone=digits.startsWith('55')?'+'+digits:'+55'+digits;\nconst name=clean(b.name,120);\nconst email=clean(b.email,160)?.toLowerCase()||null;\nif(email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error('E-mail inválido');\nconst company=clean(b.company,120), produto=clean(b.product,120), summary=clean(b.summary,1200);\nconst qualification_reason=clean(b.qualification_reason,500);\nconst commercial_intent=b.commercial_intent===true;\nif(commercial_intent&&(!qualification_reason||qualification_reason.length<10||!produto)) throw new Error('Qualificação exige necessidade comercial e produto');\nif(!summary) throw new Error('Resumo obrigatório');\nif(/\\b(cvv|senha|password|token|chave privada|cart[aã]o)\\b/i.test(summary+' '+(qualification_reason||''))||/\\b\\d{15,16}\\b/.test((summary+' '+(qualification_reason||'')).replace(/[ -]/g,''))) throw new Error('Resumo contém dado sensível');\nconst statuses=['Lead','Contatado','Atendimento','Proposta','Pagamento'];\nconst status=commercial_intent&&statuses.includes(b.status)?b.status:'Contato';\nconst priorities=['Baixa','Média','Alta']; const priority=priorities.includes(b.priority)?b.priority:'Média';\nconst assignees=['maia','leo','antonio','tecnico']; const assigned_to=assignees.includes(b.assigned_to)?b.assigned_to:null;\nconst next_action=clean(b.next_action,500);\nconst due_date=/^\\d{4}-\\d{2}-\\d{2}$/.test(String(b.due_date??''))?String(b.due_date):null;\nif(next_action&&(!assigned_to||!due_date)) throw new Error('Tarefa exige responsável e data');\nconst identity_url='https://udcsokdtdqqdnoqozbxh.supabase.co/rest/v1/contacts?select=id,name,email,phone,whatsapp,company,status,produto,priority&user_id=eq.0af00833-c1f7-42f4-9543-a5e0ff6f55fc&or=(whatsapp.eq.'+encodeURIComponent(whatsapp)+',phone.eq.'+encodeURIComponent(phone)+',phone.eq.'+encodeURIComponent(whatsapp)+')';\nreturn [{json:{dry_run:b.dry_run===true,user_id:'0af00833-c1f7-42f4-9543-a5e0ff6f55fc',name,email,phone,whatsapp,company,produto,summary:commercial_intent?summary+'\\nQualificação comercial: '+qualification_reason:summary,commercial_intent,qualification_reason,status,priority,assigned_to,next_action,due_date,identity_url}}];"
+      }
+    },
+    {
+      "workflowId": "maiaCrmRecord001",
+      "nodeName": "Preparar contato",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const i=$('Validar entrada').item.json; const rows=Array.isArray($json.body)?$json.body:[];\nif(rows.length>1) throw new Error('Conflito de identidade no CRM');\nconst e=rows[0]||null; const rank={Contato:0,Lead:1,Contatado:2,Atendimento:3,Proposta:4,Pagamento:5,Cliente:6,Inativo:7,Arquivado:0};\nconst desired=(rank[e?.status]??0)>(rank[i.status]??0)?e.status:i.status;\nconst common={name:i.name,email:i.email,phone:i.phone,whatsapp:i.whatsapp,company:i.company,produto:i.produto,priority:i.priority,status:desired,commercial_intent:i.commercial_intent,qualification_reason:i.qualification_reason};\nif(e){Object.keys(common).forEach(k=>common[k]==null&&delete common[k]); return [{json:{...i,status:desired,action:'update',contact_id:e.id,contact_body:common}}];}\nreturn [{json:{...i,status:desired,action:'create',contact_body:{user_id:i.user_id,origin:'whatsapp',...common}}}];"
+      }
+    },
+    {
+      "workflowId": "crmPaymentIngestionReview001",
+      "nodeName": "Extrair Asaas",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b=$json.body??$json; const p=b.payment??{};\nif(!['PAYMENT_CONFIRMED','PAYMENT_RECEIVED','PAYMENT_REFUNDED','PAYMENT_PARTIALLY_REFUNDED'].includes(b.event)) return [];\nif(!p.id) throw new Error('Asaas sem payment id');\nreturn [{json:{gateway:'asaas',event:b.event,external_id:p.id}}];"
+      }
+    },
+    {
+      "workflowId": "crmPaymentIngestionReview001",
+      "nodeName": "Confirmar e mapear Asaas",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function mapAsaasPayment(payment, event, customer) {\r\n  const amount = Number(payment.value);\r\n  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Valor Asaas inválido');\r\n  const done = (Array.isArray(payment.refunds) ? payment.refunds : [])\r\n    .filter((refund) => refund.status === 'DONE')\r\n    .reduce((sum, refund) => {\r\n      const value = Number(refund.value);\r\n      if (!Number.isFinite(value) || value < 0) throw new Error('Estorno Asaas inválido');\r\n      return sum + value;\r\n    }, 0);\r\n  if (done > amount + 0.005) throw new Error('Estorno supera o valor da cobrança');\r\n  const refunded = payment.status === 'REFUNDED' ? amount : Math.min(done, amount);\r\n  const status = refunded >= amount ? 'refunded' : refunded > 0 ? 'partially_refunded' : 'paid';\r\n  if (status === 'paid' && (!['CONFIRMED', 'RECEIVED'].includes(payment.status) || ['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(event.event))) {\r\n    throw new Error('Estado Asaas ainda não conciliável');\r\n  }\r\n  return { gateway: 'asaas', external_id: event.external_id,\r\n    nome: customer.name || null, email: customer.email || null,\r\n    telefone: customer.mobilePhone || customer.phone || null, documento: customer.cpfCnpj || null,\r\n    produto: payment.description || null, valor: amount, status, refunded_amount: refunded,\r\n    moeda: 'BRL', tipo: payment.subscription ? 'assinatura' : 'avulso',\r\n    data: payment.paymentDate || payment.confirmedDate || new Date().toISOString() };\r\n}\nconst c=$json,p=$('Validar Asaas na API').item.json,e=$('Extrair Asaas').item.json;\nreturn [{json:mapAsaasPayment(p,e,c)}];"
+      }
+    }
+  ]
+}

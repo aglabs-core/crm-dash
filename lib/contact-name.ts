@@ -8,10 +8,13 @@ export function contactNamePayload(value: string): string | null {
 }
 
 export function contactMatchesSearch(
-  contact: { name: string | null; company?: string | null },
+  contact: { name: string | null; company?: string | null; email?: string | null; phone?: string | null; whatsapp?: string | null; instagram?: string | null },
   query: string,
 ): boolean {
-  const term = query.toLowerCase();
+  const term = query.trim().toLowerCase();
+  const digits = term.replace(/\D/g, '');
+  if ([contact.email, contact.phone, contact.whatsapp, contact.instagram].some((value) => value?.toLowerCase().includes(term))) return true;
+  if (digits && [contact.phone, contact.whatsapp].some((value) => value?.replace(/\D/g, '').includes(digits))) return true;
   return (contact.name ?? '').toLowerCase().includes(term) ||
     (contact.company?.toLowerCase().includes(term) ?? false);
 }
