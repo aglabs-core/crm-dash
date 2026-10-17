@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MailPlus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -9,11 +10,12 @@ import type { AudienceBasis, EmailCampaign, EmailProvider } from '@/lib/email-ca
 import { Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '@/components/ui';
 
 const emptyDraft = {
-  name: '', product: 'Barberias', provider: 'brevo' as EmailProvider,
+  name: '', product: 'barberias', provider: 'brevo' as EmailProvider,
   sender_email: '', subject: '', audience_basis: 'individual_review' as AudienceBasis,
 };
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -40,16 +42,16 @@ export default function CampaignsPage() {
     try {
       const { data: auth, error: authError } = await supabase.auth.getUser();
       if (authError || !auth.user) throw new Error('Sessão não autenticada');
-      const { error } = await supabase.from('email_campaigns').insert({
+      const { data: created, error } = await supabase.from('email_campaigns').insert({
         user_id: auth.user.id,
         name: draft.name.trim(), product: draft.product.trim(),
         provider: draft.provider, sender_email: draft.sender_email.trim().toLowerCase(),
         subject: draft.subject.trim(), audience_basis: draft.audience_basis,
-      });
+      }).select('id').single();
       if (error) throw error;
       setOpen(false);
       setDraft(emptyDraft);
-      await refresh();
+      router.push(`/campaigns/${created.id}`);
       toast.success('Rascunho criado. Nenhum e-mail foi enviado.');
     } catch {
       toast.error('Não foi possível criar o rascunho.');
@@ -63,9 +65,9 @@ export default function CampaignsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-fg">Campanhas de e-mail</h1>
-          <p className="mt-1 text-sm text-muted">Planejamento e observabilidade por contato, sem misturar envios ao funil comercial.</p>
+          <p className="mt-1 text-sm text-muted">Escolha o público, prepare a mensagem e revise sua campanha em um só lugar.</p>
         </div>
-        {!loadError && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Nova campanha</Button>}
+        {!loadError && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => { setDraft({ ...emptyDraft, name: 'Barberias · Apresentação', subject: 'Vamos conversar sobre a sua barbearia?' }); setOpen(true); }}>Campanha Barberias</Button><Button onClick={() => { setDraft(emptyDraft); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button></div>}
       </div>
 
       {loading ? <PageLoader /> : loadError ? (

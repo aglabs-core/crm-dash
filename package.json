@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test lib/*.test.ts && npm run test:ui",
-    "test:ui": "NODE_ENV=test vitest run",
+    "test:ui": "node scripts/test-ui.mjs",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "audit:gate": "node audit-gate.mjs",
     "clean": "next clean"
@@ -34,6 +34,7 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.2",

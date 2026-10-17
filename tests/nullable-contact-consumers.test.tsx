@@ -11,20 +11,30 @@ import { ConfirmProvider } from '@/components/ConfirmDialog';
 // modal, name helpers, analytics and drag/drop components are mounted.
 const api = vi.hoisted(() => ({
   row: {} as Record<string, unknown>,
+  contextPending: false,
+  contextFailure: false,
+  refreshContext: undefined as undefined | (() => void),
   writes: [] as { table: string; payload: Record<string, unknown>; id?: unknown }[],
 }));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: 'synthetic-user' } } }) },
-    channel: () => { const channel = { on: () => channel, subscribe: () => channel }; return channel; },
+    channel: () => { const channel = { on: (_event: string, filter: { table: string }, callback: () => void) => { if (filter.table === 'tasks') api.refreshContext = callback; return channel; }, subscribe: () => channel }; return channel; },
     removeChannel: vi.fn(),
     from: (table: string) => {
       let single = false;
+      let context = false;
+      let after = false;
       let write: typeof api.writes[number] | undefined;
       const query = {
-        select: () => query,
+        select: (columns?: string) => { context = !!columns?.includes('tasks('); return query; },
+        neq: () => query,
+        limit: () => query,
+        abortSignal: () => query,
+        gt: () => { after = true; return query; },
         order: () => query,
         range: () => query,
+        in: () => query,
         eq: (key: string, value: unknown) => { if (write && key === 'id') write.id = value; return query; },
         maybeSingle: () => { single = true; return query; },
         single: () => { single = true; return query; },
@@ -32,8 +42,10 @@ vi.mock('@/lib/supabase', () => ({
           write = { table, payload }; api.writes.push(write); return query;
         },
         then: (resolve: (value: unknown) => unknown) => {
+          if (context && api.contextFailure) return Promise.resolve({ data: null, error: { message: 'synthetic failure' } }).then(resolve);
+          if (context && api.contextPending) return new Promise(() => {});
           const row = { ...api.row, ...write?.payload };
-          return Promise.resolve({ data: table === 'contacts' ? (single ? row : [row]) : [], error: null }).then(resolve);
+          return Promise.resolve({ data: table === 'contacts' ? (single ? row : context && after ? [] : [row]) : [], error: null }).then(resolve);
         },
       };
       return query;
@@ -54,6 +66,9 @@ beforeEach(() => {
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
   };
   api.writes.length = 0;
+  api.contextPending = false;
+  api.contextFailure = false;
+  api.refreshContext = undefined;
   // Fail closed if a consumer escapes the API mock.
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in consumer tests'); }));
 });
@@ -131,9 +146,113 @@ it('persists an explicit block on future campaigns without deleting the contact'
   const user = userEvent.setup();
   render(<ConfirmProvider><Contacts /></ConfirmProvider>);
   await user.click(await screen.findByRole('button', { name: 'Editar' }));
-  await user.selectOptions(screen.getByLabelText('Campanhas'), 'blocked');
+  await user.selectOptions(screen.getByLabelText('Revisão de abordagem'), 'blocked');
   await user.click(screen.getByRole('button', { name: /^Salvar/ }));
   await waitFor(() => expect(api.writes[0]).toMatchObject({
     table: 'contacts', id: 'synthetic-null-contact', payload: { outreach_status: 'blocked' },
   }));
+});
+
+it('prospecting queue filters without writing', async () => {
+  api.row.prospecting_pool = true;
+  api.row.status = 'Arquivado';
+  api.row.outreach_status = 'blocked';
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('button', { name: /Revisão pendente · 0/ }));
+  expect(screen.queryByText('Sem nome')).toBeNull();
+  await user.click(screen.getByRole('button', { name: /Não contatar · 1/ }));
+  expect(screen.getByText('Sem nome')).toBeTruthy();
+  expect(api.writes).toHaveLength(0);
+});
+
+it('pipeline task shortcut is enabled only after context loads', async () => {
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Deals /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  const shortcut = screen.getByRole('button', { name: 'Sem próxima tarefa' });
+  await waitFor(() => expect((shortcut as HTMLButtonElement).disabled).toBe(false));
+  await user.click(shortcut);
+  expect(screen.getByText('Definir próxima tarefa')).toBeTruthy();
+  expect(screen.getByText('Sem interação registrada')).toBeTruthy();
+  expect(api.writes).toHaveLength(0);
+});
+
+it('blocked contact remains visibly blocked after leaving prospecting', async () => {
+  api.row.prospecting_pool = false;
+  api.row.outreach_status = 'blocked';
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  expect(screen.getByText('Não contatar')).toBeTruthy();
+  expect(api.writes).toHaveLength(0);
+});
+
+it('bulk move to Lead does not downgrade an existing client', async () => {
+  api.row.status = 'Cliente';
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('checkbox', { name: 'Selecionar Sem nome' }));
+  await user.click(screen.getByRole('button', { name: 'Mover p/ Lead' }));
+  expect(api.writes).toHaveLength(0);
+});
+
+it('changing origin clears bulk selection before hiding the contact', async () => {
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('checkbox', { name: 'Selecionar Sem nome' }));
+  expect(screen.getByRole('button', { name: 'Mover p/ Lead' })).toBeTruthy();
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar por origem' }), 'web');
+  expect(screen.queryByText('Sem nome')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Mover p/ Lead' })).toBeNull();
+  expect(api.writes).toHaveLength(0);
+});
+
+it('individual editing does not downgrade a client into a new lead', async () => {
+  api.row.status = 'Cliente';
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('button', { name: 'Editar' }));
+  await user.selectOptions(screen.getByLabelText('Etapa'), 'Lead');
+  await user.click(screen.getByRole('button', { name: /^Salvar/ }));
+  expect(api.writes).toHaveLength(0);
+  expect(screen.getByLabelText('Etapa')).toBeTruthy();
+});
+
+it('individual editing still permits marking a client inactive', async () => {
+  api.row.status = 'Cliente';
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Contacts /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  await user.click(screen.getByRole('button', { name: 'Editar' }));
+  await user.selectOptions(screen.getByLabelText('Etapa'), 'Inativo');
+  await user.click(screen.getByRole('button', { name: /^Salvar/ }));
+  await waitFor(() => expect(api.writes[0]?.payload.status).toBe('Inativo'));
+});
+
+it('pipeline cards render while their context request is still pending', async () => {
+  api.contextPending = true;
+  render(<ConfirmProvider><Deals /></ConfirmProvider>);
+  expect(await screen.findByText('Sem nome')).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Sem próxima tarefa' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy();
+});
+
+it('context failure leaves cards visible and lets the operator clear the task filter', async () => {
+  const user = userEvent.setup();
+  render(<ConfirmProvider><Deals /></ConfirmProvider>);
+  await screen.findByText('Sem nome');
+  const shortcut = screen.getByRole('button', { name: 'Sem próxima tarefa' });
+  await waitFor(() => expect((shortcut as HTMLButtonElement).disabled).toBe(false));
+  await user.click(shortcut);
+  api.contextFailure = true;
+  api.refreshContext?.();
+  await screen.findByText('Filtro de tarefas indisponível. Exibindo todos os contatos.');
+  expect(screen.getByText('Sem nome')).toBeTruthy();
+  expect((shortcut as HTMLButtonElement).disabled).toBe(false);
+  await user.click(shortcut);
+  expect(screen.queryByText('Filtro de tarefas indisponível. Exibindo todos os contatos.')).toBeNull();
 });

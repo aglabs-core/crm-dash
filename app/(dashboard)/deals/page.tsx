@@ -1,11 +1,15 @@
 'use client';
 
+import { isCustomerDowngrade, CLIENT_TRANSITION_MESSAGE } from '@/lib/contact-transition';
+import { usePipelineContext } from '@/hooks/usePipelineContext';
 import { productLabel } from '@/lib/product-label';
+import { PipelineContext } from '@/components/PipelineContext';
+import { nextTask, byContact } from '@/lib/pipeline-context';
 import { loadContacts } from '@/lib/contact-data';
 
 import { contactNameInput, contactNamePayload, contactName } from '@/lib/contact-name';
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
 import {
   Plus,
   Calendar,
@@ -62,6 +66,11 @@ function PipelineContent() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [productFilter, setProductFilter] = useState('Todos');
+  const [originFilter, setOriginFilter] = useState('Todos');
+  const [needsTask, setNeedsTask] = useState(false);
+  const [contextRevision, setContextRevision] = useState(0);
+  const requestVersion = useRef({ value: 0 }).current;
+  const { tasks, activities, available: contextAvailable } = usePipelineContext(contacts, contextRevision);
   const [view, setView] = useState<'board' | 'archived'>('board');
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,8 +104,23 @@ function PipelineContent() {
     setIsModalOpen(true);
   };
 
+  const fetchContacts = useCallback(async (showLoader = false) => {
+    const version = ++requestVersion.value;
+    try {
+      if (showLoader) setIsLoading(true);
+      const loaded = await loadContacts('updated_at');
+      if (version === requestVersion.value) setContacts(loaded);
+    } catch {
+      if (version === requestVersion.value) toast.error('Erro ao carregar o funil.');
+    } finally {
+      if (version === requestVersion.value) setIsLoading(false);
+    }
+  }, [requestVersion]);
+
   // Debounced so drag-and-drop bursts / bulk changes refetch once, not per event.
   const debouncedFetch = useDebouncedCallback(() => fetchContacts(), 400);
+
+  const refreshContext = useDebouncedCallback(() => setContextRevision((n) => n + 1), 400);
 
   useEffect(() => {
     setIsMounted(true);
@@ -104,11 +128,14 @@ function PipelineContent() {
     const sub = supabase
       .channel('pipeline-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, refreshContext)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, refreshContext)
       .subscribe();
     return () => {
+      requestVersion.value++;
       supabase.removeChannel(sub);
     };
-  }, [debouncedFetch]);
+  }, [debouncedFetch, refreshContext, requestVersion, fetchContacts]);
 
   useEffect(() => {
     if (searchParams.get('new')) {
@@ -116,18 +143,6 @@ function PipelineContent() {
       router.replace('/deals');
     }
   }, [searchParams, router]);
-
-  const fetchContacts = async (showLoader = false) => {
-    try {
-      if (showLoader) setIsLoading(true);
-      setContacts(await loadContacts('updated_at'));
-    } catch (error) {
-      console.error('Error fetching pipeline:', error);
-      toast.error('Erro ao carregar o funil.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
@@ -146,6 +161,7 @@ function PipelineContent() {
   };
 
   const setStatus = async (c: Contact, status: ContactStatus, msg: string) => {
+    if (isCustomerDowngrade(c, status)) { toast.error(CLIENT_TRANSITION_MESSAGE); return; }
     const prev = c.status;
     setContacts((p) => p.map((x) => (x.id === c.id ? { ...x, status } : x)));
     const { error } = await supabase.from('contacts').update({ status }).eq('id', c.id);
@@ -159,6 +175,7 @@ function PipelineContent() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editing && isCustomerDowngrade(editing, formData.status)) { toast.error(CLIENT_TRANSITION_MESSAGE); return; }
     try {
       setIsSubmitting(true);
       const { data: userData } = await supabase.auth.getUser();
@@ -212,6 +229,7 @@ function PipelineContent() {
     if (!target) return;
     const previous = target.status;
     const next = destination.droppableId as ContactStatus;
+    if (isCustomerDowngrade(target, next)) { toast.error(CLIENT_TRANSITION_MESSAGE); return; }
 
     setContacts((prev) => prev.map((c) => (c.id === draggableId ? { ...c, status: next } : c)));
     const { error } = await supabase.from('contacts').update({ status: next }).eq('id', draggableId);
@@ -222,11 +240,13 @@ function PipelineContent() {
   };
 
   const products = useMemo(() => uniqueProducts(contacts), [contacts]);
-  const byProduct = (c: Contact) => productFilter === 'Todos' || c.produto === productFilter;
+  const taskMap = useMemo(() => byContact(tasks), [tasks]);
+  const activityMap = useMemo(() => byContact(activities), [activities]);
+  const byProduct = (c: Contact) => (productFilter === 'Todos' || (productFilter === '__undefined__' ? !c.produto?.trim() : c.produto?.trim() === productFilter)) && (originFilter === 'Todos' || c.origin === originFilter) && (view !== 'board' || !needsTask || !contextAvailable || !nextTask(taskMap.get(c.id) || []));
   const archivedList = useMemo(
     () => contacts.filter((c) => c.status === 'Arquivado' && !c.prospecting_pool && byProduct(c)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contacts, productFilter],
+    [contacts, productFilter, originFilter, needsTask, contextAvailable, taskMap, view],
   );
 
   if (!isMounted) return null; // avoid dnd hydration mismatch
@@ -262,15 +282,21 @@ function PipelineContent() {
             </button>
           </div>
         </div>
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
-            <option value="Todos">Todos os Produtos</option>
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <Select aria-label="Filtrar aplicação ou produto no funil" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
+            <option value="Todos">Todas as aplicações / produtos</option>
+            <option value="__undefined__">Produto a definir</option>
             {products.map((p) => (
               <option key={p} value={p}>
                 {productLabel(p)}
               </option>
             ))}
           </Select>
+          <Select aria-label="Filtrar origem do funil" value={originFilter} onChange={(e) => setOriginFilter(e.target.value)}>
+            <option value="Todos">Todas as origens</option>
+            {ORIGINS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </Select>
+          <Button variant="secondary" disabled={(!contextAvailable && !needsTask) || view !== 'board'} aria-pressed={needsTask && view === 'board'} onClick={() => setNeedsTask(!needsTask)}>Sem próxima tarefa</Button>
           <Button onClick={() => openNew()}>
             <Plus className="h-4 w-4" />
             Novo Lead
@@ -278,6 +304,7 @@ function PipelineContent() {
         </div>
       </div>
 
+      {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todos os contatos.</p>}
       <div className="flex-1 overflow-x-auto pb-4">
         {isLoading ? (
           <PageLoader />
@@ -324,7 +351,7 @@ function PipelineContent() {
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex h-full min-w-max items-start gap-5">
               {KANBAN_STATUSES.map((stage) => {
-                const columnContacts = contacts.filter((c) => c.status === stage.id && byProduct(c));
+                const columnContacts = contacts.filter((c) => c.status === stage.id && !c.prospecting_pool && byProduct(c));
                 const columnTotal = columnContacts.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
                 return (
                   <div
@@ -381,7 +408,7 @@ function PipelineContent() {
                                     <div className="flex items-center gap-1 text-muted">
                                       <button
                                         onClick={() => setStatus(c, 'Cliente', 'Ganho! Virou cliente. 🎉')}
-                                        className="opacity-0 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-emerald-500 group-hover:opacity-100"
                                         aria-label="Marcar como cliente"
                                         title="Ganhou (vira Cliente)"
                                       >
@@ -389,14 +416,14 @@ function PipelineContent() {
                                       </button>
                                       <button
                                         onClick={() => openEdit(c)}
-                                        className="opacity-0 transition-opacity hover:text-brand group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-brand group-hover:opacity-100"
                                         aria-label="Editar"
                                       >
                                         <Pencil className="h-4 w-4" />
                                       </button>
                                       <button
                                         onClick={() => setStatus(c, 'Arquivado', 'Contato arquivado.')}
-                                        className="opacity-0 transition-opacity hover:text-amber-500 group-hover:opacity-100"
+                                        className="opacity-100 transition-opacity hover:text-amber-500 group-hover:opacity-100"
                                         aria-label="Arquivar"
                                         title="Arquivar (não fechou)"
                                       >
@@ -405,6 +432,7 @@ function PipelineContent() {
                                       <GripVertical className="ml-1 h-4 w-4 cursor-grab opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing" />
                                     </div>
                                   </div>
+                                  {c.outreach_status === 'blocked' && <Badge tone="red">Não contatar</Badge>}
                                   <Link
                                     href={`/contacts/${c.id}`}
                                     className="mb-1 block text-sm font-semibold text-fg hover:text-brand"
@@ -434,6 +462,7 @@ function PipelineContent() {
                                       </span>
                                     )}
                                   </div>
+                                  <PipelineContext contactId={c.id} tasks={taskMap.get(c.id) || []} activities={activityMap.get(c.id) || []} available={contextAvailable} />
                                 </div>
                               )}
                             </Draggable>
