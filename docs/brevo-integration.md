@@ -2,9 +2,11 @@
 
 ## Estado desta entrega
 
-Implementação local, ainda sem publicação, migration remota ou webhook ativo. Na inspeção da conta autenticada em 17/10/2026, a tela de webhooks de saída estava vazia. Nenhuma configuração da Brevo foi salva e nenhum e-mail foi enviado.
+Versão publicada em 17/10/2026 pelo PR #27, com as migrations de preparação e recepção aplicadas ao projeto correto. O dry-run posterior confirmou o banco atualizado. A conexão foi preparada pela sessão autenticada do CRM e o webhook transacional foi cadastrado na Brevo; a validação do recebimento está em andamento. Nenhum e-mail foi enviado.
 
-O CRM organiza audiência, mensagem, revisão e acompanhamento. A Brevo entrega as mensagens. O receptor desta entrega somente recebe resultados; a fila de envio pelo CRM continua pendente.
+Os nomes das migrations de Pix, marketplace e observabilidade foram alinhados às versões já existentes no histórico remoto, após confirmar equivalência do SQL. O histórico do banco não foi reescrito e essas três migrations não foram reaplicadas.
+
+O CRM organiza audiência, mensagem, revisão e acompanhamento. A Brevo entrega as mensagens. O receptor desta entrega somente recebe resultados; a fila de envio pelo CRM continua pendente. O esquema HTTP Bearer aceita variações de caixa; a chave continua exata e é comparada em tempo constante. Diagnósticos de recusa registram apenas presença, formato e tamanho do cabeçalho, sem seu conteúdo.
 
 ## Como funciona
 

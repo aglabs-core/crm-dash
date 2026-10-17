@@ -33,14 +33,17 @@ export async function receiveBrevoWebhook(request: Request, dependencies?: {
 }) {
   const config = dependencies?.config ?? receiverConfig();
   if (!validReceiverConfig(config)) return response(503, { error: 'Receiver unavailable' });
-  const expected = Buffer.from(`Bearer ${config.token}`); const actual = Buffer.from(request.headers.get('authorization') || '');
+  // HTTP authentication schemes are case-insensitive; the secret itself is not.
+  const header = request.headers.get('authorization') || '';
+  const match = /^Bearer[ \t]+(\S+)$/i.exec(header);
+  const expected = Buffer.from(config.token); const actual = Buffer.from(match?.[1] || '');
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     // Shape only: never log the header, token, payload, address or a credential hash.
     console.warn('Brevo webhook authentication refused', {
-      headerPresent: actual.length > 0,
-      bearerScheme: /^Bearer /i.test(actual.toString()),
-      headerLength: actual.length,
-      expectedLength: expected.length,
+      headerPresent: header.length > 0,
+      bearerScheme: !!match,
+      headerLength: header.length,
+      expectedLength: expected.length + 7,
     });
     return response(401, { error: 'Unauthorized' });
   }
