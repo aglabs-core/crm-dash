@@ -138,6 +138,7 @@ export function CampaignPreparation({ campaign, contacts, recipients, onSaved }:
           <Field label="Receber respostas em" htmlFor="prepare-reply" hint="Vazio usa o remetente. A caixa deverá estar conectada ao atendimento."><Input id="prepare-reply" type="email" value={replyTo} maxLength={320} onChange={(e) => setReplyTo(e.target.value)} placeholder={campaign.sender_email} /></Field>
           <Field label="Texto do e-mail" htmlFor="prepare-content" hint="Use {{nome}} e {{produto}} para personalizar a prévia."><Textarea id="prepare-content" rows={12} maxLength={12000} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Escreva uma mensagem clara, com contexto e um próximo passo." /></Field>
           <p className="text-xs text-muted">{content.length}/12.000 caracteres. O conteúdo fica salvo como texto.</p>
+          <Link href={`/campaigns/templates?product=${encodeURIComponent(campaign.product)}`} target="_blank" rel="noopener noreferrer" className="inline-flex text-sm font-medium text-brand hover:underline">Consultar modelo visual da marca ↗</Link>
         </div>
         <div className="space-y-3"><h3 className="flex items-center gap-2 text-sm font-semibold text-fg"><Mail className="h-4 w-4" /> Prévia da mensagem</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
