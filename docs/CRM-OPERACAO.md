@@ -29,3 +29,7 @@ A verificação remota scripts/verify-crm-lifecycle.sql executou intake, qualifi
 Contatos têm quatro indicadores, busca por nome/canal e filtros recolhidos. O funil preserva próxima tarefa, responsável e última interação; os filtros avançados ficam em uma janela e as ações do cartão no menu de reticências. Tarefas têm filtro separado da criação e consultas paginadas; falha de consulta não vira zero tarefas. Integrações sai da navegação e redireciona para Campanhas, preservando endpoints Brevo. Campanhas tem uma única ação de criação.
 
 npm run check passou sem .env.local: lint, TypeScript, 74 testes de lógica/banco, 31 testes de interface e build. O arquivo de ambiente foi restaurado. npm run audit:gate passou sem avisos e sem exceções. Validação autenticada final ocorre após o deploy; confirmação de entrega futura de webhook exige um evento real do provedor.
+
+## E-mails e contexto da Maia
+
+Todo e-mail trocado com um contato (prospecção Brevo, campanhas, e-mails automáticos do Barberias via Resend e respostas recebidas pela Maia) fica no registro único descrito em [email-ledger.md](email-ledger.md). Status, bounces, aberturas, cliques e respostas aparecem na ficha; o estado da conta no produto fica separado do funil.

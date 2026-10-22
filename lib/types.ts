@@ -16,7 +16,10 @@ export type ContactStatus =
   | 'Inativo'
   | 'Arquivado';
 
-export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manual' | 'compra' | 'instagram';
+export type ContactOrigin = 'web' | 'prospeccao' | 'whatsapp' | 'email' | 'manual' | 'compra' | 'instagram' | 'cadastro';
+
+/** Product account lifecycle, independent of the commercial funnel. */
+export type AccountStatus = 'trial' | 'trial_encerrado' | 'ativo' | 'cancelado';
 
 /** Gateways de pagamento que alimentam o CRM automaticamente. */
 export type Gateway = 'stripe' | 'asaas' | 'mercadopago' | 'cakto';
@@ -91,6 +94,10 @@ export type Contact = {
   instagram?: string | null;
   instagram_id?: string | null;
   instagram_oferta_em?: string | null;
+  // Conta no produto (ex.: barbearia no Barberias), alimentada pelo sistema.
+  account_status?: AccountStatus | null;
+  account_ref?: string | null;
+  account_updated_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };

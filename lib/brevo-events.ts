@@ -26,3 +26,25 @@ export function normalizeBrevoEvent(input: unknown, now = Date.now()): BrevoEven
   const key = createHash('sha256').update(JSON.stringify([message, email, type, occurred, type === 'click' ? link : ''])).digest('hex');
   return { message_id: message, email, provider_type: type, event_type: events[type] ?? null, occurred_at: occurred, event_key: key };
 }
+
+// Brevo anonymizes some opens/clicks: no address and an `an#…` message id. They
+// are attributed later by exact personalized subject (crm_apply_brevo_anonymized_events).
+export type BrevoAnonymizedEvent = { subject: string; provider_type: string; event_type: 'opened' | 'clicked' | 'proxy_open'; occurred_at: string; event_key: string };
+export function normalizeBrevoAnonymizedEvent(input: unknown, now = Date.now()): BrevoAnonymizedEvent | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const row = input as Record<string, unknown>;
+  const email = typeof row.email === 'string' ? row.email.trim() : '';
+  const message = typeof row['message-id'] === 'string' ? row['message-id'].trim() : '';
+  const subject = typeof row.subject === 'string' ? row.subject.trim() : '';
+  const type = typeof row.event === 'string' ? row.event.trim().toLowerCase() : '';
+  const kind = events[type];
+  if (email || !(message === '' || message.startsWith('an#')) || !subject || subject.length > 300
+    || (kind !== 'opened' && kind !== 'clicked' && kind !== 'proxy_open')) return null;
+  const raw = row.ts_event ?? row.ts_epoch ?? row.ts;
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : NaN;
+  const timestamp = value < 1e12 ? value * 1000 : value;
+  if (!Number.isFinite(timestamp) || timestamp < Date.UTC(2000, 0, 1) || timestamp > now + 300000) return null;
+  const occurred = new Date(timestamp).toISOString();
+  const key = createHash('sha256').update(JSON.stringify(['anonymized', message, subject, type, occurred])).digest('hex');
+  return { subject, provider_type: type, event_type: kind, occurred_at: occurred, event_key: key };
+}

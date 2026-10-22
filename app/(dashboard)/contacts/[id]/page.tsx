@@ -47,6 +47,8 @@ import {
   EmptyState,
 } from '@/components/ui';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
+import { ContactEmails } from '@/components/ContactEmails';
+import { accountStatusMeta } from '@/lib/email-ledger';
 
 export default function ContactDetail() {
   const params = useParams<{ id: string }>();
@@ -162,6 +164,9 @@ export default function ContactDetail() {
                 )}
                 <Badge tone={originTone(contact.origin)}>{originLabel(contact.origin)}</Badge>
                 {contact.produto && <Badge tone="purple">{productLabel(contact.produto)}</Badge>}
+                {accountStatusMeta(contact.account_status) && (
+                  <Badge tone={accountStatusMeta(contact.account_status)!.tone}>{accountStatusMeta(contact.account_status)!.label}</Badge>
+                )}
               </div>
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
                 {contact.company && (
@@ -223,15 +228,18 @@ export default function ContactDetail() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Timeline */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Linha do Tempo</CardTitle>
-          </CardHeader>
-          <CardBody>
-            <ActivityTimeline activities={activities} onLog={handleLog} />
-          </CardBody>
-        </Card>
+        {/* E-mails + Timeline */}
+        <div className="space-y-6 lg:col-span-2">
+          <ContactEmails contactId={id} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Linha do Tempo</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <ActivityTimeline activities={activities} onLog={handleLog} />
+            </CardBody>
+          </Card>
+        </div>
 
         {/* Pipeline + Tasks */}
         <div className="space-y-6">

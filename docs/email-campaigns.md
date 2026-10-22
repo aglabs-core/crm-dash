@@ -20,7 +20,7 @@
 
 ## Estado das integrações
 
-O receptor Brevo está publicado e ativo; consulte [ativação, evidências e limites](brevo-integration.md). A tela **Integrações** apresenta **Eventos recebidos** quando houve persistência anterior. Isso não comprova monitoramento contínuo, entrega de e-mail real ou conciliação de uma campanha específica. Eventos sem correspondência permanecem aguardando vínculo. Para Resend, a recepção com verificação de assinatura e segredo próprio continua pendente.
+O receptor Brevo está publicado e ativo; consulte [ativação, evidências e limites](brevo-integration.md). A tela **Integrações** apresenta **Eventos recebidos** quando houve persistência anterior. Isso não comprova monitoramento contínuo, entrega de e-mail real ou conciliação de uma campanha específica. Eventos sem correspondência permanecem aguardando vínculo. Para Resend, a recepção com assinatura Svix e o registro dos e-mails do sistema estão descritos em [registro único de e-mails](email-ledger.md).
 
 Envios anteriores, incluindo o piloto Barberias registrado em `activities`, exigem conciliação específica pelos identificadores das mensagens. O webhook não recupera automaticamente esse histórico. Não reenviar mensagens nem transformar contatos desse piloto em novo lote para tentar preencher métricas.
 

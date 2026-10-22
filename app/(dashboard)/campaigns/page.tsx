@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import type { AudienceBasis, EmailCampaign, EmailProvider } from '@/lib/email-campaign';
 import { Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '@/components/ui';
 import { CampaignNavigation } from '@/components/CampaignNavigation';
+import { EmailSourceOverview } from '@/components/EmailSourceOverview';
 
 const emptyDraft = {
   name: '', product: 'barberias', provider: 'brevo' as EmailProvider,
@@ -72,6 +73,7 @@ export default function CampaignsPage() {
       </div>
 
       <CampaignNavigation active="campaigns" />
+      <EmailSourceOverview />
       {loading ? <PageLoader /> : loadError ? (
         <Card className="p-10 text-center">
           <h2 className="font-semibold text-fg">Campanhas indisponíveis</h2>

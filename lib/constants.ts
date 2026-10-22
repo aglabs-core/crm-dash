@@ -101,6 +101,7 @@ export const ORIGINS: { id: ContactOrigin; label: string; tone: Tone }[] = [
   { id: 'manual', label: 'Manual', tone: 'gray' },
   { id: 'compra', label: 'Compra', tone: 'purple' },
   { id: 'instagram', label: 'Instagram', tone: 'purple' },
+  { id: 'cadastro', label: 'Cadastro no produto', tone: 'emerald' },
 ];
 const ORIGIN_TONE = new Map(ORIGINS.map((o) => [o.id, o.tone]));
 export function originTone(origin: string | null | undefined): Tone {
