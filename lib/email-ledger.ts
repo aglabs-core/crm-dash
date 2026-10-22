@@ -85,7 +85,7 @@ export const SOURCE_ORDER = ['barberias.trial.inicio', 'barberias.trial.meio', '
 const ACCOUNT: Record<string, { label: string; tone: Tone }> = {
   trial: { label: 'Em teste grátis', tone: 'amber' },
   trial_encerrado: { label: 'Teste encerrado', tone: 'gray' },
-  ativo: { label: 'Assinatura ativa', tone: 'emerald' },
+  ativo: { label: 'Conta ativa', tone: 'emerald' },
   cancelado: { label: 'Assinatura cancelada', tone: 'red' },
 };
 export const accountStatusMeta = (status: string | null | undefined) => (status ? ACCOUNT[status] : undefined);

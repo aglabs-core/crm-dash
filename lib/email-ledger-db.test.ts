@@ -43,11 +43,12 @@ async function setup() {
     INSERT INTO public.contacts(id,user_id,name,email,status,origin,produto,prospecting_pool,outreach_status)
       VALUES('${prospect}','${admin}','Barbearia Sintética','dono@barbearia.example.invalid','Arquivado','prospeccao','barberias',true,'contactable');`);
   for (const file of ['20261016052215_email_campaign_observability.sql', '20261017034819_guided_campaign_preparation.sql',
-    '20261017160727_brevo_event_receiver.sql', '20261022120000_unified_email_ledger.sql']) {
+    '20261017160727_brevo_event_receiver.sql', '20261022120000_unified_email_ledger.sql', '20261022130000_account_access_reconciliation.sql']) {
     await db.exec(await readFile(`supabase/migrations/${file}`, 'utf8'));
   }
   // Reapplying must be harmless.
   await db.exec(await readFile('supabase/migrations/20261022120000_unified_email_ledger.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261022130000_account_access_reconciliation.sql', 'utf8'));
   await db.exec(`INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${admin}','Brevo');
     INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis,status)
       VALUES('${campaign}','${admin}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
@@ -191,6 +192,17 @@ test('ledger records prospecting, mirrors Brevo events, binds identity and gives
           subject: 'Seu teste terminou', sent_at: '2026-10-20T11:00:00Z', contact: { account_status: 'trial_encerrado' } } })]);
       assert.equal((await db.query<{ account_status: string }>(`SELECT account_status FROM public.contacts WHERE id='${prospect}'`)).rows[0].account_status, 'ativo');
       assert.ok((await db.query(`SELECT 1 FROM public.activities WHERE channel='sistema'`)).rows.length >= 2);
+    });
+
+    await t.test('gifted/lifetime access is active but never creates a paid customer', async () => {
+      const ev = { event_key: 'gifted-1', event: 'account.access_granted', occurred_at: '2026-10-22T07:00:00Z', product: 'barberias', account_ref: 'gifted-shop',
+        account_name: 'Cortesia sintética', owner_email: 'cortesia@example.invalid' };
+      await service('SELECT public.crm_ingest_account_event($1::jsonb)', [JSON.stringify(ev)]);
+      const row = (await db.query<{ status: string; account_status: string }>(`SELECT status,account_status FROM public.contacts WHERE email='cortesia@example.invalid'`)).rows[0];
+      assert.equal(row.account_status, 'ativo');
+      assert.equal(row.status, 'Lead');
+      await service('SELECT public.crm_ingest_account_event($1::jsonb)', [JSON.stringify({ ...ev, event_key: 'gifted-2', event: 'account.access_revoked' })]);
+      assert.equal((await db.query<{ account_status: string }>(`SELECT account_status FROM public.contacts WHERE email='cortesia@example.invalid'`)).rows[0].account_status, 'cancelado');
     });
 
     await t.test('browser reads own ledger only and cannot write or call service RPCs', async () => {
