@@ -44,4 +44,10 @@ Fonte n8n VPS-03: definições publicadas consultadas, sem executar workflows ou
 3. Publicar front/API após os gates e validar autenticado em desktop/mobile: produtos, troca de filas, paginação, busca, totais e abertura de e-mail.
 4. Medir tempos de navegação e de API no ambiente real. Dashboard/relatórios ainda carregam o conjunto necessário a seus indicadores; evolução para agregados deve preservar seus denominadores.
 
-Nenhuma migration desta revisão foi aplicada em produção; nenhum deploy, disparo, cobrança ou alteração de workflow foi realizado.
+## Publicação autorizada
+
+Após autorização de merge em 22/10/2026, PR #39 aberta. O preview da Vercel concluiu o build do commit inicial `b463380`.
+
+A simulação identificou `20261021061151_trial_outbound_context_20261021200000.sql` aplicada no banco, mas ausente do checkout. O SQL foi recuperado do histórico remoto e conferido por fingerprint MD5 `ba20d51e3981c81b300eb6902a95d72c`; não foi reaplicado e não houve reparo do histórico. O arquivo contém somente a definição da ponte de contexto de trial, sem dados ou credenciais de publicação.
+
+Nova simulação confirmou somente `20261022195737_crm_workspace_indexes.sql` pendente. Essa migration foi aplicada com `supabase db push --skip-vault` antes do merge, para que o deploy automático encontre as views necessárias. Nenhum disparo, cobrança ou alteração de workflow foi realizado. O merge e o deploy de produção devem ser confirmados separadamente pelos checks e pelo commit publicado.
