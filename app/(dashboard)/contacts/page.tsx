@@ -1,10 +1,10 @@
 'use client';
 
-import { contactNameInput, contactNamePayload, contactName, contactInitials, contactMatchesSearch } from '@/lib/contact-name';
+import { contactNameInput, contactNamePayload, contactName, contactInitials } from '@/lib/contact-name';
 import { isCustomerDowngrade, CLIENT_TRANSITION_MESSAGE } from '@/lib/contact-transition';
 import { productLabel } from '@/lib/product-label';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
   SlidersHorizontal,
@@ -23,7 +23,7 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { loadContacts } from '@/lib/contact-data';
+import { CONTACT_PAGE_SIZE, loadContactPage, loadContactRollups, type ContactRollup } from '@/lib/contact-directory';
 import type { Contact, ContactStatus, ContactOrigin } from '@/lib/types';
 import {
   CONTACT_STATUSES,
@@ -74,6 +74,14 @@ export default function Contacts() {
   const [outreachFilter, setOutreachFilter] = useState<'Todos' | NonNullable<Contact['outreach_status']>>('Todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [rollups, setRollups] = useState<ContactRollup[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalFound, setTotalFound] = useState(0);
+  const [loadError, setLoadError] = useState(false);
+  const [rollupError, setRollupError] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [search, setSearch] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,6 +123,7 @@ export default function Contacts() {
       const { error } = await supabase.from('contacts').delete().eq('id', id);
       if (error) throw error;
       setContacts((prev) => prev.filter((c) => c.id !== id));
+      fetchContacts();
       toast.success('Contato excluído com sucesso!');
     } catch (error) {
       console.error('Error deleting contact:', error);
@@ -123,10 +132,36 @@ export default function Contacts() {
   };
 
   // Debounced so a bulk update/delete (one event per row) triggers a single refetch.
-  const debouncedFetch = useDebouncedCallback(() => fetchContacts(), 400);
+  const fetchContacts = useCallback(() => setRevision((n) => n + 1), []);
+  const debouncedFetch = useDebouncedCallback(fetchContacts, 400);
 
   useEffect(() => {
-    fetchContacts(true);
+    searchTimer.current = setTimeout(() => { setPage(0); setSearch(searchTerm); }, 250);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true); setLoadError(false); setSelected(new Set());
+    loadContactPage({ product: productFilter, origin: originFilter, situation: situacao, outreach: outreachFilter, search }, page, controller.signal)
+      .then((result) => { if (!controller.signal.aborted) {
+        if (page > 0 && !result.contacts.length) { setPage(page - 1); return; }
+        setContacts(result.contacts); setTotalFound(result.count);
+      } })
+      .catch(() => { if (!controller.signal.aborted) setLoadError(true); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [productFilter, originFilter, situacao, outreachFilter, search, page, revision]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setRollupError(false);
+    loadContactRollups(controller.signal).then((rows) => { if (!controller.signal.aborted) setRollups(rows); })
+      .catch(() => { if (!controller.signal.aborted) setRollupError(true); });
+    return () => controller.abort();
+  }, [revision]);
+
+  useEffect(() => {
     const sub = supabase
       .channel('contacts-page-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
@@ -135,17 +170,6 @@ export default function Contacts() {
       supabase.removeChannel(sub);
     };
   }, [debouncedFetch]);
-
-  const fetchContacts = async (showLoader = false) => {
-    try {
-      if (showLoader) setIsLoading(true);
-      setContacts(await loadContacts());
-    } catch (error) {
-      console.error('Error fetching contacts:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +217,7 @@ export default function Contacts() {
           toast.success('Contato criado com sucesso!');
         }
       }
+      fetchContacts();
       setIsModalOpen(false);
       setEditingContact(null);
     } catch (error: unknown) {
@@ -209,62 +234,29 @@ export default function Contacts() {
   };
 
   const products = useMemo(
-    () => Array.from(new Set(contacts.map((c) => c.produto?.trim()).filter((p): p is string => !!p))).sort(),
-    [contacts],
+    () => Array.from(new Set(rollups.map((c) => c.produto?.trim()).filter((p): p is string => !!p))).sort(),
+    [rollups],
   );
 
   // Scoped by product and origin — stat cards reflect the true split,
   // independent of the text search or the situação filter.
   const productScoped = useMemo(
-    () => contacts.filter((c) => (productFilter === 'Todos' || (productFilter === '__undefined__' ? !c.produto?.trim() : c.produto?.trim() === productFilter)) && (originFilter === 'Todos' || c.origin === originFilter)),
-    [contacts, productFilter, originFilter],
+    () => rollups.filter((c) => (productFilter === 'Todos' || (productFilter === '__undefined__' ? !c.produto?.trim() : c.produto?.trim() === productFilter)) && (originFilter === 'Todos' || c.origin === originFilter)),
+    [rollups, productFilter, originFilter],
   );
 
-  const filteredContacts = useMemo(
-    () =>
-      productScoped.filter((contact) => {
-        const term = searchTerm.toLowerCase();
-        const matchesSearch =
-          contactMatchesSearch(contact, term);
-        const matchesSituacao =
-          situacao === 'Todos'
-            ? true
-            : situacao === 'base'
-              ? contact.status === 'Contato' && !contact.prospecting_pool
-            : situacao === 'pipeline'
-              ? !contact.prospecting_pool && isActiveStatus(contact.status)
-              : situacao === 'clientes'
-                ? isClientStatus(contact.status)
-                : situacao === 'prospeccao'
-                  ? !!contact.prospecting_pool
-                  : isArchivedStatus(contact.status) && !contact.prospecting_pool;
-        const matchesOutreach = situacao !== 'prospeccao' || outreachFilter === 'Todos' || (contact.outreach_status || 'unreviewed') === outreachFilter;
-        return matchesSearch && matchesSituacao && matchesOutreach;
-      }),
-    [productScoped, searchTerm, situacao, outreachFilter],
-  );
+  const filteredContacts = contacts;
+  const countRows = (rows: ContactRollup[]) => rows.reduce((sum, row) => sum + Number(row.total), 0);
 
   // Honest, non-overlapping rollups so "em pipeline" (the active funnel) is clearly
   // separate from "arquivados" (out of the funnel) and "clientes" (closed).
-  const totals = useMemo(() => {
-    const f = productScoped;
-    const total = f.length;
-    const emPipeline = f.filter((c) => !c.prospecting_pool && isActiveStatus(c.status)).length;
-    const clientes = f.filter((c) => isClientStatus(c.status)).length;
-    const prospeccao = f.filter((c) => c.prospecting_pool).length;
-    const arquivados = f.filter((c) => isArchivedStatus(c.status) && !c.prospecting_pool).length;
-    const fechados = clientes + arquivados;
-    return {
-      total,
-      emPipeline,
-      clientes,
-      prospeccao,
-      arquivados,
-      conversao: fechados ? `${((clientes / fechados) * 100).toFixed(1)}%` : '—',
-    };
-  }, [productScoped]);
+  const totals = useMemo(() => ({
+    total: countRows(productScoped),
+    emPipeline: countRows(productScoped.filter((c) => !c.prospecting_pool && isActiveStatus(c.status))),
+    clientes: countRows(productScoped.filter((c) => isClientStatus(c.status))),
+  }), [productScoped]);
 
-  useEffect(() => { setSelected(new Set()); }, [searchTerm, productFilter, originFilter, situacao, outreachFilter]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [productFilter, originFilter, situacao, outreachFilter]);
 
   const allSelected = filteredContacts.length > 0 && filteredContacts.every((c) => selected.has(c.id));
   const toggleSelect = (id: string) =>
@@ -297,6 +289,7 @@ export default function Contacts() {
       fetchContacts();
       return;
     }
+    fetchContacts();
     toast.success(`${ids.length} contato(s) atualizados.`);
   };
 
@@ -317,6 +310,7 @@ export default function Contacts() {
       return;
     }
     setContacts((prev) => prev.filter((c) => !ids.includes(c.id)));
+    fetchContacts();
     toast.success(`${ids.length} contato(s) excluídos.`);
   };
 
@@ -333,11 +327,12 @@ export default function Contacts() {
         </Button>
       </div>
 
+      {rollupError && <p role="alert" className="text-sm text-red-600">Totais da carteira indisponíveis. <button className="underline" onClick={fetchContacts}>Tentar novamente</button></p>}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard label="Total" value={totals.total} icon={Users} hint="na carteira" />
-        <StatCard label="Em pipeline" value={totals.emPipeline} icon={Headset} hint="oportunidades comerciais" />
-        <StatCard label="Clientes" value={totals.clientes} icon={UserCheck} hint="fecharam negócio" />
-        <StatCard label="A qualificar" value={productScoped.filter((c) => c.status === 'Contato' && !c.prospecting_pool).length} icon={Users} hint="fora do funil comercial" />
+        <StatCard label="Total" value={rollupError ? '—' : totals.total} icon={Users} hint="na carteira" />
+        <StatCard label="Em pipeline" value={rollupError ? '—' : totals.emPipeline} icon={Headset} hint="oportunidades comerciais" />
+        <StatCard label="Clientes" value={rollupError ? '—' : totals.clientes} icon={UserCheck} hint="fecharam negócio" />
+        <StatCard label="A qualificar" value={rollupError ? '—' : countRows(productScoped.filter((c) => c.status === 'Contato' && !c.prospecting_pool))} icon={Users} hint="fora do funil comercial" />
       </div>
 
       <section aria-label="Filas de prospecção" className="space-y-3">
@@ -346,7 +341,7 @@ export default function Contacts() {
             <Button key={id} variant={situacao === 'prospeccao' && outreachFilter === id ? 'primary' : 'secondary'}
               aria-pressed={situacao === 'prospeccao' && outreachFilter === id}
               onClick={() => { setSituacao('prospeccao'); setOutreachFilter(id); }}>
-              {label} · {productScoped.filter((c) => c.prospecting_pool && (c.outreach_status || 'unreviewed') === id).length}
+              {label} · {countRows(productScoped.filter((c) => c.prospecting_pool && (c.outreach_status || 'unreviewed') === id))}
             </Button>
           ))}
           <Link href="/leads" className="self-center text-sm text-brand underline">Entradas do site</Link>
@@ -365,7 +360,7 @@ export default function Contacts() {
             />
           </div>
           <Button variant="secondary" onClick={() => setFiltersOpen(true)} className="sm:ml-auto"><SlidersHorizontal className="h-4 w-4" /> Filtrar contatos</Button>
-          <span className="text-xs text-muted">{filteredContacts.length} contatos encontrados</span>
+          <span className="text-xs text-muted">{totalFound} contatos encontrados</span>
           {(situacao !== 'Todos' || productFilter !== 'Todos' || originFilter !== 'Todos') && <p className="w-full text-xs text-muted">Exibindo: {situacao === 'Todos' ? 'toda a base' : situacao === 'base' ? 'contatos a qualificar' : situacao === 'pipeline' ? 'funil' : situacao === 'clientes' ? 'clientes' : situacao === 'prospeccao' ? 'prospecção' : 'arquivados'}{productFilter !== 'Todos' ? ` · ${productFilter === '__undefined__' ? 'Produto a definir' : productLabel(productFilter)}` : ''}{originFilter !== 'Todos' ? ` · ${originLabel(originFilter)}` : ''}</p>}
           <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Organizar contatos">
             <div className="space-y-4 [&_select]:w-full">
@@ -411,7 +406,7 @@ export default function Contacts() {
         <div className="min-h-[300px] overflow-x-auto">
           {isLoading ? (
             <PageLoader />
-          ) : filteredContacts.length === 0 ? (
+          ) : loadError ? (<p role="alert" className="p-6 text-red-600">Não foi possível carregar os contatos. Confira a conexão e a migração do banco. <button onClick={fetchContacts} className="underline">Tentar novamente</button></p>) : filteredContacts.length === 0 ? (
             <EmptyState
               icon={Users}
               title="Nenhum contato encontrado"
@@ -527,6 +522,13 @@ export default function Contacts() {
               </tbody>
             </table>
           )}
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-border p-4 text-sm">
+          <span className="text-muted">Página {page + 1} · até {CONTACT_PAGE_SIZE} contatos por página</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" disabled={isLoading || page === 0} onClick={() => setPage(page - 1)}>Anterior</Button>
+            <Button variant="secondary" disabled={isLoading || (page + 1) * CONTACT_PAGE_SIZE >= totalFound} onClick={() => setPage(page + 1)}>Próxima</Button>
+          </div>
         </div>
       </Card>
 

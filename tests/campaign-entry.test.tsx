@@ -10,7 +10,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: {
   from: () => {
     let inserted = false;
     const query = {
-      select: () => query, order: () => query, limit: () => query,
+      select: () => query, order: () => query, limit: () => query, eq: () => query, is: () => query,
+      in: () => query, range: () => query, abortSignal: () => query,
       insert: (payload: Record<string, unknown>) => { api.writes.push(payload); inserted = true; return query; },
       single: async () => ({ data: { id: 'synthetic-campaign' }, error: null }),
       then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: inserted ? { id: 'synthetic-campaign' } : [], error: null }).then(resolve),
@@ -22,9 +23,10 @@ it('campaign entry creates only a draft and opens its preparation', async () => 
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in synthetic UI tests'); }));
   const user = userEvent.setup();
   render(<CampaignsPage />);
+  await user.click(screen.getByRole('button', { name: 'Campanhas' }));
   await screen.findByText('Nenhuma campanha registrada');
   await user.click(screen.getByRole('button', { name: 'Nova campanha' }));
-  expect((screen.getByLabelText(/^Produto/) as HTMLInputElement).value).toBe('barberias');
+  expect((screen.getByRole('textbox', { name: /^Produto/ }) as HTMLInputElement).value).toBe('barberias');
   await user.type(screen.getByLabelText(/^Nome interno/), 'Campanha de teste');
   await user.type(screen.getByLabelText(/^Assunto/), 'Apresentação');
   await user.type(screen.getByLabelText(/^Remetente/), 'sender@example.invalid');

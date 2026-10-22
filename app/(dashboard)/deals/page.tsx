@@ -111,7 +111,7 @@ function PipelineContent() {
     const version = ++requestVersion.value;
     try {
       if (showLoader) setIsLoading(true);
-      const loaded = await loadContacts('updated_at');
+      const loaded = await loadContacts('updated_at', false, { scope: 'pipeline' });
       if (version === requestVersion.value) setContacts(loaded);
     } catch {
       if (version === requestVersion.value) toast.error('Erro ao carregar o funil.');
@@ -298,6 +298,13 @@ function PipelineContent() {
 
       {needsTask && !contextAvailable && view === 'board' && <p role="status" className="text-sm text-muted">Filtro de tarefas indisponível. Exibindo todos os contatos.</p>}
       <p className="text-sm text-muted">Oportunidades comerciais qualificadas. Uma conversa de atendimento, por si só, não representa uma oportunidade.</p>
+      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+        <summary className="cursor-pointer font-medium text-fg">Como organizar as etapas</summary>
+        <ul className="mt-3 space-y-2 text-muted">
+          {KANBAN_STATUSES.map((stage) => <li key={stage.id}><strong className="text-fg">{stage.label}:</strong> {PIPELINE_STAGE_HINTS[stage.id]}.</li>)}
+        </ul>
+        <p className="mt-3 text-muted">Maia, Léo ou Antonio são responsáveis pelas tarefas. Teste, recuperação e conta ativa são estados do produto. Cliente depende de venda confirmada; cortesia não comprova pagamento.</p>
+      </details>
       <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtros do funil">
         <Field label="Produto" htmlFor="pipeline-product">
           <Select id="pipeline-product" aria-label="Filtrar aplicação ou produto no funil" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-48">
