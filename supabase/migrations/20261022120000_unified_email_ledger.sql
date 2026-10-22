@@ -718,7 +718,7 @@ BEGIN
     )
     VALUES(
       tenant, NULL, p_subject, NULL, NULL, 'email',
-      'Contatado', NULL, NULL, NULL
+      'Contato', NULL, NULL, NULL
     )
     RETURNING id INTO cid;
 
@@ -749,6 +749,8 @@ $function$;
 -- ---------------------------------------------------------------------------
 -- 8. Grants: service role only for writes and Maia; private helpers closed
 -- ---------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.maia_contact_intake(text,text,text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.maia_contact_intake(text,text,text,text) TO service_role;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA crm_ledger_private FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.crm_record_outbound_email(jsonb), public.crm_apply_email_event(text, text, text, text, text, timestamptz),
   public.crm_ingest_resend_event(jsonb), public.crm_apply_brevo_anonymized_events(uuid, jsonb), public.crm_ingest_account_event(jsonb),
