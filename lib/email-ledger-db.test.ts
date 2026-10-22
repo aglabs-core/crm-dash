@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { normalizeBrevoEvent } from './brevo-events';
 
 const tenant = '0af00833-c1f7-42f4-9543-a5e0ff6f55fc';
+const admin = 'c14f0f92-ac71-47d8-a1b6-52da1d83aba9';
 const other = '22222222-2222-4222-8222-222222222222';
 const connection = '33333333-3333-4333-8333-333333333333';
 const prospect = '44444444-4444-4444-8444-444444444444';
@@ -16,10 +17,10 @@ const resendId = '9b0d6a52-6f1e-4d3a-9a51-0e8d2f6f1a10';
 async function setup() {
   const db = new PGlite();
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
-    CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); INSERT INTO auth.users VALUES('${tenant}'),('${other}');
+    CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); INSERT INTO auth.users VALUES('${tenant}'),('${other}'),('${admin}');
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     GRANT USAGE ON SCHEMA public,auth TO authenticated,anon,service_role;
-    CREATE TABLE public.admin_users(id uuid PRIMARY KEY); GRANT SELECT ON public.admin_users TO authenticated;
+    CREATE TABLE public.admin_users(id uuid PRIMARY KEY); INSERT INTO public.admin_users VALUES('${admin}'); GRANT SELECT ON public.admin_users TO authenticated;
     CREATE TABLE public.contacts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL,name text,company text,email text,
       phone text,status text NOT NULL DEFAULT 'Contato',origin text,produto text,notes text,prospecting_pool boolean NOT NULL DEFAULT false,
       outreach_status text NOT NULL DEFAULT 'unreviewed',created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz DEFAULT now());
@@ -33,21 +34,25 @@ async function setup() {
       IF NEW.prospecting_pool AND NEW.status IS DISTINCT FROM OLD.status AND NEW.status<>'Arquivado' THEN NEW.prospecting_pool:=false; END IF; RETURN NEW; END $$;
     CREATE TRIGGER clear_pool BEFORE UPDATE OF status ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.clear_pool();
     CREATE SCHEMA maia_intake_private;
+    CREATE TABLE maia_intake_private.events(user_id uuid,channel text,scope text,event_id text,subject text,contact_id uuid,pending_id uuid,
+      PRIMARY KEY(user_id,channel,scope,event_id));
+    CREATE FUNCTION maia_intake_private.pending_email(text,text,text) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"status":"pending"}'::jsonb $$;
+
     CREATE TABLE maia_intake_private.identities(user_id uuid NOT NULL,channel text NOT NULL,subject text NOT NULL,contact_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,channel,subject));
     INSERT INTO public.contacts(id,user_id,name,email,status,origin,produto,prospecting_pool,outreach_status)
-      VALUES('${prospect}','${tenant}','Barbearia Sintética','dono@barbearia.example.invalid','Arquivado','prospeccao','barberias',true,'contactable');`);
+      VALUES('${prospect}','${admin}','Barbearia Sintética','dono@barbearia.example.invalid','Arquivado','prospeccao','barberias',true,'contactable');`);
   for (const file of ['20261016052215_email_campaign_observability.sql', '20261017034819_guided_campaign_preparation.sql',
     '20261017160727_brevo_event_receiver.sql', '20261022120000_unified_email_ledger.sql']) {
     await db.exec(await readFile(`supabase/migrations/${file}`, 'utf8'));
   }
   // Reapplying must be harmless.
   await db.exec(await readFile('supabase/migrations/20261022120000_unified_email_ledger.sql', 'utf8'));
-  await db.exec(`INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${tenant}','Brevo');
+  await db.exec(`INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${admin}','Brevo');
     INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis,status)
-      VALUES('${campaign}','${tenant}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
+      VALUES('${campaign}','${admin}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
     INSERT INTO public.email_campaign_recipients(id,campaign_id,user_id,contact_id,email_snapshot,review_note,provider_message_id)
-      VALUES('${recipient}','${campaign}','${tenant}','${prospect}','dono@barbearia.example.invalid','Revisão sintética','${brevoId}');`);
+      VALUES('${recipient}','${campaign}','${admin}','${prospect}','dono@barbearia.example.invalid','Revisão sintética','${brevoId}');`);
   const service = async <T = Record<string, unknown>>(sql: string, args: unknown[] = []) => {
     await db.exec('SET ROLE service_role');
     try { return await db.query<T>(sql, args); } finally { await db.exec('RESET ROLE'); }
@@ -82,6 +87,20 @@ test('ledger records prospecting, mirrors Brevo events, binds identity and gives
       assert.equal(row[0].status, 'accepted');
       const bound = await db.query('SELECT contact_id FROM maia_intake_private.identities WHERE subject=$1', ['dono@barbearia.example.invalid']);
       assert.equal(bound.rows.length, 1);
+    });
+
+    await t.test('legacy Maia intake reuses the admin-owned prospect and rejects unrelated ownership', async () => {
+      const args = ['email', 'dono@barbearia.example.invalid', 'support@example.invalid', 'mail-1'];
+      const intake = await service<{ r: { contact_id: string } }>('SELECT public.maia_contact_intake($1,$2,$3,$4) r', args);
+      assert.equal(intake.rows[0].r.contact_id, prospect);
+      const replay = await service<{ r: { contact_id: string } }>('SELECT public.maia_contact_intake($1,$2,$3,$4) r', args);
+      assert.equal(replay.rows[0].r.contact_id, prospect);
+      assert.equal((await db.query(`SELECT 1 FROM public.contacts WHERE email='dono@barbearia.example.invalid'`)).rows.length, 1);
+      await db.exec(`UPDATE public.contacts SET user_id='${other}' WHERE id='${prospect}'`);
+      const refused = await service<{ r: { status: string } }>('SELECT public.maia_contact_intake($1,$2,$3,$4) r', args);
+      assert.equal(refused.rows[0].r.status, 'pending');
+      await assert.rejects(service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify({ ...prospectMessage, provider_message_id: '<unrelated@example.invalid>' })]));
+      await db.exec(`UPDATE public.contacts SET user_id='${admin}' WHERE id='${prospect}'`);
     });
 
     await t.test('webhook inbox events update ledger status forward only and keep campaign metrics', async () => {

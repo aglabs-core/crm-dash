@@ -133,6 +133,23 @@ REVOKE ALL ON crm_ledger_private.account_events FROM PUBLIC, anon, authenticated
 CREATE OR REPLACE FUNCTION crm_ledger_private.tenant() RETURNS uuid
 LANGUAGE sql IMMUTABLE SET search_path = '' AS $$ SELECT '0af00833-c1f7-42f4-9543-a5e0ff6f55fc'::uuid $$;
 
+-- This internal CRM has two legitimate writers: Maia and the dashboard admin.
+-- Keep each contact's owner; do not duplicate or transfer the prospecting pool.
+CREATE OR REPLACE FUNCTION crm_ledger_private.contact_owner(uid uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT uid = crm_ledger_private.tenant() OR EXISTS (SELECT 1 FROM public.admin_users WHERE id = uid)
+$$;
+
+-- Legacy intake may reuse an admin-owned contact ONLY after an outbound ledger
+-- row has bound its canonical address. This does not admit unrelated tenants.
+CREATE OR REPLACE FUNCTION crm_ledger_private.intake_contact(cid uuid, sender text) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (SELECT 1 FROM public.contacts c WHERE c.id = cid AND lower(btrim(c.email)) = sender
+    AND (c.user_id = crm_ledger_private.tenant() OR (crm_ledger_private.contact_owner(c.user_id)
+      AND EXISTS (SELECT 1 FROM public.email_messages m WHERE m.user_id = crm_ledger_private.tenant()
+        AND m.contact_id = c.id AND m.direction = 'outbound' AND m.address = sender))))
+$$;
+
 -- Status only moves forward. Negative terminal outcomes outrank engagement so
 -- an unsubscribe after an open is never hidden. proxy_open never changes status.
 CREATE OR REPLACE FUNCTION crm_ledger_private.status_rank(s text) RETURNS integer
@@ -174,8 +191,8 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE tenant constant uuid := crm_ledger_private.tenant();
 BEGIN
   IF to_regclass('maia_intake_private.identities') IS NULL THEN RETURN; END IF;
-  IF (SELECT count(*) FROM public.contacts c WHERE c.user_id = tenant AND lower(btrim(c.email)) = p_address) <> 1 THEN RETURN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.contacts c WHERE c.id = p_contact AND c.user_id = tenant AND lower(btrim(c.email)) = p_address) THEN RETURN; END IF;
+  IF (SELECT count(*) FROM public.contacts c WHERE crm_ledger_private.contact_owner(c.user_id) AND lower(btrim(c.email)) = p_address) <> 1 THEN RETURN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.contacts c WHERE c.id = p_contact AND crm_ledger_private.contact_owner(c.user_id) AND lower(btrim(c.email)) = p_address) THEN RETURN; END IF;
   INSERT INTO maia_intake_private.identities(user_id, channel, subject, contact_id)
   VALUES (tenant, 'email', p_address, p_contact) ON CONFLICT DO NOTHING;
 END
@@ -231,16 +248,16 @@ DECLARE tenant constant uuid := crm_ledger_private.tenant(); cid uuid; spec json
   c public.contacts; new_account text; promote text;
 BEGIN
   IF p_contact_id IS NOT NULL THEN
-    SELECT id INTO cid FROM public.contacts WHERE id = p_contact_id AND user_id = tenant AND lower(btrim(email)) = p_address;
+    SELECT id INTO cid FROM public.contacts WHERE id = p_contact_id AND crm_ledger_private.contact_owner(user_id) AND lower(btrim(email)) = p_address;
     IF cid IS NULL THEN RAISE EXCEPTION 'contact/address mismatch'; END IF;
   ELSE
     IF to_regclass('maia_intake_private.identities') IS NOT NULL THEN
       EXECUTE 'SELECT i.contact_id FROM maia_intake_private.identities i JOIN public.contacts c ON c.id = i.contact_id
-        WHERE i.user_id = $1 AND i.channel = ''email'' AND i.subject = $2 AND lower(btrim(c.email)) = $2'
+        WHERE i.user_id = $1 AND i.channel = ''email'' AND i.subject = $2 AND crm_ledger_private.contact_owner(c.user_id) AND lower(btrim(c.email)) = $2'
         INTO cid USING tenant, p_address;
     END IF;
     IF cid IS NULL THEN
-      SELECT id INTO cid FROM public.contacts WHERE user_id = tenant AND lower(btrim(email)) = p_address
+      SELECT id INTO cid FROM public.contacts WHERE crm_ledger_private.contact_owner(user_id) AND lower(btrim(email)) = p_address
         ORDER BY created_at ASC, id ASC LIMIT 1;
     END IF;
   END IF;
@@ -416,7 +433,7 @@ BEGIN
     IF at IS NULL OR at > now() + interval '5 minutes' OR kind NOT IN ('opened', 'clicked', 'proxy_open')
       OR coalesce(item->>'subject', '') = '' OR coalesce(item->>'event_key', '') = '' THEN CONTINUE; END IF;
     SELECT array_agg(id) INTO mids FROM public.email_messages
-      WHERE user_id = connection.user_id AND provider = 'brevo' AND direction = 'outbound'
+      WHERE user_id = crm_ledger_private.tenant() AND crm_ledger_private.contact_owner(connection.user_id) AND provider = 'brevo' AND direction = 'outbound'
         AND subject = btrim(item->>'subject') AND sent_at BETWEEN at - interval '60 days' AND at + interval '5 minutes';
     IF coalesce(array_length(mids, 1), 0) <> 1 THEN CONTINUE; END IF;
     IF crm_ledger_private.apply_event(mids[1], kind, item->>'provider_type', 'brevo-anon:' || (item->>'event_key'), at) THEN
@@ -493,10 +510,10 @@ BEGIN
   cid := thread.contact_id;
   IF cid IS NULL AND to_regclass('maia_intake_private.identities') IS NOT NULL THEN
     EXECUTE 'SELECT i.contact_id FROM maia_intake_private.identities i JOIN public.contacts c ON c.id = i.contact_id
-      WHERE i.user_id = $1 AND i.channel = ''email'' AND i.subject = $2 AND lower(btrim(c.email)) = $2' INTO cid USING tenant, sender;
+      WHERE i.user_id = $1 AND i.channel = ''email'' AND i.subject = $2 AND crm_ledger_private.contact_owner(c.user_id) AND lower(btrim(c.email)) = $2' INTO cid USING tenant, sender;
   END IF;
   IF cid IS NULL THEN
-    SELECT id INTO cid FROM public.contacts WHERE user_id = tenant AND lower(btrim(email)) = sender ORDER BY created_at, id LIMIT 1;
+    SELECT id INTO cid FROM public.contacts WHERE crm_ledger_private.contact_owner(user_id) AND lower(btrim(email)) = sender ORDER BY created_at, id LIMIT 1;
   END IF;
   IF cid IS NULL THEN RETURN jsonb_build_object('version', 1, 'status', 'unknown'); END IF;
   SELECT * INTO c FROM public.contacts WHERE id = cid;
@@ -575,7 +592,7 @@ BEGIN
     WHEN NEW.event_type IN ('blocked', 'error') THEN 'failed'
     ELSE NEW.event_type END;
   FOR target IN SELECT m.id FROM public.email_messages m JOIN public.email_provider_connections c ON c.id = NEW.connection_id
-    WHERE m.user_id = c.user_id AND m.provider = 'brevo' AND btrim(m.provider_message_id, '<> ') = NEW.message_id
+    WHERE m.user_id = crm_ledger_private.tenant() AND crm_ledger_private.contact_owner(c.user_id) AND m.provider = 'brevo' AND btrim(m.provider_message_id, '<> ') = NEW.message_id
       AND public.brevo_address_key(NEW.connection_id, m.address) = NEW.address_key LOOP
     PERFORM crm_ledger_private.apply_event(target, kind, NEW.provider_type, 'brevo:' || NEW.event_key, NEW.occurred_at);
   END LOOP;
@@ -603,6 +620,131 @@ FROM public.email_messages WHERE direction = 'outbound'
 GROUP BY user_id, category, source_key, product;
 REVOKE ALL ON public.email_source_summary FROM PUBLIC, anon;
 GRANT SELECT ON public.email_source_summary TO authenticated, service_role;
+
+-- Preserve legacy intake validation/idempotency, including immutable pending
+-- events. Only broaden the canonical contact recheck to the approved ledger bridge.
+CREATE OR REPLACE FUNCTION public.maia_contact_intake(
+  p_channel text,
+  p_subject text,
+  p_scope text,
+  p_event text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  tenant constant uuid := '0af00833-c1f7-42f4-9543-a5e0ff6f55fc';
+  cid uuid;
+  existing_subject text;
+  pid uuid;
+BEGIN
+  IF p_channel IS NULL OR p_channel <> 'email'
+    OR p_subject IS NULL OR length(p_subject) NOT BETWEEN 1 AND 254
+    OR p_scope IS NULL OR length(p_scope) NOT BETWEEN 1 AND 254 OR p_scope ~ '[[:cntrl:]]'
+    OR p_event IS NULL OR length(p_event) NOT BETWEEN 1 AND 512 OR p_event ~ '[[:cntrl:]]'
+    OR p_scope <> btrim(p_scope) OR p_event <> btrim(p_event)
+  THEN
+    RAISE EXCEPTION 'invalid intake';
+  END IF;
+
+  IF p_subject <> lower(p_subject)
+    OR length(split_part(p_subject, '@', 1)) > 64
+    OR p_subject !~ '^[a-z0-9_%+-]+(\.[a-z0-9_%+-]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
+  THEN
+    RAISE EXCEPTION 'invalid identity';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(tenant::text, 0));
+
+  SELECT subject, contact_id, pending_id
+  INTO existing_subject, cid, pid
+  FROM maia_intake_private.events
+  WHERE user_id = tenant
+    AND channel = p_channel
+    AND scope = p_scope
+    AND event_id = p_event;
+
+  IF FOUND THEN
+    IF existing_subject <> p_subject THEN
+      RAISE EXCEPTION 'event identity conflict';
+    END IF;
+    IF pid IS NOT NULL THEN
+      RETURN jsonb_build_object(
+        'ok', true,
+        'status', 'pending',
+        'contact_id', NULL,
+        'pending_id', pid
+      );
+    END IF;
+
+    PERFORM 1
+    FROM public.contacts c
+    JOIN maia_intake_private.identities i ON i.contact_id = c.id
+    WHERE c.id = cid
+      AND crm_ledger_private.intake_contact(c.id, p_subject)
+      AND lower(c.email) = p_subject
+      AND i.user_id = tenant
+      AND i.channel = p_channel
+      AND i.subject = p_subject
+    FOR SHARE OF c;
+
+    IF NOT FOUND THEN
+      RETURN maia_intake_private.pending_email(p_subject, p_scope, p_event);
+    END IF;
+    RETURN jsonb_build_object('ok', true, 'contact_id', cid);
+  END IF;
+
+  SELECT contact_id
+  INTO cid
+  FROM maia_intake_private.identities
+  WHERE user_id = tenant
+    AND channel = p_channel
+    AND subject = p_subject;
+
+  IF NOT FOUND THEN
+    IF EXISTS (
+      SELECT 1
+      FROM public.contacts
+      WHERE user_id = tenant AND lower(email) = p_subject
+    ) THEN
+      RETURN maia_intake_private.pending_email(p_subject, p_scope, p_event);
+    END IF;
+
+    INSERT INTO public.contacts(
+      user_id, name, email, phone, whatsapp, origin,
+      status, plano, produto, amount
+    )
+    VALUES(
+      tenant, NULL, p_subject, NULL, NULL, 'email',
+      'Contatado', NULL, NULL, NULL
+    )
+    RETURNING id INTO cid;
+
+    INSERT INTO maia_intake_private.identities(user_id, channel, subject, contact_id)
+    VALUES(tenant, p_channel, p_subject, cid);
+  END IF;
+
+  PERFORM 1
+  FROM public.contacts
+  WHERE id = cid
+    AND crm_ledger_private.intake_contact(id, p_subject)
+    AND lower(email) = p_subject
+  FOR SHARE;
+
+  IF NOT FOUND THEN
+    RETURN maia_intake_private.pending_email(p_subject, p_scope, p_event);
+  END IF;
+
+  INSERT INTO maia_intake_private.events(
+    user_id, channel, scope, event_id, subject, contact_id
+  )
+  VALUES(tenant, p_channel, p_scope, p_event, p_subject, cid);
+
+  RETURN jsonb_build_object('ok', true, 'contact_id', cid);
+END
+$function$;
 
 -- ---------------------------------------------------------------------------
 -- 8. Grants: service role only for writes and Maia; private helpers closed

@@ -31,7 +31,7 @@ O Message-ID da Brevo é o próprio cabeçalho `Message-ID` (conferido num e-mai
 | RPC `crm_record_outbound_email(p)` | Agentes (Léo) e backfill registram um envio. Idempotente por provedor + ID. |
 | RPC `crm_apply_email_event(...)` | Evento avulso de provedor. |
 
-Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse endereço ao contato na identidade de e-mail da Maia (`maia_intake_private.identities`). A regra é a mesma de `maia_resolve_email_pending`: nunca toma um vínculo existente nem vincula endereço compartilhado por dois contatos. Com isso, a resposta de um prospect entra direto na ficha certa.
+Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse endereço ao contato na identidade de e-mail da Maia (`maia_intake_private.identities`). Nunca toma um vínculo existente nem vincula endereço compartilhado por dois contatos. O pool pertence ao usuário administrador do painel, diferente do usuário da Maia: o vínculo admite esses contatos sem transferir o proprietário. O ingresso legado só os reutiliza depois do registro de um envio para o endereço canônico. Outros usuários continuam fora do escopo. Com isso, a resposta de um prospect entra direto na ficha certa.
 
 ## Maia
 
