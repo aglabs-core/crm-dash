@@ -6,7 +6,7 @@ import { readLimitedJson } from './brevo-receiver';
 // onboarding, first booking, trial end and subscription changes. Each event
 // updates the owner's contact and adds one line to the timeline.
 export const ACCOUNT_EVENTS = ['account.created', 'trial.started', 'onboarding.completed', 'first_appointment',
-  'trial.ended', 'subscription.active', 'subscription.canceled'] as const;
+  'trial.ended', 'subscription.active', 'subscription.canceled', 'account.access_granted', 'account.access_revoked'] as const;
 export type AccountEventName = typeof ACCOUNT_EVENTS[number];
 export type AccountEvent = {
   event_key: string; event: AccountEventName; occurred_at: string; product: string;

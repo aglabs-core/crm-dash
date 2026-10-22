@@ -27,7 +27,7 @@ O Message-ID da Brevo é o próprio cabeçalho `Message-ID` (conferido num e-mai
 |---|---|
 | `POST /api/integrations/brevo/webhook` (existente) | Cada evento do inbox também atualiza o registro, via trigger. Eventos anonimizados (abertura/clique sem endereço, `an#…`) deixam de derrubar o lote com 400 e são atribuídos pelo assunto personalizado exato. |
 | `POST /api/integrations/resend/webhook` | Assinatura Svix (`RESEND_WEBHOOK_SECRET`). E-mails do Barberias ao dono da conta viram contato + mensagem. E-mails para clientes finais ou equipe de uma barbearia (agendamento, senha, convite de equipe) são descartados sem guardar nada. |
-| `POST /api/integrations/accounts/events` | Ciclo de vida enviado pelo produto (Bearer `ACCOUNT_EVENTS_TOKEN`): `account.created`, `trial.started`, `onboarding.completed`, `first_appointment`, `trial.ended`, `subscription.active`, `subscription.canceled`. |
+| `POST /api/integrations/accounts/events` | Ciclo de vida enviado pelo produto (Bearer `ACCOUNT_EVENTS_TOKEN`): `account.created`, `trial.started`, `onboarding.completed`, `first_appointment`, `trial.ended`, `subscription.active`, `subscription.canceled`, `account.access_granted`, `account.access_revoked`. |
 | RPC `crm_record_outbound_email(p)` | Agentes (Léo) e backfill registram um envio. Idempotente por provedor + ID. |
 | RPC `crm_apply_email_event(...)` | Evento avulso de provedor. |
 
@@ -73,3 +73,7 @@ Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse 
 - normalização do Resend;
 - eventos de conta;
 - receptor Brevo com eventos anonimizados.
+
+## Reconciliação do acesso do produto
+
+`account.access_granted`/`account.access_revoked` registram cortesia ou acesso vitalício sem promover a etapa para Cliente. `subscription.active` continua reservado ao evento real de pagamento. O selo genérico é “Conta ativa”: o detalhamento e a natureza do acesso ficam na timeline. A reconciliação lê o estado atual no Barberias e publica cada snapshot com chave idempotente; nunca chama jobs de e-mail.
