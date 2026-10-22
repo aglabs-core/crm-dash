@@ -71,11 +71,11 @@ export const KANBAN_STATUSES = CONTACT_STATUSES.filter((s) => s.group === 'activ
 
 /** Commercial criteria; generic service conversations do not advance a sale. */
 export const PIPELINE_STAGE_HINTS: Partial<Record<ContactStatus, string>> = {
-  Lead: 'Interesse qualificado; preparar abordagem',
-  Contatado: 'Abordagem comercial enviada',
-  Atendimento: 'Necessidade comercial em avaliação',
-  Proposta: 'Oferta concreta enviada',
-  Pagamento: 'Aguardando confirmação do pagamento',
+  Lead: 'Interesse identificado ou teste iniciado; preparar abordagem',
+  Contatado: 'Abordagem comercial enviada; e-mail automático não avança a etapa',
+  Atendimento: 'Conversa comercial em andamento; pendências ficam nas tarefas',
+  Proposta: 'Oferta concreta com escopo e valores enviada; aguardando aceite',
+  Pagamento: 'Aceite e cobrança combinados; aguardando confirmação do pagamento',
 };
 
 const STATUS_BY_ID = new Map(CONTACT_STATUSES.map((s) => [s.id, s]));

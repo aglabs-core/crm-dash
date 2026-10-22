@@ -41,7 +41,7 @@ export default function ClientsPage() {
     try {
       if (showLoader) setIsLoading(true);
       const [contactRows, paymentRows] = await Promise.all([
-        loadContacts(),
+        loadContacts('created_at', false, { scope: 'clients' }),
         loadPaymentTransactions(),
       ]);
       setContacts(contactRows);

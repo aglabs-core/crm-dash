@@ -73,8 +73,8 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     let active = true;
-    Promise.all([loadCampaignSnapshot(id), loadContacts(), supabase.auth.getUser()])
-      .then(([snapshot, rows, auth]) => {
+    Promise.all([loadCampaignSnapshot(id).then(async (snapshot) => ({ snapshot, rows: await loadContacts('created_at', false, { product: snapshot.campaign.product }) })), supabase.auth.getUser()])
+      .then(([{ snapshot, rows }, auth]) => {
         if (!active) return;
         applySnapshot(snapshot); setContacts(rows); setViewerId(auth.data.user?.id ?? null);
       }).catch(() => { if (active) setError(true); })

@@ -6,6 +6,7 @@ import Clients from '@/app/(dashboard)/clients/page';
 import Deals from '@/app/(dashboard)/deals/page';
 import Detail from '@/app/(dashboard)/contacts/[id]/page';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
+import { contactMatchesSearch } from '@/lib/contact-name';
 
 // Only the API and Next router are replaced. Actual pages, forms, inputs,
 // modal, name helpers, analytics and drag/drop components are mounted.
@@ -25,6 +26,9 @@ vi.mock('@/lib/supabase', () => ({
       let single = false;
       let context = false;
       let after = false;
+      let offset = 0;
+      let term = '';
+      const filters: Record<string, unknown> = {};
       let write: typeof api.writes[number] | undefined;
       const query = {
         select: (columns?: string) => { context = !!columns?.includes('tasks('); return query; },
@@ -33,9 +37,10 @@ vi.mock('@/lib/supabase', () => ({
         abortSignal: () => query,
         gt: () => { after = true; return query; },
         order: () => query,
-        range: () => query,
+        range: (start: number) => { offset = start; return query; },
+        or: (filter: string) => { term = /name\.ilike\."%(.*?)%"/.exec(filter)?.[1] ?? ''; return query; },
         in: () => query,
-        eq: (key: string, value: unknown) => { if (write && key === 'id') write.id = value; return query; },
+        eq: (key: string, value: unknown) => { if (write && key === 'id') write.id = value; else filters[key] = value; return query; },
         maybeSingle: () => { single = true; return query; },
         single: () => { single = true; return query; },
         update: (payload: Record<string, unknown>) => {
@@ -44,8 +49,12 @@ vi.mock('@/lib/supabase', () => ({
         then: (resolve: (value: unknown) => unknown) => {
           if (context && api.contextFailure) return Promise.resolve({ data: null, error: { message: 'synthetic failure' } }).then(resolve);
           if (context && api.contextPending) return new Promise(() => {});
-          const row = { ...api.row, ...write?.payload };
-          return Promise.resolve({ data: table === 'contacts' ? (single ? row : context && after ? [] : [row]) : [], error: null }).then(resolve);
+          const row = { name: null, prospecting_pool: false, outreach_status: 'unreviewed', product_key: api.row.produto, ...api.row, ...write?.payload };
+          const matchesFilters = Object.entries(filters).every(([key, value]) => row[key as keyof typeof row] === value);
+          const rows = table === 'contacts' ? (single ? row : context && after ? [] : [row])
+            : table === 'contact_directory' ? (matchesFilters && contactMatchesSearch(row as typeof api.row & { name: string | null }, term) ? [row] : [])
+            : table === 'contact_workspace_summary' && offset === 0 ? [{ ...row, total: 1 }] : [];
+          return Promise.resolve({ data: rows, count: Array.isArray(rows) ? rows.length : 1, error: null }).then(resolve);
         },
       };
       return query;
@@ -86,12 +95,12 @@ for (const [label, Page, placeholder] of [
     expect(screen.getByText('?')).toBeTruthy();
     const search = screen.getByPlaceholderText(placeholder);
     await user.type(search, 'SYNTHETIC');
-    expect(screen.getByText('Sem nome')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Sem nome')).toBeTruthy());
     await user.clear(search);
     await user.type(search, 'does-not-match');
-    expect(screen.queryByText('Sem nome')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Sem nome')).toBeNull());
     await user.clear(search);
-    expect(screen.getByText('Sem nome')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Sem nome')).toBeTruthy());
     expect(api.writes).toHaveLength(0);
   });
 }
@@ -117,7 +126,7 @@ for (const [label, Page] of [['contacts', Contacts], ['pipeline', Deals]] as con
         payload: { name: null, company: 'Changed synthetic company' },
       });
       await waitFor(() => expect(screen.queryByLabelText(/^Nome/)).toBeNull());
-      expect(screen.getByText('Sem nome')).toBeTruthy();
+      await waitFor(() => expect(screen.getByText('Sem nome')).toBeTruthy());
     });
   });
 }
@@ -162,9 +171,9 @@ it('prospecting queue filters without writing', async () => {
   render(<ConfirmProvider><Contacts /></ConfirmProvider>);
   await screen.findByText('Sem nome');
   await user.click(screen.getByRole('button', { name: /Revisão pendente · 0/ }));
-  expect(screen.queryByText('Sem nome')).toBeNull();
+  await waitFor(() => expect(screen.queryByText('Sem nome')).toBeNull());
   await user.click(screen.getByRole('button', { name: /Não contatar · 1/ }));
-  expect(screen.getByText('Sem nome')).toBeTruthy();
+  await waitFor(() => expect(screen.getByText('Sem nome')).toBeTruthy());
   expect(api.writes).toHaveLength(0);
 });
 
@@ -208,7 +217,7 @@ it('changing origin clears bulk selection before hiding the contact', async () =
   expect(screen.getByRole('button', { name: 'Mover p/ Lead' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Filtrar contatos' }));
   await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar por origem' }), 'web');
-  expect(screen.queryByText('Sem nome')).toBeNull();
+  await waitFor(() => expect(screen.queryByText('Sem nome')).toBeNull());
   expect(screen.queryByRole('button', { name: 'Mover p/ Lead' })).toBeNull();
   expect(api.writes).toHaveLength(0);
 });
@@ -258,7 +267,7 @@ it('context failure leaves cards visible and lets the operator clear the task fi
   api.contextFailure = true;
   api.refreshContext?.();
   await screen.findByText('Filtro de tarefas indisponível. Exibindo todos os contatos.');
-  expect(screen.getByText('Sem nome')).toBeTruthy();
+  await waitFor(() => expect(screen.getByText('Sem nome')).toBeTruthy());
   expect((shortcut as HTMLButtonElement).disabled).toBe(false);
   await user.click(shortcut);
   expect(screen.queryByText('Filtro de tarefas indisponível. Exibindo todos os contatos.')).toBeNull();

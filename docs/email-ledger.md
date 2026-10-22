@@ -41,8 +41,12 @@ Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse 
 
 ## Interface
 
-- Ficha do contato: seção **E-mails** (assunto, resumo, status, origem). Ao abrir, mostra a prévia em `iframe` com `sandbox` sem permissões e a lista de eventos. Ao lado do nome aparece o selo do estado da conta.
-- Campanhas: quadro **Automações e envios registrados**, com cada etapa do teste Barberias e cada lote de prospecção (enviados, entregues, abertos, cliques, respostas, falhas). Vem da view `email_source_summary` (`security_invoker`).
+- Ficha do contato: seção **E-mails**, paginada em 25 mensagens (assunto, resumo, status, origem). Ao abrir, busca o corpo armazenado e os eventos em paralelo. Para Resend sem corpo, consulta `GET /api/emails/[id]/content` somente ao abrir a mensagem. Ao lado do nome aparece o selo do estado da conta.
+- A rota de conteúdo valida o JWT e consulta a mensagem com RLS usando a chave pública e o token do usuário. Só depois usa `RESEND_API_KEY` no servidor para recuperar o corpo exato. Confere ID, assunto e destinatário único; não aceita um ID do provedor arbitrário enviado pelo navegador, não usa service_role e não grava o corpo recuperado. Respostas usam `private, no-store` e `Vary: Authorization`. Sem chave ou fora da retenção, continua mostrando resumo e eventos. Falha temporária permite tentar novamente.
+- A prévia usa `iframe` com `sandbox` sem permissões e CSP sem scripts, formulários ou conexões. Imagens externas são bloqueadas até clicar em **Carregar imagens externas**, pois pixels podem gerar uma abertura no provedor. Nunca apresentar a consulta como leitura do cliente. Documentação: https://resend.com/docs/api-reference/emails/retrieve-email.
+- Índice: **E-mails por produto**, com Barberias e AG LABS institucional como opções iniciais. Produtos já presentes no registro/campanhas aparecem automaticamente, sem criar entradas de produtos futuros. Não atribuímos registros sem produto por heurística: ficam em **Produto a definir**. `localsite` mantém seu contexto de Desenvolvimento web.
+- Dentro do produto: **Sistema · testes e recuperação** (`automacao`, `transacional`), **Prospecção** (`prospeccao`) e **Campanhas** (`campanha`). Lotes e campanhas são consultados no banco por produto, com até 15 por página. A view `email_source_summary` continua sendo a fonte das métricas; `email_workspace_products` fornece somente as chaves de produto acessíveis pela RLS. Abrir Sistema ou Prospecção não carrega os rascunhos e seus corpos.
+- Métricas representam todo o histórico registrado, por mensagem. Entrega é entregues / mensagens registradas; abertura/clique são sinais auxiliares. A paginação não muda o denominador de cada lote.
 
 ## Ativação
 
@@ -52,6 +56,8 @@ Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse 
 4. Resend: criar o webhook para `https://crm.aglabs.api.br/api/integrations/resend/webhook` com os eventos `email.*`, e configurar `RESEND_WEBHOOK_SECRET` no servidor. `RESEND_API_KEY` é opcional: permite gravar o Message-ID já no evento `email.sent`.
 5. Produto: configurar `ACCOUNT_EVENTS_TOKEN` (≥ 32 caracteres) no CRM e no Barberias.
 6. Maia (n8n VPS-03): chamar `maia_email_context` antes de responder e `maia_email_reply_record` depois de registrar a conversa.
+
+Para a organização por produto e a carteira paginada, aplicar também `20261022195737_crm_workspace_indexes.sql` antes de publicar o front correspondente. A migration é aditiva e idempotente, não altera estágios nem dispara automações. As views usam `security_invoker` e não têm acesso anônimo. Validar os planos das consultas com o volume real antes de adicionar mais índices.
 
 ## Validação
 

@@ -100,7 +100,7 @@ export default function Tasks() {
   }, [debouncedFetch]);
 
   const fetchContacts = async () => {
-    try { setContacts(await loadContacts()); } catch { toast.error('Não foi possível carregar os contatos das tarefas.'); }
+    try { setContacts(await loadContacts('created_at', false, { columns: 'id,name,status' })); } catch { toast.error('Não foi possível carregar os contatos das tarefas.'); }
   };
 
   const fetchTasks = async (showLoader = false) => {

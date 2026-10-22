@@ -10,6 +10,8 @@ import type { AudienceBasis, EmailCampaign, EmailProvider } from '@/lib/email-ca
 import { Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '@/components/ui';
 import { CampaignNavigation } from '@/components/CampaignNavigation';
 import { EmailSourceOverview } from '@/components/EmailSourceOverview';
+import { EMAIL_PAGE_SIZE, EMAIL_WORKSPACES, workspaceProducts, type EmailWorkspace } from '@/lib/email-workspace';
+import { productLabel } from '@/lib/product-label';
 
 const emptyDraft = {
   name: '', product: 'barberias', provider: 'brevo' as EmailProvider,
@@ -24,19 +26,36 @@ export default function CampaignsPage() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
-
-  const refresh = async () => {
-    const { data, error } = await supabase.from('email_campaigns').select('*')
-      .order('created_at', { ascending: false }).limit(100);
-    if (error) throw error;
-    setCampaigns((data ?? []) as EmailCampaign[]);
-    setLoadError(false);
-  };
+  const [product, setProduct] = useState('barberias');
+  const [workspace, setWorkspace] = useState<EmailWorkspace>('sistema');
+  const [products, setProducts] = useState(workspaceProducts([]));
+  const [page, setPage] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    refresh().catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+    const controller = new AbortController();
+    supabase.from('email_workspace_products').select('product').order('product').abortSignal(controller.signal)
+      .then(({ data, error }) => { if (!controller.signal.aborted && !error) setProducts(workspaceProducts(data ?? [])); });
+    return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (workspace !== 'campanhas') { setLoading(false); setLoadError(false); return; }
+    const controller = new AbortController();
+    setLoading(true); setLoadError(false);
+    let query = supabase.from('email_campaigns').select('id,name,product,provider,sender_email,subject,status,created_at');
+    query = product === '__undefined__' ? query.is('product', null) : query.eq('product', product);
+    query.order('created_at', { ascending: false }).order('id')
+      .range(page * EMAIL_PAGE_SIZE, (page + 1) * EMAIL_PAGE_SIZE).abortSignal(controller.signal)
+      .then(({ data, error }) => {
+        if (controller.signal.aborted) return;
+        if (error) setLoadError(true);
+        else { setCampaigns((data ?? []).slice(0, EMAIL_PAGE_SIZE) as EmailCampaign[]); setHasNext((data?.length ?? 0) > EMAIL_PAGE_SIZE); }
+        setLoading(false);
+      });
+    return () => controller.abort();
+  }, [product, workspace, page, revision]);
 
   const createDraft = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -66,19 +85,31 @@ export default function CampaignsPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-fg">Campanhas de e-mail</h1>
-          <p className="mt-1 text-sm text-muted">Escolha o público, prepare a mensagem e revise sua campanha em um só lugar.</p>
+          <h1 className="text-2xl font-bold text-fg">E-mails por produto</h1>
+          <p className="mt-1 text-sm text-muted">Acompanhe o sistema, a prospecção e as campanhas de cada produto.</p>
         </div>
-        {!loadError && <Button onClick={() => { setDraft(emptyDraft); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button>}
+        {!loadError && <Button onClick={() => { setDraft({ ...emptyDraft, product: product === '__undefined__' ? 'barberias' : product }); setOpen(true); }}><Plus className="h-4 w-4" /> Nova campanha</Button>}
       </div>
 
       <CampaignNavigation active="campaigns" />
-      <EmailSourceOverview />
-      {loading ? <PageLoader /> : loadError ? (
+      <Card className="space-y-4 p-4">
+        <Field label="Produto em acompanhamento" htmlFor="email-workspace-product">
+          <Select id="email-workspace-product" value={product} onChange={(e) => { setProduct(e.target.value); setPage(0); }}>
+            {products.map((key) => <option key={key} value={key}>{productLabel(key)}</option>)}
+            <option value="__undefined__">Produto a definir</option>
+          </Select>
+        </Field>
+        <div className="flex flex-wrap gap-2" aria-label="Grupos de e-mail">
+          {EMAIL_WORKSPACES.map((group) => <Button key={group.id} variant={workspace === group.id ? 'primary' : 'secondary'}
+            aria-pressed={workspace === group.id} onClick={() => { setWorkspace(group.id); setPage(0); }}>{group.label}</Button>)}
+        </div>
+      </Card>
+      <EmailSourceOverview key={`${product}:${workspace}`} product={product} workspace={workspace} />
+      {workspace !== 'campanhas' ? null : loading ? <PageLoader /> : loadError ? (
         <Card className="p-10 text-center">
           <h2 className="font-semibold text-fg">Campanhas indisponíveis</h2>
           <p className="mt-1 text-sm text-muted">Não foi possível consultar o módulo. Verifique a conexão e a migração do banco antes de criar uma campanha.</p>
-          <Button className="mt-4" onClick={() => { setLoading(true); refresh().catch(() => setLoadError(true)).finally(() => setLoading(false)); }}>Tentar novamente</Button>
+          <Button className="mt-4" onClick={() => setRevision((n) => n + 1)}>Tentar novamente</Button>
         </Card>
       ) : campaigns.length === 0 ? (
         <Card className="p-10 text-center">
@@ -94,7 +125,7 @@ export default function CampaignsPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold text-fg">{campaign.name}</h2>
-                  <p className="mt-1 text-sm text-muted">{campaign.product} · {campaign.provider.toUpperCase()} · {campaign.sender_email}</p>
+                  <p className="mt-1 text-sm text-muted">{productLabel(campaign.product)} · {campaign.provider.toUpperCase()} · {campaign.sender_email}</p>
                   <p className="mt-1 text-xs text-muted">{campaign.subject}</p>
                 </div>
                 <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>
@@ -103,6 +134,11 @@ export default function CampaignsPage() {
           ))}
         </div>
       )}
+      {workspace === 'campanhas' && !loading && !loadError && <div className="flex items-center justify-between text-sm">
+        <span className="text-muted">Página {page + 1} · rascunhos e campanhas deste produto</span>
+        <div className="flex gap-2"><Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Anterior</Button>
+          <Button variant="secondary" disabled={!hasNext} onClick={() => setPage(page + 1)}>Próxima</Button></div>
+      </div>}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Nova campanha">
         <form onSubmit={createDraft} className="space-y-4">
