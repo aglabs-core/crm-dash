@@ -2,10 +2,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { CrmStore, McpContact, McpTask } from './mcp-server';
 import type { PaymentTransaction } from './types';
 
-// Implementação do CrmStore com a chave service_role. A chave ignora a RLS,
-// então toda consulta e escrita fixa o dono da base (`user_id`), como fazem os
-// fluxos do n8n. O dono vem de CRM_OWNER_USER_ID ou, sem ela, de
-// crm_dono_da_base() (CRM de um único dono).
+// Implementação do CrmStore com a chave service_role.
+// Leitura: o mesmo que o administrador vê no painel. As políticas "admin manage
+// all" mostram a ele contatos, atividades e tarefas de todos os donos (inclusive
+// os criados pela Maia, que ficam no usuário dela) e "admins read all payment
+// transactions" mostra todos os pagamentos; por isso as consultas não filtram
+// por user_id.
+// Escrita: em nome do administrador, como faria o painel. O id vem de
+// CRM_OWNER_USER_ID ou, sem ela, do único registro de admin_users.
 
 const CONTACT_COLUMNS = 'id,name,company,status,produto,origin,prospecting_pool,account_status,amount,expected_close_date,email,whatsapp,phone,created_at,updated_at';
 const TASK_COLUMNS = 'id,title,description,due_date,priority,status,assigned_to,contact_id,created_at,contacts(name)';
@@ -26,10 +30,10 @@ let cachedOwner: string | null = null;
 async function ownerId(client: SupabaseClient) {
   if (cachedOwner) return cachedOwner;
   const configured = process.env.CRM_OWNER_USER_ID?.trim();
-  const owner = configured || check(await client.rpc('crm_dono_da_base')) as string | null;
-  if (!owner) throw new Error('dono da base não encontrado');
-  cachedOwner = owner;
-  return owner;
+  if (configured) return (cachedOwner = configured);
+  const admins = (check(await client.from('admin_users').select('id').limit(2)) ?? []) as { id: string }[];
+  if (admins.length !== 1) throw new Error('defina CRM_OWNER_USER_ID: admin_users não tem exatamente um administrador');
+  return (cachedOwner = admins[0].id);
 }
 
 async function paged<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
@@ -53,43 +57,35 @@ export function supabaseCrmStore(): CrmStore | null {
 
   return {
     async funnelContacts() {
-      const uid = await owner();
-      return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at').eq('user_id', uid).order('id').range(from, to));
+      return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at').order('id').range(from, to));
     },
     async paymentsSince(iso) {
-      const uid = await owner();
-      return paged<PaymentTransaction>((from, to) => client.from('payment_transactions').select('*').eq('user_id', uid).gte('paid_at', iso).order('id').range(from, to));
+      return paged<PaymentTransaction>((from, to) => client.from('payment_transactions').select('*').gte('paid_at', iso).order('id').range(from, to));
     },
     async pendingTasks() {
-      const uid = await owner();
-      const rows = await paged<TaskRow>((from, to) => client.from('tasks').select(TASK_COLUMNS).eq('user_id', uid).eq('status', 'pending').order('id').range(from, to));
+      const rows = await paged<TaskRow>((from, to) => client.from('tasks').select(TASK_COLUMNS).eq('status', 'pending').order('id').range(from, to));
       return rows.map(toTask);
     },
     async searchContacts(term, limit) {
-      const uid = await owner();
       const like = `%${term}%`;
-      const rows = check(await client.from('contacts').select(CONTACT_COLUMNS).eq('user_id', uid)
+      const rows = check(await client.from('contacts').select(CONTACT_COLUMNS)
         .or(`name.ilike.${like},company.ilike.${like},email.ilike.${like},instagram.ilike.${like}`)
         .order('updated_at', { ascending: false, nullsFirst: false }).limit(limit)) as ContactRow[];
       return rows.map(toContact);
     },
     async contact(id) {
-      const uid = await owner();
-      const row = check(await client.from('contacts').select(CONTACT_COLUMNS).eq('user_id', uid).eq('id', id).maybeSingle()) as ContactRow | null;
+      const row = check(await client.from('contacts').select(CONTACT_COLUMNS).eq('id', id).maybeSingle()) as ContactRow | null;
       return row ? toContact(row) : null;
     },
     async contactActivities(id, limit) {
-      const uid = await owner();
-      return check(await client.from('activities').select('type,channel,content,created_at').eq('user_id', uid).eq('contact_id', id)
+      return check(await client.from('activities').select('type,channel,content,created_at').eq('contact_id', id)
         .order('created_at', { ascending: false }).limit(limit)) ?? [];
     },
     async contactPayments(id) {
-      const uid = await owner();
-      return (check(await client.from('payment_transactions').select('*').eq('user_id', uid).eq('contact_id', id)) ?? []) as PaymentTransaction[];
+      return (check(await client.from('payment_transactions').select('*').eq('contact_id', id)) ?? []) as PaymentTransaction[];
     },
     async task(id) {
-      const uid = await owner();
-      const row = check(await client.from('tasks').select(TASK_COLUMNS).eq('user_id', uid).eq('id', id).maybeSingle()) as TaskRow | null;
+      const row = check(await client.from('tasks').select(TASK_COLUMNS).eq('id', id).maybeSingle()) as TaskRow | null;
       return row ? toTask(row) : null;
     },
     async insertTask(row) {
@@ -98,8 +94,7 @@ export function supabaseCrmStore(): CrmStore | null {
       return toTask(created);
     },
     async completeTask(id) {
-      const uid = await owner();
-      check(await client.from('tasks').update({ status: 'completed' }).eq('user_id', uid).eq('id', id).eq('status', 'pending'));
+      check(await client.from('tasks').update({ status: 'completed' }).eq('id', id).eq('status', 'pending'));
     },
     async insertActivity(row) {
       const uid = await owner();

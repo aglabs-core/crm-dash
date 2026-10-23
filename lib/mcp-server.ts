@@ -77,8 +77,24 @@ export type CrmStore = {
 class InvalidArgs extends Error {}
 type Args = Record<string, unknown>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Cartão, senha e afins não entram no CRM por esta interface.
-const SENSITIVE = /\b(?:\d[ .-]?){13,19}\b|\b(senha|password|cvv|token)\b/i;
+// Número de cartão (13 a 19 dígitos que passam no Luhn) e senha ou token escritos
+// com o valor ("senha: ...") não entram no CRM por esta interface. Falar de senha
+// ou token ("redefinir senha", "renovar token") continua permitido.
+const SECRET = /\b(senha|password|cvv|token)\s*(?:[:=]|é|eh)\s*\S/i;
+const CARD_CANDIDATE = /\b(?:\d[ .-]?){13,19}\b/g;
+function luhn(digits: string) {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+export function hasSensitiveData(text: string) {
+  if (SECRET.test(text)) return true;
+  return (text.match(CARD_CANDIDATE) ?? []).some((m) => { const d = m.replace(/\D/g, ''); return d.length >= 13 && d.length <= 19 && luhn(d); });
+}
 
 function str(args: Args, key: string, min: number, max: number, required: true): string;
 function str(args: Args, key: string, min: number, max: number, required?: false): string | null;
@@ -111,7 +127,7 @@ function date(args: Args, key: string): string | null {
   return value;
 }
 function clean(text: string | null, key: string) {
-  if (text && SENSITIVE.test(text)) throw new InvalidArgs(`${key} parece conter dado sensível (cartão, senha ou token); registre sem ele`);
+  if (text && hasSensitiveData(text)) throw new InvalidArgs(`${key} parece conter dado sensível (cartão, senha ou token); registre sem ele`);
   return text;
 }
 
@@ -270,7 +286,11 @@ export const TOOLS: Tool[] = [
       if (!task) throw new InvalidArgs('tarefa não encontrada');
       if (task.status !== 'pending') return { ja_concluida: true, tarefa: task.title };
       await store.completeTask(id);
-      await store.insertActivity({ contact_id: task.contact_id, type: 'task', channel: 'sistema', content: `Tarefa concluída: ${task.title}. Motivo: ${reason} (por ${caller.name})` });
+      try {
+        await store.insertActivity({ contact_id: task.contact_id, type: 'task', channel: 'sistema', content: `Tarefa concluída: ${task.title}. Motivo: ${reason} (por ${caller.name})` });
+      } catch {
+        throw new InvalidArgs(`a tarefa foi concluída, mas o motivo não foi gravado; registre-o com crm_registrar_atividade${task.contact_id ? ` no contato ${task.contact_id}` : ''}`);
+      }
       return { concluida: task.title };
     },
   },

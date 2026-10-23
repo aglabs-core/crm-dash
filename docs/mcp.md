@@ -21,7 +21,7 @@ E-mail para um contato é enviado pelo Léo: a tarefa vai para `leo`, com o cont
 - Excluir, exportar ou rodar SQL.
 - Mudar a etapa do funil, a prospecção ou a autorização de contato (`outreach_status`).
 - Ler e-mail, telefone, WhatsApp ou documento. A ficha diz só se o canal existe (`tem_email`, `tem_whatsapp`).
-- Gravar cartão, senha ou token: o texto é recusado.
+- Gravar número de cartão ou senha/token com o valor ("senha: ..."): o texto é recusado. Falar de senha ou token ("redefinir senha") é permitido.
 
 Toda tarefa criada leva "Criada por <nome do token>" e toda atividade, "(registrado por <nome do token>)", para a origem ficar visível na ficha.
 
@@ -32,8 +32,10 @@ Variáveis do servidor (nunca com prefixo `NEXT_PUBLIC_`):
 | Variável | Uso |
 | --- | --- |
 | `CRM_MCP_TOKENS` | Um token por agente: `nome:token:escopo,escopo`, separados por `;`. Token com 32+ caracteres (`openssl rand -hex 32`). Sem a variável, a rota responde 503 |
-| `SUPABASE_SERVICE_ROLE_KEY` | Já usada pelos receptores de webhook. Ignora a RLS; por isso toda consulta e escrita fixa o dono da base |
-| `CRM_OWNER_USER_ID` | Opcional. Dono da base; sem ela, usa `crm_dono_da_base()` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Já usada pelos receptores de webhook |
+| `CRM_OWNER_USER_ID` | Opcional. Usuário em nome de quem as tarefas e atividades são gravadas; sem ela, o único registro de `admin_users` |
+
+O servidor lê o mesmo que o administrador vê no painel: contatos, atividades, tarefas e pagamentos de todos os donos, inclusive os registros criados pela Maia no usuário dela. As escritas saem em nome do administrador, como no painel.
 
 Exemplo, com a Órbita lendo, criando tarefas e registrando interações:
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticate, handleMcp, parseMcpTokens, type CrmStore, type McpContact, type McpTask } from './mcp-server';
+import { authenticate, handleMcp, hasSensitiveData, parseMcpTokens, type CrmStore, type McpContact, type McpTask } from './mcp-server';
 import type { PaymentTransaction } from './types';
 
 const TOKEN = 'o'.repeat(40);
@@ -155,4 +155,22 @@ test('falha do banco não vaza detalhes', async () => {
     assert.equal(res.result!.isError, true);
     assert.equal(res.result!.content[0].text, 'CRM indisponível no momento');
   } finally { console.error = original; }
+});
+
+test('dados sensíveis: barra cartão válido e senha com valor, aceita falar de senha e telefone', () => {
+  assert.equal(hasSensitiveData('Cobrar no cartão 4111 1111 1111 1111'), true);
+  assert.equal(hasSensitiveData('senha: abc123'), true);
+  assert.equal(hasSensitiveData('O token é sk_live_123'), true);
+  assert.equal(hasSensitiveData('Renovar token do Instagram da Maia'), false);
+  assert.equal(hasSensitiveData('Enviar link para redefinir a senha do cliente'), false);
+  assert.equal(hasSensitiveData('Pedido 1234567890123 aguardando confirmação'), false);
+});
+
+test('conclusão: falha ao gravar o motivo é avisada sem esconder que a tarefa foi concluída', async () => {
+  const { store, writes } = fakeStore();
+  store.insertActivity = async () => { throw new Error('insert failed'); };
+  const res = await call('crm_concluir_tarefa', { tarefa_id: T1, motivo: 'Proposta enviada' }, TOKEN, store);
+  assert.equal(res.result!.isError, true);
+  assert.match(res.result!.content[0].text, /foi concluída, mas o motivo não foi gravado/);
+  assert.deepEqual(writes.completed, [T1]);
 });
