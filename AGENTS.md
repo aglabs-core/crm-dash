@@ -33,6 +33,10 @@ Não reintroduza uma segunda fonte para o estágio do funil.
 - **Trigger `set_contact_closed_at`** preenche `closed_at` sozinho quando o status vira `Cliente`/`Inativo`/`Arquivado`. Não precisa setar na mão.
 - **RLS ligada** em todas as tabelas, por `user_id`. Escrita automatizada (n8n) usa a chave `service_role` e define `user_id` explicitamente.
 
+## Servidor MCP
+
+`/api/mcp` dá à Órbita e a agentes autorizados leitura do funil e das tarefas, criação e conclusão de tarefas e registro de interações, com token e escopos por agente (`CRM_MCP_TOKENS`). Não exclui, não exporta, não muda etapa e não devolve e-mail ou telefone. Detalhes em `docs/mcp.md`. Ferramenta nova entra em `lib/mcp-server.ts` com escopo e teste.
+
 ## Migrations
 
 Ficam em `supabase/migrations/`, aplicadas por `supabase db push`. Padrão da casa: cabeçalho explicando **o problema que a migration resolve**, idempotente (`IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS`) e normalização dos dados **antes** de aplicar a constraint, com catch-all para ela nunca falhar na aplicação.
