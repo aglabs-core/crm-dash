@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { CrmStore, McpContact, McpTask } from './mcp-server';
+import type { CrmStore, McpContact, McpEmailRow, McpTask } from './mcp-server';
 import type { PaymentTransaction } from './types';
 
 // Implementação do CrmStore com a chave service_role.
@@ -12,14 +12,19 @@ import type { PaymentTransaction } from './types';
 // CRM_OWNER_USER_ID ou, sem ela, do único registro de admin_users.
 
 const CONTACT_COLUMNS = 'id,name,company,status,produto,origin,prospecting_pool,account_status,amount,expected_close_date,email,whatsapp,phone,created_at,updated_at';
-const TASK_COLUMNS = 'id,title,description,due_date,priority,status,assigned_to,contact_id,created_at,contacts(name)';
+const TASK_COLUMNS = 'id,title,description,due_date,priority,status,assigned_to,contact_id,created_at,contacts(name,produto)';
+const EMAIL_COLUMNS = 'direction,category,source_key,product,status,campaign_id,sent_at,delivered_at,opened_at,clicked_at,replied_at';
 
 type ContactRow = Omit<McpContact, 'has_email' | 'has_whatsapp'> & { email: string | null; whatsapp: string | null; phone: string | null };
-type TaskRow = Omit<McpTask, 'contact_name'> & { contacts: { name: string | null } | { name: string | null }[] | null };
+type TaskContact = { name: string | null; produto: string | null };
+type TaskRow = Omit<McpTask, 'contact_name' | 'contact_product'> & { contacts: TaskContact | TaskContact[] | null };
 
 // E-mail e telefone só servem para dizer se o canal existe; não saem daqui.
 const toContact = ({ email, whatsapp, phone, ...c }: ContactRow): McpContact => ({ ...c, has_email: !!email, has_whatsapp: !!(whatsapp || phone) });
-const toTask = ({ contacts, ...t }: TaskRow): McpTask => ({ ...t, contact_name: (Array.isArray(contacts) ? contacts[0]?.name : contacts?.name) ?? null });
+const toTask = ({ contacts, ...t }: TaskRow): McpTask => {
+  const contact = Array.isArray(contacts) ? contacts[0] : contacts;
+  return { ...t, contact_name: contact?.name ?? null, contact_product: contact?.produto ?? null };
+};
 
 function check<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
@@ -57,7 +62,7 @@ export function supabaseCrmStore(): CrmStore | null {
 
   return {
     async funnelContacts() {
-      return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at').order('id').range(from, to));
+      return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at,produto,account_status').order('id').range(from, to));
     },
     async paymentsSince(iso) {
       return paged<PaymentTransaction>((from, to) => client.from('payment_transactions').select('*').gte('paid_at', iso).order('id').range(from, to));
@@ -99,6 +104,9 @@ export function supabaseCrmStore(): CrmStore | null {
     async insertActivity(row) {
       const uid = await owner();
       check(await client.from('activities').insert([{ user_id: uid, ...row }]));
+    },
+    async emailMessagesSince(iso) {
+      return paged<McpEmailRow>((from, to) => client.from('email_messages').select(EMAIL_COLUMNS).gte('sent_at', iso).order('id').range(from, to));
     },
   };
 }

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { readLimitedJson } from './brevo-receiver';
+import { campaignProductKey } from './campaign-preparation';
 import { paymentRevenue } from './payment-analytics';
 import type { PaymentTransaction, TaskAssignee } from './types';
 
@@ -49,6 +50,8 @@ export function authenticate(header: string | null, tokens: TokenEntry[]): McpCa
 export type McpTask = {
   id: string; title: string; description: string | null; due_date: string | null; priority: string | null;
   status: string; assigned_to: TaskAssignee | null; contact_id: string | null; contact_name: string | null; created_at: string;
+  /** Produto do contato ligado à tarefa; tarefa sem contato não pertence a um produto. */
+  contact_product?: string | null;
 };
 export type McpContact = {
   id: string; name: string | null; company: string | null; status: string; produto: string | null; origin: string | null;
@@ -56,10 +59,16 @@ export type McpContact = {
   has_email: boolean; has_whatsapp: boolean; created_at: string; updated_at: string | null;
 };
 export type McpActivity = { type: string; channel: string | null; content: string | null; created_at: string };
+export type McpFunnelContact = { status: string; prospecting_pool: boolean | null; created_at: string; produto?: string | null; account_status?: string | null };
+/** Linha do registro único de e-mails sem endereço, assunto ou corpo: só o necessário para contar o funil. */
+export type McpEmailRow = {
+  direction: 'outbound' | 'inbound'; category: string; source_key: string; product: string | null; status: string; campaign_id: string | null;
+  sent_at: string; delivered_at: string | null; opened_at: string | null; clicked_at: string | null; replied_at: string | null;
+};
 
 /** Tudo que o servidor precisa do banco. Implementação real em `mcp-store.ts`; os testes usam uma falsa. */
 export type CrmStore = {
-  funnelContacts(): Promise<{ status: string; prospecting_pool: boolean | null; created_at: string }[]>;
+  funnelContacts(): Promise<McpFunnelContact[]>;
   paymentsSince(iso: string): Promise<PaymentTransaction[]>;
   pendingTasks(): Promise<McpTask[]>;
   searchContacts(term: string, limit: number): Promise<McpContact[]>;
@@ -70,6 +79,7 @@ export type CrmStore = {
   insertTask(row: { title: string; description: string | null; due_date: string | null; priority: string; assigned_to: TaskAssignee; contact_id: string | null }): Promise<McpTask>;
   completeTask(id: string): Promise<void>;
   insertActivity(row: { contact_id: string | null; type: string; channel: string | null; content: string }): Promise<void>;
+  emailMessagesSince(iso: string): Promise<McpEmailRow[]>;
 };
 
 // ---- Validação --------------------------------------------------------------
@@ -157,6 +167,36 @@ const contactView = (c: McpContact) => ({
   criado_em: c.created_at, atualizado_em: c.updated_at,
 });
 
+// Produto: mesma chave das campanhas (minúsculas; o código histórico barberpro é Barberias).
+const productKey = (value?: string | null) => campaignProductKey(value) || null;
+function productArg(args: Args): string | null {
+  const value = str(args, 'produto', 2, 60);
+  if (value === null) return null;
+  const key = productKey(value)!;
+  if (!/^[a-z0-9][a-z0-9_-]{1,59}$/.test(key)) throw new InvalidArgs('produto deve ser o identificador do produto, ex.: barberias');
+  return key;
+}
+const ACCOUNT_STATES = ['trial', 'trial_encerrado', 'ativo', 'cancelado'] as const;
+function accounts(contacts: McpFunnelContact[]) {
+  return Object.fromEntries(ACCOUNT_STATES.map((s) => [s, contacts.filter((c) => c.account_status === s).length]));
+}
+const EMAIL_CATEGORIES = ['prospeccao', 'campanha', 'automacao', 'transacional', 'atendimento'] as const;
+const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 10 : null);
+function emailFunnel(rows: McpEmailRow[]) {
+  const enviados = rows.length;
+  const entregues = rows.filter((r) => r.delivered_at || ['delivered', 'opened', 'clicked', 'replied'].includes(r.status)).length;
+  const abertos = rows.filter((r) => r.opened_at).length;
+  const cliques = rows.filter((r) => r.clicked_at).length;
+  const respostas = rows.filter((r) => r.replied_at || r.status === 'replied').length;
+  return {
+    enviados, entregues, abertos, cliques, respostas,
+    falhas: rows.filter((r) => ['bounced', 'soft_bounced', 'failed'].includes(r.status)).length,
+    descadastros: rows.filter((r) => ['complained', 'unsubscribed'].includes(r.status)).length,
+    // Percentuais sobre entregues; null quando não há base (ausência de dados não é zero).
+    taxa_entrega: pct(entregues, enviados), taxa_abertura: pct(abertos, entregues), taxa_clique: pct(cliques, entregues), taxa_resposta: pct(respostas, entregues),
+  };
+}
+
 type Tool = {
   name: string; scope: McpScope; title: string; description: string; readOnly: boolean;
   inputSchema: { type: 'object'; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
@@ -164,27 +204,53 @@ type Tool = {
 };
 
 const assigneeProp = { type: 'string', enum: ASSIGNEES, description: 'Papel responsável: maia, leo, antonio ou tecnico' };
+const productProp = { type: 'string', minLength: 2, maxLength: 60, description: 'Identificador do produto, ex.: barberias, mecard. Sem ele, o CRM inteiro.' };
 
 export const TOOLS: Tool[] = [
   {
     name: 'crm_resumo', scope: 'leitura', readOnly: true, title: 'Resumo do CRM',
-    description: 'Funil por etapa (sem a base fria de prospecção), novos contatos, receita líquida do mês e do mês anterior e tarefas pendentes por responsável.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    async run(_args, { store, now }) {
+    description: 'Funil por etapa (sem a base fria de prospecção), contas no produto, novos contatos, receita líquida do mês e do mês anterior e tarefas pendentes por responsável. Com produto, tudo filtrado por ele; sem produto, inclui a divisão por produto.',
+    inputSchema: { type: 'object', properties: { produto: productProp }, additionalProperties: false },
+    async run(args, { store, now }) {
       const today = localToday(now);
-      const [contacts, payments, tasks] = await Promise.all([store.funnelContacts(), store.paymentsSince(spIso(previousMonthStart(today))), store.pendingTasks()]);
+      const product = productArg(args);
+      const inProduct = (value?: string | null) => !product || productKey(value) === product;
+      const [allContacts, allPayments, allTasks] = await Promise.all([store.funnelContacts(), store.paymentsSince(spIso(previousMonthStart(today))), store.pendingTasks()]);
+      const contacts = allContacts.filter((c) => inProduct(c.produto));
+      const payments = allPayments.filter((p) => inProduct(p.product));
+      const tasks = product ? allTasks.filter((t) => t.contact_id && inProduct(t.contact_product)) : allTasks;
       const active = contacts.filter((c) => !c.prospecting_pool);
       const count = (status: string) => active.filter((c) => c.status === status).length;
       const since = (days: number) => active.filter((c) => Date.parse(c.created_at) >= now.getTime() - days * 86_400_000).length;
       const thisMonth = Date.parse(spIso(monthStart(today)));
       const owners = Object.fromEntries([...ASSIGNEES, 'sem_responsavel'].map((a) => [a, 0])) as Record<string, number>;
       for (const t of tasks) owners[t.assigned_to ?? 'sem_responsavel'] += 1;
+      const byProduct = () => {
+        const groups = new Map<string, McpFunnelContact[]>();
+        for (const c of allContacts) {
+          const key = productKey(c.produto) ?? 'sem_produto';
+          groups.set(key, [...(groups.get(key) ?? []), c]);
+        }
+        return Object.fromEntries([...groups].sort((a, b) => b[1].length - a[1].length).map(([key, list]) => {
+          const open = list.filter((c) => !c.prospecting_pool);
+          return [key, {
+            oportunidades_abertas: open.filter((c) => (FUNNEL as readonly string[]).includes(c.status)).length,
+            clientes: open.filter((c) => c.status === 'Cliente').length,
+            base_prospeccao: list.length - open.length,
+            novos_30d: open.filter((c) => Date.parse(c.created_at) >= now.getTime() - 30 * 86_400_000).length,
+            contas: accounts(list),
+          }];
+        }));
+      };
       return {
         hoje: today,
+        produto: product,
+        ...(product ? { cobertura: 'Receita conta só pagamentos registrados com este produto; tarefas, só as ligadas a contatos do produto.' } : {}),
         funil: Object.fromEntries(FUNNEL.map((s) => [s, count(s)])),
         oportunidades_abertas: FUNNEL.reduce((n, s) => n + count(s), 0),
         clientes: count('Cliente'), clientes_inativos: count('Inativo'), contatos_a_qualificar: count('Contato'),
         base_prospeccao: contacts.length - active.length,
+        contas_no_produto: accounts(contacts),
         novos_7d: since(7), novos_30d: since(30),
         receita_mes: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) >= thisMonth)),
         receita_mes_anterior: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) < thisMonth)),
@@ -192,6 +258,7 @@ export const TOOLS: Tool[] = [
           pendentes: tasks.length, vencidas: tasks.filter((t) => t.due_date && t.due_date < today).length,
           para_hoje: tasks.filter((t) => t.due_date === today).length, por_responsavel: owners,
         },
+        ...(product ? {} : { por_produto: byProduct() }),
       };
     },
   },
@@ -216,6 +283,42 @@ export const TOOLS: Tool[] = [
         filter === 'todas' || (filter === 'vencidas' && !!t.due_date && t.due_date < today)
         || (filter === 'hoje' && t.due_date === today) || (filter === 'ate_hoje' && !!t.due_date && t.due_date <= today)));
       return { total: tasks.length, tarefas: tasks.sort(byUrgency).slice(0, limit).map((t) => taskView(t, today)) };
+    },
+  },
+  {
+    name: 'crm_funil_emails', scope: 'leitura', readOnly: true, title: 'Funil de e-mails',
+    description: 'Totais dos e-mails enviados registrados no CRM no período: enviados, entregues, abertos, cliques, respostas, falhas e descadastros, com taxas, por categoria e por origem. Filtra por produto e categoria. Sem endereços, assuntos ou conteúdo.',
+    inputSchema: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        produto: productProp,
+        dias: { type: 'integer', minimum: 1, maximum: 365, description: 'Janela em dias até agora. Padrão: 30' },
+        categoria: { type: 'string', enum: EMAIL_CATEGORIES },
+      },
+    },
+    async run(args, { store, now }) {
+      const product = productArg(args);
+      const days = args.dias === undefined ? 30 : Number(args.dias);
+      if (!Number.isInteger(days) || days < 1 || days > 365) throw new InvalidArgs('dias deve ser um inteiro entre 1 e 365');
+      const category = args.categoria === undefined ? null : oneOf(args, 'categoria', EMAIL_CATEGORIES);
+      const since = new Date(now.getTime() - days * 86_400_000).toISOString();
+      const rows = (await store.emailMessagesSince(since)).filter((r) => (!product || productKey(r.product) === product) && (!category || r.category === category));
+      const outbound = rows.filter((r) => r.direction === 'outbound');
+      const sources = new Map<string, McpEmailRow[]>();
+      for (const r of outbound) sources.set(r.source_key, [...(sources.get(r.source_key) ?? []), r]);
+      return {
+        produto: product, categoria: category, desde: since, dias: days,
+        total: emailFunnel(outbound),
+        campanhas: new Set(outbound.map((r) => r.campaign_id).filter(Boolean)).size,
+        respostas_recebidas: rows.filter((r) => r.direction === 'inbound').length,
+        por_categoria: Object.fromEntries(EMAIL_CATEGORIES.flatMap((c) => {
+          const list = outbound.filter((r) => r.category === c);
+          return list.length ? [[c, emailFunnel(list)]] : [];
+        })),
+        por_origem: [...sources].sort((a, b) => b[1].length - a[1].length).slice(0, 15)
+          .map(([source, list]) => ({ origem: source, categoria: list[0].category, produto: productKey(list[0].product), ...emailFunnel(list) })),
+        observacao: 'Abertura depende de pixel e pode incluir abertura automática do provedor de e-mail; trate como sinal, não como leitura confirmada.',
+      };
     },
   },
   {
