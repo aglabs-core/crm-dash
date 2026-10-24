@@ -19,7 +19,7 @@ E-mail para um contato é enviado pelo Léo: a tarefa vai para `leo`, com o cont
 
 ### Produto
 
-`produto` usa a mesma chave das campanhas: minúsculas, e o código histórico `barberpro` conta como `barberias`. A receita por produto soma só pagamentos registrados com aquele produto; tarefas por produto são as ligadas a contatos do produto (tarefa sem contato fica de fora). Taxas sem base voltam `null`: ausência de dado não é zero. Abertura depende de pixel e pode incluir abertura automática do provedor.
+`produto` usa a mesma chave das campanhas: minúsculas, e o código histórico `barberpro` conta como `barberias`. A receita por produto soma só pagamentos registrados com aquele produto; tarefas por produto são as ligadas a contatos do produto (tarefa sem contato fica de fora). Taxas sem base voltam `null`: ausência de dado não é zero. Agendamentos (`scheduled`) e registros com data futura ficam fora do funil de enviados, das campanhas e das taxas. Abertura depende de pixel e pode incluir abertura automática do provedor.
 
 ## O que não dá para fazer
 

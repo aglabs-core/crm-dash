@@ -32,6 +32,10 @@ function fakeStore() {
     email({ category: 'automacao', source_key: 'barberias.trial.d3', campaign_id: null }),
     email({ category: 'prospeccao', source_key: 'prospeccao.mecard', product: 'mecard', campaign_id: null, clicked_at: '2026-10-20T14:00:00Z' }),
     email({ direction: 'inbound', category: 'atendimento', source_key: 'maia.reply', status: 'received', delivered_at: null }),
+    // Nunca devem inflar o funil: agendamento vencido e data futura mesmo com status terminal.
+    email({ status: 'scheduled', delivered_at: null, campaign_id: 'future-campaign' }),
+    email({ sent_at: '2027-01-01T12:00:00Z', campaign_id: 'future-campaign', clicked_at: '2027-01-01T13:00:00Z' }),
+    email({ sent_at: '2020-01-01T12:00:00Z', campaign_id: 'old-campaign' }),
   ];
   const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[] } = { tasks: [], activities: [], completed: [] };
   const store: CrmStore = {

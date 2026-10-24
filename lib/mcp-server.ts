@@ -302,8 +302,13 @@ export const TOOLS: Tool[] = [
       if (!Number.isInteger(days) || days < 1 || days > 365) throw new InvalidArgs('dias deve ser um inteiro entre 1 e 365');
       const category = args.categoria === undefined ? null : oneOf(args, 'categoria', EMAIL_CATEGORIES);
       const since = new Date(now.getTime() - days * 86_400_000).toISOString();
-      const rows = (await store.emailMessagesSince(since)).filter((r) => (!product || productKey(r.product) === product) && (!category || r.category === category));
-      const outbound = rows.filter((r) => r.direction === 'outbound');
+      const rows = (await store.emailMessagesSince(since)).filter((r) => {
+        const timestamp = Date.parse(r.sent_at);
+        return Number.isFinite(timestamp) && timestamp >= Date.parse(since) && timestamp <= now.getTime()
+          && (!product || productKey(r.product) === product) && (!category || r.category === category);
+      });
+      // O ledger também guarda agendamentos: existência do registro não prova envio.
+      const outbound = rows.filter((r) => r.direction === 'outbound' && r.status !== 'scheduled');
       const sources = new Map<string, McpEmailRow[]>();
       for (const r of outbound) sources.set(r.source_key, [...(sources.get(r.source_key) ?? []), r]);
       return {
@@ -317,7 +322,7 @@ export const TOOLS: Tool[] = [
         })),
         por_origem: [...sources].sort((a, b) => b[1].length - a[1].length).slice(0, 15)
           .map(([source, list]) => ({ origem: source, categoria: list[0].category, produto: productKey(list[0].product), ...emailFunnel(list) })),
-        observacao: 'Abertura depende de pixel e pode incluir abertura automática do provedor de e-mail; trate como sinal, não como leitura confirmada.',
+        observacao: 'Agendados e datas futuras não contam como enviados. Abertura depende de pixel e pode incluir abertura automática do provedor de e-mail; trate como sinal, não como leitura confirmada.',
       };
     },
   },
