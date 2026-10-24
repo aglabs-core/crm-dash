@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { readLimitedJson } from './brevo-receiver';
 import { campaignProductKey } from './campaign-preparation';
-import { paymentRevenue } from './payment-analytics';
+import { paymentRevenue, netRevenue } from './payment-analytics';
 import type { PaymentTransaction, TaskAssignee } from './types';
 
 // Servidor MCP do CRM (Streamable HTTP, sem sessão, respostas JSON).
@@ -242,7 +242,13 @@ export const TOOLS: Tool[] = [
           }];
         }));
       };
+      const monthPayments = payments.filter(p => p.paid_at && Date.parse(p.paid_at) >= thisMonth && Date.parse(p.paid_at) <= now.getTime());
+      const positive = monthPayments.filter(p => netRevenue(p) > 0);
       return {
+        consultado_em: now.toISOString(),
+        pagamentos_mes: positive.length,
+        pagantes_mes: new Set(positive.map(p => p.contact_id).filter(Boolean)).size,
+        pagamentos_sem_contato_mes: positive.filter(p => !p.contact_id).length,
         hoje: today,
         produto: product,
         ...(product ? { cobertura: 'Receita conta só pagamentos registrados com este produto; tarefas, só as ligadas a contatos do produto.' } : {}),
@@ -252,7 +258,7 @@ export const TOOLS: Tool[] = [
         base_prospeccao: contacts.length - active.length,
         contas_no_produto: accounts(contacts),
         novos_7d: since(7), novos_30d: since(30),
-        receita_mes: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) >= thisMonth)),
+        receita_mes: paymentRevenue(monthPayments),
         receita_mes_anterior: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) < thisMonth)),
         tarefas: {
           pendentes: tasks.length, vencidas: tasks.filter((t) => t.due_date && t.due_date < today).length,
@@ -268,6 +274,7 @@ export const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object', additionalProperties: false,
       properties: {
+        produto: productProp,
         responsavel: assigneeProp,
         situacao: { type: 'string', enum: ['todas', 'vencidas', 'hoje', 'ate_hoje'], description: 'Padrão: todas' },
         limite: { type: 'integer', minimum: 1, maximum: 50, description: 'Padrão: 20' },
@@ -275,14 +282,15 @@ export const TOOLS: Tool[] = [
     },
     async run(args, { store, now }) {
       const today = localToday(now);
+      const product = productArg(args);
       const owner = args.responsavel === undefined ? null : oneOf(args, 'responsavel', ASSIGNEES);
       const filter = oneOf(args, 'situacao', ['todas', 'vencidas', 'hoje', 'ate_hoje'] as const, 'todas');
       const limit = args.limite === undefined ? 20 : Number(args.limite);
       if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new InvalidArgs('limite deve ser um inteiro entre 1 e 50');
-      const tasks = (await store.pendingTasks()).filter((t) => (!owner || t.assigned_to === owner) && (
+      const tasks = (await store.pendingTasks()).filter((t) => (!product || productKey(t.contact_product) === product) && (!owner || t.assigned_to === owner) && (
         filter === 'todas' || (filter === 'vencidas' && !!t.due_date && t.due_date < today)
         || (filter === 'hoje' && t.due_date === today) || (filter === 'ate_hoje' && !!t.due_date && t.due_date <= today)));
-      return { total: tasks.length, tarefas: tasks.sort(byUrgency).slice(0, limit).map((t) => taskView(t, today)) };
+      return { produto: product, consultado_em: now.toISOString(), total: tasks.length, tarefas: tasks.sort(byUrgency).slice(0, limit).map((t) => taskView(t, today)) };
     },
   },
   {
@@ -312,7 +320,12 @@ export const TOOLS: Tool[] = [
       const sources = new Map<string, McpEmailRow[]>();
       for (const r of outbound) sources.set(r.source_key, [...(sources.get(r.source_key) ?? []), r]);
       return {
+        consultado_em: now.toISOString(),
         produto: product, categoria: category, desde: since, dias: days,
+        aguardando_entrega: outbound.filter(r => !r.delivered_at && ['accepted', 'deferred', 'soft_bounced'].includes(r.status)).length,
+        entregues_sem_resposta: outbound.filter(r => r.delivered_at && !r.replied_at && r.status !== 'replied').length,
+        agendados_na_janela: rows.filter(r => r.direction === 'outbound' && r.status === 'scheduled').length,
+        ultima_mensagem_em: rows.map(r => r.sent_at).sort().at(-1) ?? null,
         total: emailFunnel(outbound),
         campanhas: new Set(outbound.map((r) => r.campaign_id).filter(Boolean)).size,
         respostas_recebidas: rows.filter((r) => r.direction === 'inbound').length,
