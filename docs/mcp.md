@@ -6,7 +6,8 @@
 
 | Ferramenta | Escopo | O que faz |
 | --- | --- | --- |
-| `crm_resumo` | `leitura` | Funil por etapa (sem a base fria), novos contatos em 7 e 30 dias, receita líquida do mês e do mês anterior, tarefas pendentes, vencidas e por responsável |
+| `crm_resumo` | `leitura` | Funil por etapa (sem a base fria), contas no produto (trial, trial encerrado, ativo, cancelado), novos contatos em 7 e 30 dias, receita líquida do mês e do mês anterior, tarefas pendentes, vencidas e por responsável. Com `produto` (ex.: `barberias`), tudo filtrado por ele; sem `produto`, inclui `por_produto` |
+| `crm_funil_emails` | `leitura` | Totais dos e-mails registrados no período (`dias`, padrão 30): enviados, entregues, abertos, cliques, respostas, falhas e descadastros, com taxas sobre entregues, por categoria e por origem. Filtra por `produto` e `categoria`. Sem endereço, assunto ou conteúdo |
 | `crm_tarefas` | `leitura` | Tarefas pendentes, das mais urgentes para as menos urgentes; filtro por responsável e por situação (`vencidas`, `hoje`, `ate_hoje`) |
 | `crm_buscar_contatos` | `leitura` | Busca por nome, empresa, e-mail ou Instagram (até 10 fichas) |
 | `crm_contato` | `leitura` | Etapa, produto, últimas 8 interações, tarefas pendentes e receita do contato |
@@ -15,6 +16,10 @@
 | `crm_registrar_atividade` | `atividades` | Registra nota, follow-up, suporte ou reunião que já aconteceu |
 
 E-mail para um contato é enviado pelo Léo: a tarefa vai para `leo`, com o contato e o conteúdo. Atribuir não prova que ele recebeu (veja *Requisitos de integridade do CRM* no vault).
+
+### Produto
+
+`produto` usa a mesma chave das campanhas: minúsculas, e o código histórico `barberpro` conta como `barberias`. A receita por produto soma só pagamentos registrados com aquele produto; tarefas por produto são as ligadas a contatos do produto (tarefa sem contato fica de fora). Taxas sem base voltam `null`: ausência de dado não é zero. Abertura depende de pixel e pode incluir abertura automática do provedor.
 
 ## O que não dá para fazer
 

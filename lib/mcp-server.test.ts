@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticate, handleMcp, hasSensitiveData, parseMcpTokens, type CrmStore, type McpContact, type McpTask } from './mcp-server';
+import { authenticate, handleMcp, hasSensitiveData, parseMcpTokens, type CrmStore, type McpContact, type McpEmailRow, type McpTask } from './mcp-server';
 import type { PaymentTransaction } from './types';
 
 const TOKEN = 'o'.repeat(40);
@@ -16,19 +16,30 @@ function fakeStore() {
     account_status: 'trial', amount: 500, expected_close_date: null, has_email: true, has_whatsapp: false, created_at: '2026-10-20T10:00:00Z', updated_at: null,
   };
   const tasks: McpTask[] = [
-    { id: T1, title: 'Enviar proposta', description: null, due_date: '2026-10-22', priority: 'Alta', status: 'pending', assigned_to: 'leo', contact_id: CONTACT, contact_name: contact.name, created_at: '' },
+    { id: T1, title: 'Enviar proposta', description: null, due_date: '2026-10-22', priority: 'Alta', status: 'pending', assigned_to: 'leo', contact_id: CONTACT, contact_name: contact.name, contact_product: 'barberias', created_at: '' },
     { id: 't2', title: 'Revisar teste', description: null, due_date: '2026-10-23', priority: 'Média', status: 'pending', assigned_to: 'antonio', contact_id: null, contact_name: null, created_at: '' },
     { id: 't3', title: 'Sem prazo', description: null, due_date: null, priority: 'Baixa', status: 'pending', assigned_to: null, contact_id: null, contact_name: null, created_at: '' },
   ];
   const payment = (net: number, paid_at: string, status: PaymentTransaction['status'] = 'paid') =>
     ({ id: paid_at, contact_id: CONTACT, gateway: 'asaas', external_id: paid_at, status, product: 'barberias', currency: 'BRL', amount: net, refunded_amount: 0, net_amount: net, paid_at }) as PaymentTransaction;
+  const email = (over: Partial<McpEmailRow>): McpEmailRow => ({
+    direction: 'outbound', category: 'campanha', source_key: 'campanha.barberias.outubro', product: 'barberias', status: 'delivered', campaign_id: 'c1',
+    sent_at: '2026-10-20T12:00:00Z', delivered_at: '2026-10-20T12:01:00Z', opened_at: null, clicked_at: null, replied_at: null, ...over,
+  });
+  const emails: McpEmailRow[] = [
+    email({ status: 'replied', opened_at: '2026-10-20T13:00:00Z', replied_at: '2026-10-21T09:00:00Z' }),
+    email({ status: 'bounced', delivered_at: null }),
+    email({ category: 'automacao', source_key: 'barberias.trial.d3', campaign_id: null }),
+    email({ category: 'prospeccao', source_key: 'prospeccao.mecard', product: 'mecard', campaign_id: null, clicked_at: '2026-10-20T14:00:00Z' }),
+    email({ direction: 'inbound', category: 'atendimento', source_key: 'maia.reply', status: 'received', delivered_at: null }),
+  ];
   const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[] } = { tasks: [], activities: [], completed: [] };
   const store: CrmStore = {
     funnelContacts: async () => [
-      { status: 'Proposta', prospecting_pool: false, created_at: '2026-10-20T10:00:00Z' },
-      { status: 'Lead', prospecting_pool: false, created_at: '2026-09-01T10:00:00Z' },
-      { status: 'Cliente', prospecting_pool: false, created_at: '2026-08-01T10:00:00Z' },
-      { status: 'Arquivado', prospecting_pool: true, created_at: '2026-10-21T10:00:00Z' },
+      { status: 'Proposta', prospecting_pool: false, created_at: '2026-10-20T10:00:00Z', produto: 'barberias', account_status: 'trial' },
+      { status: 'Lead', prospecting_pool: false, created_at: '2026-09-01T10:00:00Z', produto: 'mecard', account_status: null },
+      { status: 'Cliente', prospecting_pool: false, created_at: '2026-08-01T10:00:00Z', produto: 'barberpro', account_status: 'ativo' },
+      { status: 'Arquivado', prospecting_pool: true, created_at: '2026-10-21T10:00:00Z', produto: 'barberias', account_status: null },
     ],
     // 01/10 00:30 em São Paulo ainda é outubro; 30/09 23:00 é setembro.
     paymentsSince: async () => [payment(100, '2026-10-01T03:30:00Z'), payment(50, '2026-10-01T02:00:00Z'), payment(80, '2026-10-10T12:00:00Z', 'refunded')],
@@ -41,6 +52,7 @@ function fakeStore() {
     insertTask: async (row) => { writes.tasks.push(row); return { id: 'new', status: 'pending', created_at: '', contact_name: null, ...row }; },
     completeTask: async (id) => { writes.completed.push(id); },
     insertActivity: async (row) => { writes.activities.push(row); },
+    emailMessagesSince: async () => emails.map((e) => ({ ...e })),
   };
   return { store, writes };
 }
@@ -87,7 +99,7 @@ test('escopos: token de leitura não vê nem chama ferramentas de escrita', asyn
   const { store } = fakeStore();
   const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, READER), { config, store: () => store, now: NOW })).json();
   const names = list.result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names, ['crm_resumo', 'crm_tarefas', 'crm_buscar_contatos', 'crm_contato']);
+  assert.deepEqual(names, ['crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
   const denied = await call('crm_criar_tarefa', { titulo: 'Teste', responsavel: 'leo' }, READER, store);
   assert.match(denied.error!.message, /escopos/);
 });
@@ -105,6 +117,50 @@ test('resumo: funil sem a base fria, receita líquida pelo mês de São Paulo e 
   assert.equal(data.tarefas.vencidas, 1);
   assert.equal(data.tarefas.para_hoje, 1);
   assert.equal(data.tarefas.por_responsavel.sem_responsavel, 1);
+});
+
+test('resumo por produto: filtra funil, contas, receita e tarefas; sem produto divide por produto', async () => {
+  const product = (await call('crm_resumo', { produto: 'BarberPro' })).result!.structuredContent as Record<string, any>;
+  assert.equal(product.produto, 'barberias');
+  assert.equal(product.oportunidades_abertas, 1);
+  assert.equal(product.clientes, 1);
+  assert.equal(product.base_prospeccao, 1);
+  assert.deepEqual(product.contas_no_produto, { trial: 1, trial_encerrado: 0, ativo: 1, cancelado: 0 });
+  assert.equal(product.receita_mes, 100);
+  assert.equal(product.tarefas.pendentes, 1);
+  assert.match(product.cobertura, /pagamentos registrados com este produto/);
+  assert.equal(product.por_produto, undefined);
+  const all = (await call('crm_resumo', {})).result!.structuredContent as Record<string, any>;
+  assert.equal(all.produto, null);
+  assert.equal(all.por_produto.barberias.oportunidades_abertas, 1);
+  assert.equal(all.por_produto.barberias.clientes, 1);
+  assert.equal(all.por_produto.barberias.base_prospeccao, 1);
+  assert.equal(all.por_produto.mecard.oportunidades_abertas, 1);
+  assert.equal((await call('crm_resumo', { produto: 'x y!' })).result!.isError, true);
+});
+
+test('funil de e-mails: totais, taxas e respostas por produto, sem endereços', async () => {
+  const res = await call('crm_funil_emails', { produto: 'barberias', dias: 30 });
+  const data = res.result!.structuredContent as Record<string, any>;
+  assert.deepEqual(
+    { enviados: data.total.enviados, entregues: data.total.entregues, abertos: data.total.abertos, respostas: data.total.respostas, falhas: data.total.falhas },
+    { enviados: 3, entregues: 2, abertos: 1, respostas: 1, falhas: 1 },
+  );
+  assert.equal(data.total.taxa_entrega, 66.7);
+  assert.equal(data.total.taxa_abertura, 50);
+  assert.equal(data.respostas_recebidas, 1);
+  assert.equal(data.campanhas, 1);
+  assert.equal(data.por_categoria.campanha.enviados, 2);
+  assert.equal(data.por_categoria.prospeccao, undefined);
+  assert.equal(data.por_origem[0].origem, 'campanha.barberias.outubro');
+  assert.doesNotMatch(res.result!.content[0].text, /@/);
+  const campaigns = (await call('crm_funil_emails', { categoria: 'prospeccao' })).result!.structuredContent as Record<string, any>;
+  assert.equal(campaigns.total.cliques, 1);
+  assert.equal(campaigns.total.taxa_resposta, 0);
+  const empty = (await call('crm_funil_emails', { produto: 'viajeki' })).result!.structuredContent as Record<string, any>;
+  assert.equal(empty.total.enviados, 0);
+  assert.equal(empty.total.taxa_entrega, null);
+  assert.equal((await call('crm_funil_emails', { dias: 0 })).result!.isError, true);
 });
 
 test('tarefas e ficha: urgência, filtros e sem dados de contato', async () => {
