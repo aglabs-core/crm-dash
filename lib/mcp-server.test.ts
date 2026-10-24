@@ -154,6 +154,10 @@ test('funil de e-mails: totais, taxas e respostas por produto, sem endereços', 
   assert.equal(data.total.taxa_abertura, 50);
   assert.equal(data.respostas_recebidas, 1);
   assert.equal(data.campanhas, 1);
+  assert.equal(data.entregues_sem_resposta, 1);
+  assert.equal(data.agendados_na_janela, 1);
+  assert.equal(data.aguardando_entrega, 0);
+  assert.equal(data.consultado_em, NOW.toISOString());
   assert.equal(data.por_categoria.campanha.enviados, 2);
   assert.equal(data.por_categoria.prospeccao, undefined);
   assert.equal(data.por_origem[0].origem, 'campanha.barberias.outubro');
@@ -173,6 +177,11 @@ test('tarefas e ficha: urgência, filtros e sem dados de contato', async () => {
   assert.equal(late.tarefas[0].vencida, true);
   const leo = (await call('crm_tarefas', { responsavel: 'leo' })).result!.structuredContent as any;
   assert.equal(leo.total, 1);
+  const productTasks = (await call('crm_tarefas', { produto: 'barberias' })).result!.structuredContent as any;
+  assert.equal(productTasks.produto, 'barberias');
+  assert.equal(productTasks.total, 1);
+  assert.equal(productTasks.tarefas[0].id, T1);
+  assert.equal(((await call('crm_tarefas', { produto: 'mecard' })).result!.structuredContent as any).total, 0);
   assert.equal((await call('crm_tarefas', { limite: 99 })).result!.isError, true);
   const ficha = (await call('crm_contato', { contato_id: CONTACT })).result!.structuredContent as any;
   assert.equal(ficha.contato.tem_email, true);
@@ -233,4 +242,15 @@ test('conclusão: falha ao gravar o motivo é avisada sem esconder que a tarefa 
   assert.equal(res.result!.isError, true);
   assert.match(res.result!.content[0].text, /foi concluída, mas o motivo não foi gravado/);
   assert.deepEqual(writes.completed, [T1]);
+});
+
+test('pagantes no mês vêm de pagamentos positivos identificados, sem futuros nem reembolsados', async () => {
+  const store = fakeStore().store;
+  const base = { id: 'pay', contact_id: CONTACT, gateway: 'stripe', external_id: 'x', product: 'barberias', currency: 'BRL', amount: 50, refunded_amount: 0, net_amount: 50, status: 'paid', paid_at: '2026-10-10T12:00:00Z' } as PaymentTransaction;
+  store.paymentsSince = async () => [base, { ...base, id: 'second' }, { ...base, id: 'unknown', contact_id: null }, { ...base, id: 'future', paid_at: '2027-01-01T12:00:00Z' }, { ...base, id: 'refund', status: 'refunded' }];
+  const data = (await call('crm_resumo', { produto: 'barberias' }, TOKEN, store)).result!.structuredContent as Record<string, unknown>;
+  assert.equal(data.pagantes_mes, 1);
+  assert.equal(data.pagamentos_mes, 3);
+  assert.equal(data.pagamentos_sem_contato_mes, 1);
+  assert.equal(data.receita_mes, 150);
 });
