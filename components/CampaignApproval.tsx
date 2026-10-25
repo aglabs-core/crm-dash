@@ -1,4 +1,5 @@
 'use client';
+import { productLabel } from '@/lib/product-label';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardCheck, RefreshCw } from 'lucide-react';
@@ -169,7 +170,7 @@ function CampaignApprovalPanel({ campaignId, onChanged, canReview = true, review
       </div>}
       {!overviewError && !hasCurrentBatch && !canReview && <p className="text-sm text-muted">{reviewUnavailableReason || 'A revisão para aprovação está disponível apenas em rascunhos sem histórico de envio.'}</p>}
       {review && canReview && !overviewError && !hasCurrentBatch && <section aria-label="Revisão final para aprovação" className="space-y-4 rounded-xl border border-border p-4">
-        <div className="space-y-1 break-words text-sm"><p className="font-medium text-fg">{review.recipients.length} destinatário(s) · {review.product}</p>
+        <div className="space-y-1 break-words text-sm"><p className="font-medium text-fg">{review.recipients.length} destinatário(s) · {productLabel(review.product)}</p>
           <p className="text-muted">De: {review.sender_email}</p><p className="text-muted">Respostas: {review.reply_to || review.sender_email}</p></div>
         <p className="text-xs text-muted">Os textos abaixo já estão personalizados. A aprovação congela exatamente esta versão. Os motivos são revalidados ao revisar e aprovar; use Atualizar situação para conferir alterações posteriores.</p>
         {review.recipients.length === 0 && <p className="text-sm text-red-600 dark:text-red-400">Inclua destinatários na preparação antes de aprovar.</p>}
