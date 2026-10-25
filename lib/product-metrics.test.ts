@@ -29,3 +29,16 @@ test('collects only the fixed authenticated origin with bounded payload', async 
     assert.equal(JSON.stringify(await productMetrics('barberias')).includes('fixture-secret'), false);
   } finally { globalThis.fetch = fetcher; if (original === undefined) delete process.env.APP_METRICS_SOURCES; else process.env.APP_METRICS_SOURCES = original; }
 });
+
+test('registered applications have separate fixed origins and explicit unknown metrics', async () => {
+  const original = process.env.APP_METRICS_SOURCES, fetcher = globalThis.fetch;
+  try {
+    for (const [product, host] of [['mecard', 'mecard.com.br'], ['members', 'members.ia.br']]) {
+      process.env.APP_METRICS_SOURCES = JSON.stringify([{ product, url: `https://${host}/api/integrations/crm/metrics`, token: 'x'.repeat(32) }]);
+      globalThis.fetch = async () => Response.json({ ...snapshot(), product, metrics: { ...snapshot().metrics, payingAccounts: null } });
+      assert.equal((await productMetrics(product)).status, 'ok');
+      globalThis.fetch = async () => Response.json(snapshot());
+      assert.equal((await productMetrics(product)).status, 'unavailable');
+    }
+  } finally { globalThis.fetch = fetcher; if (original === undefined) delete process.env.APP_METRICS_SOURCES; else process.env.APP_METRICS_SOURCES = original; }
+});
