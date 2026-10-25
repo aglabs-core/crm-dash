@@ -6,7 +6,8 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   mecard: { hosts: ['mecard.com.br', 'www.mecard.com.br'], path: '/api/integrations/crm/metrics' },
   members: { hosts: ['members.ia.br', 'www.members.ia.br'], path: '/api/integrations/crm/metrics' },
 };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null> };
+export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -19,8 +20,17 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     if (count !== null && (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0)) throw new Error('Contagem inválida');
     metrics[key] = count;
   }
+  let activationFunnel: ActivationFunnel | undefined;
+  if (product === 'barberias' && value.activationFunnel !== undefined) {
+    const funnel = value.activationFunnel;
+    const ordered = [metrics.accounts, funnel?.professional, funnel?.catalog, funnel?.readyForBooking, funnel?.firstAppointment];
+    if (ordered.some(v => typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0)
+      || ordered.some((v, i) => i > 0 && v! > ordered[i - 1]!)
+      || funnel.firstAppointment !== metrics.activatedAccounts) throw new Error('Funil inválido');
+    activationFunnel = { professional: funnel.professional, catalog: funnel.catalog, readyForBooking: funnel.readyForBooking, firstAppointment: funnel.firstAppointment };
+  }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
