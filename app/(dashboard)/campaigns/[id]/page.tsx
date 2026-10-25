@@ -1,4 +1,5 @@
 'use client';
+import { productLabel } from '@/lib/product-label';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -117,7 +118,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-fg">{campaign.name}</h1>
-          <p className="mt-1 text-sm text-muted">{campaign.product} · {campaign.provider.toUpperCase()} · {campaign.sender_email}</p>
+          <p className="mt-1 text-sm text-muted">{productLabel(campaign.product)} · {campaign.provider.toUpperCase()} · {campaign.sender_email}</p>
           <p className="mt-1 text-sm text-fg">{campaign.subject}</p>
         </div>
         <Badge tone={campaign.status === 'draft' ? 'gray' : 'indigo'}>{campaign.status === 'draft' ? 'Rascunho' : campaign.status}</Badge>

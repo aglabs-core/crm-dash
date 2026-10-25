@@ -274,7 +274,7 @@ export default function LeadsPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium text-fg">{lead.lead || 'Sem nome'}</p>
-                            {lead.produto && <p className="text-xs text-muted">{lead.produto}</p>}
+                            {lead.produto && <p className="text-xs text-muted">{productLabel(lead.produto)}</p>}
                           </div>
                         </div>
                       </td>
