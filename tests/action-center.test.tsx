@@ -5,10 +5,11 @@ const source = vi.hoisted(() => ({ fail: false }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getUser: async () => ({ data: { user: { id: 'synthetic' } }, error: null }) }, from: (table: string) => {
   let offset = 0;
   const builder = { select: () => builder, order: () => builder, range: (from: number) => { offset = from; return builder; }, eq: () => builder, not: () => builder,
-    abortSignal: async () => ({ error: source.fail ? { message: 'synthetic' } : null, data: table === 'contacts' && offset === 0 ? [
+    abortSignal: () => builder,
+    then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: source.fail ? { message: 'synthetic' } : null, data: table === 'contacts' && offset === 0 ? [
       { id: 'c', name: 'Contato sintético', produto: 'barberias', status: 'Lead' },
       { id: 'm', name: 'Outro sintético', produto: 'mecard', status: 'Proposta' },
-    ] : [] }) };
+    ] : [] }).then(resolve) };
   return builder;
 } } }));
 afterEach(() => { cleanup(); source.fail = false; });
