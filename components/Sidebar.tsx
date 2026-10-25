@@ -13,6 +13,7 @@ import {
   LogOut,
   Magnet,
   UserCheck,
+  ListChecks,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ const navGroups: NavGroup[] = [
     label: 'Gestão',
     items: [
       { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
+      { name: 'Central de ações', href: '/actions', icon: ListChecks },
       { name: 'Campanhas de e-mail', href: '/campaigns', icon: Mails },
       { name: 'Relatórios', href: '/reports', icon: BarChart3 },
     ],

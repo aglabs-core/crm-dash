@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { CrmStore, McpContact, McpEmailRow, McpTask } from './mcp-server';
-import type { PaymentTransaction } from './types';
+import type { Contact, PaymentTransaction } from './types';
 
 // Implementação do CrmStore com a chave service_role.
 // Leitura: o mesmo que o administrador vê no painel. As políticas "admin manage
@@ -61,6 +61,9 @@ export function supabaseCrmStore(): CrmStore | null {
   const owner = () => ownerId(client);
 
   return {
+    async actionContacts() {
+      return paged<Pick<Contact, 'id' | 'status' | 'produto' | 'prospecting_pool' | 'account_status' | 'account_updated_at' | 'updated_at'>>((from, to) => client.from('contacts').select('id,status,produto,prospecting_pool,account_status,account_updated_at,updated_at').order('id').range(from, to));
+    },
     async funnelContacts() {
       return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at,produto,account_status').order('id').range(from, to));
     },

@@ -6,6 +6,7 @@
 
 | Ferramenta | Escopo | O que faz |
 | --- | --- | --- |
+| `crm_prioridades` | `leitura` | Agregados por `produto` opcional: tarefas vencidas, testes encerrados confirmados e oportunidades sem tarefa pendente. Sem nomes, IDs, assuntos ou mensagens. Consulta completa; erro nunca vira zero. Revisão humana em `/actions` |
 | `crm_resumo` | `leitura` | Funil por etapa (sem a base fria), contas no produto (trial, trial encerrado, ativo, cancelado), novos contatos em 7 e 30 dias, receita líquida do mês e do mês anterior, tarefas pendentes, vencidas e por responsável. Com `produto` (ex.: `barberias`), tudo filtrado por ele; sem `produto`, inclui `por_produto` |
 | `crm_funil_emails` | `leitura` | Totais dos e-mails registrados no período (`dias`, padrão 30): enviados, entregues, abertos, cliques, respostas, falhas e descadastros, com taxas sobre entregues, por categoria e por origem. Filtra por `produto` e `categoria`. Sem endereço, assunto ou conteúdo |
 | `crm_tarefas` | `leitura` | Tarefas pendentes, das mais urgentes para as menos urgentes; filtro por responsável e por situação (`vencidas`, `hoje`, `ate_hoje`) |

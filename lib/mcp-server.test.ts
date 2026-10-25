@@ -39,6 +39,7 @@ function fakeStore() {
   ];
   const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[] } = { tasks: [], activities: [], completed: [] };
   const store: CrmStore = {
+    actionContacts: async () => [{ id: CONTACT, status: 'Proposta', produto: 'barberias', prospecting_pool: false, account_status: 'trial' }],
     funnelContacts: async () => [
       { status: 'Proposta', prospecting_pool: false, created_at: '2026-10-20T10:00:00Z', produto: 'barberias', account_status: 'trial' },
       { status: 'Lead', prospecting_pool: false, created_at: '2026-09-01T10:00:00Z', produto: 'mecard', account_status: null },
@@ -103,9 +104,22 @@ test('escopos: token de leitura não vê nem chama ferramentas de escrita', asyn
   const { store } = fakeStore();
   const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, READER), { config, store: () => store, now: NOW })).json();
   const names = list.result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names, ['crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
+  assert.deepEqual(names, ['crm_prioridades', 'crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
   const denied = await call('crm_criar_tarefa', { titulo: 'Teste', responsavel: 'leo' }, READER, store);
   assert.match(denied.error!.message, /escopos/);
+});
+
+test('prioridades mantêm escopo por produto e não expõem identidades', async () => {
+  const { store } = fakeStore();
+  const result = await call('crm_prioridades', { produto: 'barberias' }, READER, store);
+  assert.equal(result.result?.structuredContent?.tarefas_vencidas, 1);
+  assert.equal(result.result?.structuredContent?.sem_proximo_passo, 0);
+  assert.equal(result.result?.structuredContent?.produto, 'barberias');
+  assert.doesNotMatch(JSON.stringify(result), /Barbearia Sintética|11111111/);
+  const other = await call('crm_prioridades', { produto: 'mecard' }, READER, store);
+  assert.equal(other.result?.structuredContent?.tarefas_vencidas, 0);
+  store.actionContacts = async () => { throw new Error('private@example.test'); };
+  assert.doesNotMatch(JSON.stringify(await call('crm_prioridades', {}, READER, store)), /private@/);
 });
 
 test('resumo: funil sem a base fria, receita líquida pelo mês de São Paulo e tarefas por responsável', async () => {
