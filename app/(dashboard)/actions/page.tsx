@@ -34,11 +34,14 @@ export default function ActionsPage() {
   const [page, setPage] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error || !data.user) throw new Error('session unavailable');
+      return Promise.all([
       readPages<Contact>('contacts', 'id,name,company,produto,status,prospecting_pool,account_status,account_updated_at,updated_at', controller.signal),
       readPages<Task>('tasks', 'id,title,contact_id,due_date,status', controller.signal),
       readPages<ActionEmail>('email_messages', 'id,contact_id,product,direction,category,status,sent_at,created_at,subject', controller.signal),
-    ]).then(([contacts, tasks, emails]) => {
+      ]);
+    }).then(([contacts, tasks, emails]) => {
       if (controller.signal.aborted) return;
       // Absence of a task is only meaningful when the task query is complete.
       setItems(buildActions(contacts.rows, tasks.rows, emails.rows).filter((item) => !tasks.limited || item.kind !== 'next_step'));
@@ -53,7 +56,7 @@ export default function ActionsPage() {
   const visible = scoped.filter((item) => kind === 'all' || item.kind === kind);
   return <div className="mx-auto max-w-6xl space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold">Central de ações</h1><p className="mt-1 text-sm text-muted">O próximo passo de cada produto, com acesso ao histórico do contato.</p></div><Button variant="secondary" size="sm" disabled={loading} onClick={() => { setLoading(true); setError(false); setVersion((v) => v + 1); }}><RefreshCw className="h-3.5 w-3.5" /> Atualizar</Button></header>
-    {loading ? <PageLoader /> : error ? <div role="alert" className="rounded-xl border border-border p-5 text-sm">Não foi possível consultar todas as fontes. Atualize para tentar novamente.</div> : <>
+    {loading ? <PageLoader /> : error ? <div role="alert" className="rounded-xl border border-border p-5 text-sm">Não foi possível consultar todas as fontes. Atualize para tentar novamente ou <Link href="/login" className="text-brand underline">entre no CRM</Link> se sua sessão expirou.</div> : <>
       {limited && <p role="status" className="text-sm text-muted">Visão parcial: até 5.000 registros recentes por fonte. A indicação de próximo passo fica oculta quando a consulta de tarefas está incompleta.</p>}
       <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm">Produto <Select value={product} onChange={(e) => { setProduct(e.target.value); setPage(0); }}><option value="all">Todos os produtos</option>{products.map((p) => <option key={p} value={p}>{productLabel(p)}</option>)}</Select></label><span className="text-xs text-muted">{checkedAt && `Consultado às ${checkedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span></div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Object.entries(ACTION_LABELS).map(([key, label]) => <button key={key} disabled={key === 'next_step' && !tasksComplete} aria-pressed={kind === key} onClick={() => { setKind(kind === key ? 'all' : key as ActionKind); setPage(0); }} className={`rounded-xl border p-3 text-left disabled:opacity-50 ${kind === key ? 'border-brand bg-brand/10' : 'border-border bg-surface hover:bg-surface-2'}`}><span className="block text-xs text-muted">{label}</span><span className="mt-1 block text-xl font-semibold tabular-nums">{key === 'next_step' && !tasksComplete ? '—' : scoped.filter((item) => item.kind === key).length}</span></button>)}</div>

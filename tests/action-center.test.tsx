@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ActionsPage from '@/app/(dashboard)/actions/page';
 const source = vi.hoisted(() => ({ fail: false }));
-vi.mock('@/lib/supabase', () => ({ supabase: { from: (table: string) => {
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getUser: async () => ({ data: { user: { id: 'synthetic' } }, error: null }) }, from: (table: string) => {
   let offset = 0;
   const builder = { select: () => builder, order: () => builder, range: (from: number) => { offset = from; return builder; }, eq: () => builder, not: () => builder,
     abortSignal: async () => ({ error: source.fail ? { message: 'synthetic' } : null, data: table === 'contacts' && offset === 0 ? [
