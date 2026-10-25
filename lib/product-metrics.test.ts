@@ -2,6 +2,18 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { productMetrics, validateSnapshot } from './product-metrics';
 const snapshot = () => ({ version: 1, product: 'barberias', generatedAt: new Date().toISOString(), window: { from: '2026-01-01T00:00:00Z', to: new Date().toISOString() }, metrics: { users: 3, accounts: 2, activeAccounts: 1, trialAccounts: 1, payingAccounts: 0, complimentaryAccounts: 0, canceledAccounts: 0, activatedAccounts: null } });
+
+test('optional cumulative activation funnel is bounded, consistent and explicitly projected', () => {
+  const raw = { ...snapshot(), metrics: { ...snapshot().metrics, activatedAccounts: 1 }, activationFunnel: { professional: 2, catalog: 2, readyForBooking: 2, firstAppointment: 1, email: 'private@example.invalid' } };
+  const projected = validateSnapshot(raw, 'barberias');
+  assert.deepEqual(projected.activationFunnel, { professional: 2, catalog: 2, readyForBooking: 2, firstAppointment: 1 });
+  assert.equal(JSON.stringify(projected).includes('private'), false);
+  assert.equal(validateSnapshot(snapshot(), 'barberias').activationFunnel, undefined);
+  for (const changes of [{ professional: 3 }, { catalog: 3 }, { readyForBooking: -1 }, { firstAppointment: 0 }, { professional: 1.5 }, { catalog: null }]) {
+    assert.throws(() => validateSnapshot({ ...raw, activationFunnel: { ...raw.activationFunnel, ...changes } }, 'barberias'));
+  }
+  assert.throws(() => validateSnapshot({ ...raw, activationFunnel: null }, 'barberias'));
+});
 test('projects aggregates without private fields and validates product and counts', () => {
   const result = validateSnapshot({ ...snapshot(), email: 'private@example.com' }, 'barberias');
   assert.equal(result.metrics.activatedAccounts, null);

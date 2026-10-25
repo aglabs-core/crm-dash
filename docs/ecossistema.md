@@ -23,3 +23,19 @@ O contrato `version:1` tem `product`, `generatedAt`, `window:{from,to}` e `metri
 Publicar o endpoint desligado não comprova integração ativa. Só marcar coleta disponível depois de configurar o par de credenciais, consultar pelo CRM e comparar com o painel administrativo do aplicativo. Viajeki e AG LABS entram depois com métricas próprias e a mesma revisão do contrato.
 
 Cadastros, ativação, checkout e pagamento precisam de eventos distintos. Pagamento só vem do ledger/gateway verificado; navegador não promove contato a Cliente. Conteúdo de e-mails, dados pessoais e eventos analíticos individuais continuam nas fontes adequadas. CRM não deve receber uma cópia indiscriminada de telemetria.
+
+## Funil agregado do Barberias
+
+Extensão opcional `activationFunnel`: `professional`, `catalog`, `readyForBooking`,
+`firstAppointment`. São inteiros cumulativos, limitados por `metrics.accounts`,
+com a última etapa igual a `metrics.activatedAccounts`. Etapas exigem, na mesma
+unidade, profissional ativo → serviço → horário utilizável → primeiro registro
+de agendamento. Filiais são consolidadas por conta responsável, sem combinar
+recursos de unidades diferentes. Prontas sem reserva = readyForBooking menos
+firstAppointment. Trata-se de estoque atual, não taxa de conversão por campanha,
+coorte ou período; cancelamentos não apagam o marco histórico do agendamento.
+
+O painel mantém o detalhamento recolhido. Origem sem esse campo continua
+funcionando e não recebe etapas presumidas. A projeção remove propriedades
+extras e rejeita funis inválidos. Deploy só do CRM não ativa a extensão: é
+necessário publicar também a origem e conferir os números reais.
