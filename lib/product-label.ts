@@ -9,6 +9,7 @@ const labels: Record<string, string> = {
   barberpro: 'Barberias',
   aglabs: 'AG LABS institucional',
   mecard: 'MeCard',
+  members: 'Members',
   atendente_ia: 'Atendente de IA',
   'sem produto': 'Produto a definir',
 };

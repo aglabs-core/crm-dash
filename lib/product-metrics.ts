@@ -1,6 +1,11 @@
 // Business metrics are collected by the CRM; the application remains authoritative.
 const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAccounts', 'complimentaryAccounts', 'canceledAccounts', 'activatedAccounts'] as const;
 type Metric = typeof keys[number];
+const origins: Record<string, { hosts: string[]; path: string }> = {
+  barberias: { hosts: ['barberias.com.br', 'www.barberias.com.br'], path: '/api/integrations/orbita/metrics' },
+  mecard: { hosts: ['mecard.com.br', 'www.mecard.com.br'], path: '/api/integrations/crm/metrics' },
+  members: { hosts: ['members.ia.br', 'www.members.ia.br'], path: '/api/integrations/crm/metrics' },
+};
 export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null> };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
@@ -48,7 +53,8 @@ export async function productMetrics(product: string): Promise<ProductMetricsRes
     if (!source) return result('not_configured', 'Coleta administrativa ainda não configurada no CRM.');
     if (typeof source.url !== 'string' || typeof source.token !== 'string' || source.token.length < 32) throw new Error('Configuração inválida');
     const url = new URL(source.url);
-    if (product !== 'barberias' || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || url.hash || !['barberias.com.br', 'www.barberias.com.br'].includes(url.hostname) || url.pathname !== '/api/integrations/orbita/metrics') throw new Error('Destino inválido');
+    const origin = origins[product];
+    if (!origin || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || url.hash || !origin.hosts.includes(url.hostname) || url.pathname !== origin.path) throw new Error('Destino inválido');
     const response = await fetch(url, { headers: { authorization: `Bearer ${source.token}`, accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error('Origem indisponível');
     const snapshot = validateSnapshot(await boundedJson(response), product);
