@@ -332,7 +332,7 @@ export const TOOLS: Tool[] = [
         aguardando_entrega: outbound.filter(r => !r.delivered_at && ['accepted', 'deferred', 'soft_bounced'].includes(r.status)).length,
         entregues_sem_resposta: outbound.filter(r => r.delivered_at && !r.replied_at && r.status !== 'replied').length,
         agendados_na_janela: rows.filter(r => r.direction === 'outbound' && r.status === 'scheduled').length,
-        ultima_mensagem_em: rows.map(r => r.sent_at).sort().at(-1) ?? null,
+        ultima_mensagem_em: rows.length ? new Date(Math.max(...rows.map(r => Date.parse(r.sent_at)))).toISOString() : null,
         total: emailFunnel(outbound),
         campanhas: new Set(outbound.map((r) => r.campaign_id).filter(Boolean)).size,
         respostas_recebidas: rows.filter((r) => r.direction === 'inbound').length,

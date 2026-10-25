@@ -254,3 +254,10 @@ test('pagantes no mês vêm de pagamentos positivos identificados, sem futuros n
   assert.equal(data.pagamentos_sem_contato_mes, 1);
   assert.equal(data.receita_mes, 150);
 });
+
+test('última mensagem usa ISO UTC mesmo com timestamp Postgres com offset', async () => {
+  const { store } = fakeStore();
+  store.emailMessagesSince = async () => [{ direction: 'outbound', category: 'transacional', source_key: 'fixture', product: 'barberias', status: 'delivered', campaign_id: null, sent_at: '2026-10-22T09:00:00-03:00', delivered_at: '2026-10-22T12:01:00Z', opened_at: null, clicked_at: null, replied_at: null }];
+  const result = await call('crm_funil_emails', { produto: 'barberias', dias: 30 }, TOKEN, store);
+  assert.equal(result.result?.structuredContent?.ultima_mensagem_em, '2026-10-22T12:00:00.000Z');
+});
