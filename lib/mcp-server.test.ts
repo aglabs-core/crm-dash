@@ -103,7 +103,7 @@ test('escopos: token de leitura não vê nem chama ferramentas de escrita', asyn
   const { store } = fakeStore();
   const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, READER), { config, store: () => store, now: NOW })).json();
   const names = list.result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names, ['crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
+  assert.deepEqual(names, ['crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
   const denied = await call('crm_criar_tarefa', { titulo: 'Teste', responsavel: 'leo' }, READER, store);
   assert.match(denied.error!.message, /escopos/);
 });
@@ -253,4 +253,11 @@ test('pagantes no mês vêm de pagamentos positivos identificados, sem futuros n
   assert.equal(data.pagamentos_mes, 3);
   assert.equal(data.pagamentos_sem_contato_mes, 1);
   assert.equal(data.receita_mes, 150);
+});
+
+test('última mensagem usa ISO UTC mesmo com timestamp Postgres com offset', async () => {
+  const { store } = fakeStore();
+  store.emailMessagesSince = async () => [{ direction: 'outbound', category: 'transacional', source_key: 'fixture', product: 'barberias', status: 'delivered', campaign_id: null, sent_at: '2026-10-22T09:00:00-03:00', delivered_at: '2026-10-22T12:01:00Z', opened_at: null, clicked_at: null, replied_at: null }];
+  const result = await call('crm_funil_emails', { produto: 'barberias', dias: 30 }, TOKEN, store);
+  assert.equal(result.result?.structuredContent?.ultima_mensagem_em, '2026-10-22T12:00:00.000Z');
 });
