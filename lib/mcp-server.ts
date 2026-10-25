@@ -183,12 +183,14 @@ function accounts(contacts: McpFunnelContact[]) {
 }
 const EMAIL_CATEGORIES = ['prospeccao', 'campanha', 'automacao', 'transacional', 'atendimento'] as const;
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 10 : null);
+const delivered = (row: McpEmailRow) => !!row.delivered_at || ['delivered', 'opened', 'clicked', 'replied'].includes(row.status);
+const replied = (row: McpEmailRow) => !!row.replied_at || row.status === 'replied';
 function emailFunnel(rows: McpEmailRow[]) {
   const enviados = rows.length;
-  const entregues = rows.filter((r) => r.delivered_at || ['delivered', 'opened', 'clicked', 'replied'].includes(r.status)).length;
+  const entregues = rows.filter(delivered).length;
   const abertos = rows.filter((r) => r.opened_at).length;
   const cliques = rows.filter((r) => r.clicked_at).length;
-  const respostas = rows.filter((r) => r.replied_at || r.status === 'replied').length;
+  const respostas = rows.filter(replied).length;
   return {
     enviados, entregues, abertos, cliques, respostas,
     falhas: rows.filter((r) => ['bounced', 'soft_bounced', 'failed'].includes(r.status)).length,
@@ -329,8 +331,8 @@ export const TOOLS: Tool[] = [
       return {
         consultado_em: now.toISOString(),
         produto: product, categoria: category, desde: since, dias: days,
-        aguardando_entrega: outbound.filter(r => !r.delivered_at && ['accepted', 'deferred', 'soft_bounced'].includes(r.status)).length,
-        entregues_sem_resposta: outbound.filter(r => r.delivered_at && !r.replied_at && r.status !== 'replied').length,
+        aguardando_entrega: outbound.filter(r => !delivered(r) && ['accepted', 'deferred', 'soft_bounced'].includes(r.status)).length,
+        entregues_sem_resposta: outbound.filter(r => delivered(r) && !replied(r)).length,
         agendados_na_janela: rows.filter(r => r.direction === 'outbound' && r.status === 'scheduled').length,
         ultima_mensagem_em: rows.length ? new Date(Math.max(...rows.map(r => Date.parse(r.sent_at)))).toISOString() : null,
         total: emailFunnel(outbound),

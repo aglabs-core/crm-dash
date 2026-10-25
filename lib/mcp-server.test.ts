@@ -261,3 +261,14 @@ test('última mensagem usa ISO UTC mesmo com timestamp Postgres com offset', asy
   const result = await call('crm_funil_emails', { produto: 'barberias', dias: 30 }, TOKEN, store);
   assert.equal(result.result?.structuredContent?.ultima_mensagem_em, '2026-10-22T12:00:00.000Z');
 });
+
+test('entrega sem timestamp usa o mesmo critério nos totais e nas pendências', async () => {
+  const { store } = fakeStore();
+  const base: McpEmailRow = { direction: 'outbound', category: 'transacional', source_key: 'fixture', product: 'barberias', status: 'opened', campaign_id: null, sent_at: '2026-10-22T12:00:00Z', delivered_at: null, opened_at: null, clicked_at: null, replied_at: null };
+  store.emailMessagesSince = async () => [base, { ...base, status: 'accepted' }];
+  const result = await call('crm_funil_emails', { produto: 'barberias', dias: 30 }, TOKEN, store);
+  const data = result.result!.structuredContent!;
+  assert.equal((data.total as { entregues: number }).entregues, 1);
+  assert.equal(data.entregues_sem_resposta, 1);
+  assert.equal(data.aguardando_entrega, 1);
+});
