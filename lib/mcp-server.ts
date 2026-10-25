@@ -3,7 +3,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { readLimitedJson } from './brevo-receiver';
 import { campaignProductKey } from './campaign-preparation';
 import { paymentRevenue, netRevenue } from './payment-analytics';
-import type { PaymentTransaction, TaskAssignee } from './types';
+import type { Contact, PaymentTransaction, TaskAssignee, Task } from './types';
+import { buildActions } from './action-center';
 
 // Servidor MCP do CRM (Streamable HTTP, sem sessão, respostas JSON).
 // Quem chama: a Órbita e, no futuro, outros agentes, cada um com o próprio
@@ -69,6 +70,7 @@ export type McpEmailRow = {
 
 /** Tudo que o servidor precisa do banco. Implementação real em `mcp-store.ts`; os testes usam uma falsa. */
 export type CrmStore = {
+  actionContacts(): Promise<Pick<Contact, 'id' | 'status' | 'produto' | 'prospecting_pool' | 'account_status' | 'account_updated_at' | 'updated_at'>[]>;
   funnelContacts(): Promise<McpFunnelContact[]>;
   paymentsSince(iso: string): Promise<PaymentTransaction[]>;
   pendingTasks(): Promise<McpTask[]>;
@@ -210,6 +212,21 @@ const assigneeProp = { type: 'string', enum: ASSIGNEES, description: 'Papel resp
 const productProp = { type: 'string', minLength: 2, maxLength: 60, description: 'Identificador do produto, ex.: barberias, mecard. Sem ele, o CRM inteiro.' };
 
 export const TOOLS: Tool[] = [
+  {
+    name: 'crm_prioridades', scope: 'leitura', readOnly: true, title: 'Prioridades comerciais por produto',
+    description: 'Contagens para triagem humana: tarefas vencidas, testes com encerramento confirmado e oportunidades sem tarefa pendente. Exclui base fria das oportunidades. Não envia mensagens nem altera etapas.',
+    inputSchema: { type: 'object', properties: { produto: productProp }, additionalProperties: false },
+    async run(args, { store, now }) {
+      const product = productArg(args);
+      const [contacts, tasks] = await Promise.all([store.actionContacts(), store.pendingTasks()]);
+      const scopedContacts = contacts.filter((c) => !product || productKey(c.produto) === product);
+      const scopedTasks = tasks.filter((t) => !product || productKey(t.contact_product) === product);
+      const items = buildActions(scopedContacts.map((c) => ({ ...c, name: null })), scopedTasks as unknown as Task[], [], new Date(`${localToday(now)}T12:00:00`));
+      const count = (kind: string) => items.filter((item) => item.kind === kind).length;
+      return { produto: product, consultado_em: now.toISOString(), tarefas_vencidas: count('overdue'), testes_encerrados: count('trial'), sem_proximo_passo: count('next_step'),
+        cobertura: 'Consulta completa de contatos e tarefas pendentes. Uma pessoa pode gerar mais de uma ação. Sem próximo passo significa ausência de tarefa pendente, não ausência de conversa. Respostas de e-mail exigem crm_funil_emails e revisão no CRM. Não mede receita nem autoriza contato.', caminho: '/actions' };
+    },
+  },
   {
     name: 'crm_metricas_produto', scope: 'leitura', readOnly: true, openWorld: true, title: 'Dados administrativos do produto',
     description: 'Agregados de contas, usuários, ativação e assinaturas consultados na API do produto pelo CRM. Sem cadastros pessoais. Não confundir assinantes vigentes com receita do ledger.',
