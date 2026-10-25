@@ -103,7 +103,7 @@ test('escopos: token de leitura não vê nem chama ferramentas de escrita', asyn
   const { store } = fakeStore();
   const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, READER), { config, store: () => store, now: NOW })).json();
   const names = list.result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names, ['crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
+  assert.deepEqual(names, ['crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
   const denied = await call('crm_criar_tarefa', { titulo: 'Teste', responsavel: 'leo' }, READER, store);
   assert.match(denied.error!.message, /escopos/);
 });

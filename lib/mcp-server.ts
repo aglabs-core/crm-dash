@@ -1,3 +1,4 @@
+import { productMetrics } from './product-metrics';
 import { timingSafeEqual } from 'node:crypto';
 import { readLimitedJson } from './brevo-receiver';
 import { campaignProductKey } from './campaign-preparation';
@@ -198,7 +199,7 @@ function emailFunnel(rows: McpEmailRow[]) {
 }
 
 type Tool = {
-  name: string; scope: McpScope; title: string; description: string; readOnly: boolean;
+  name: string; scope: McpScope; title: string; description: string; readOnly: boolean; openWorld?: boolean;
   inputSchema: { type: 'object'; properties: Record<string, unknown>; required?: string[]; additionalProperties: false };
   run: (args: Args, ctx: { store: CrmStore; caller: McpCaller; now: Date }) => Promise<unknown>;
 };
@@ -207,6 +208,12 @@ const assigneeProp = { type: 'string', enum: ASSIGNEES, description: 'Papel resp
 const productProp = { type: 'string', minLength: 2, maxLength: 60, description: 'Identificador do produto, ex.: barberias, mecard. Sem ele, o CRM inteiro.' };
 
 export const TOOLS: Tool[] = [
+  {
+    name: 'crm_metricas_produto', scope: 'leitura', readOnly: true, openWorld: true, title: 'Dados administrativos do produto',
+    description: 'Agregados de contas, usuários, ativação e assinaturas consultados na API do produto pelo CRM. Sem cadastros pessoais. Não confundir assinantes vigentes com receita do ledger.',
+    inputSchema: { type: 'object', properties: { produto: productProp }, required: ['produto'], additionalProperties: false },
+    async run(args) { return productMetrics(productArg(args) ?? ''); },
+  },
   {
     name: 'crm_resumo', scope: 'leitura', readOnly: true, title: 'Resumo do CRM',
     description: 'Funil por etapa (sem a base fria de prospecção), contas no produto, novos contatos, receita líquida do mês e do mês anterior e tarefas pendentes por responsável. Com produto, tudo filtrado por ele; sem produto, inclui a divisão por produto.',
@@ -468,7 +475,7 @@ export async function dispatch(message: RpcRequest, ctx: { store: CrmStore; call
     case 'tools/list':
       return rpcResult(id, { tools: tools.map((t) => ({
         name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema,
-        annotations: { readOnlyHint: t.readOnly, destructiveHint: false, idempotentHint: t.readOnly, openWorldHint: false },
+        annotations: { readOnlyHint: t.readOnly, destructiveHint: false, idempotentHint: t.readOnly, openWorldHint: t.openWorld ?? false },
       })) });
     case 'tools/call': {
       const name = message.params?.name;
