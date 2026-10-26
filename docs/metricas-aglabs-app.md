@@ -6,7 +6,7 @@ No contrato v1, só `metrics.users` é aceito; números de conta SaaS são rejei
 
 - `users`: total, ativos em 30 dias e que geraram (ativos e geradores ≤ total);
 - `sales`: compras de crédito sem reembolso aprovado, compradores e receita registrada em centavos BRL (compradores ≤ compras; zero compras sem valor);
-- `subscriptions`: ativas, em teste, MRR e ativas por plano conhecido (Básico, Advanced, Premium); `null` quando o admin marcou a seção indisponível;
+- `subscriptions`: ativas, em teste, MRR estimado e ativas por plano conhecido (Básico, Advanced, Premium); seção `null` quando indisponível. `mrrCents` pode ser `null` quando faltam preços, sem zerar as contagens conhecidas;
 - `credits`: vendidos, comprados, bônus (pode ser `null`), consumidos e reembolsados; `null` quando indisponível;
 - `generations`: gerações no período.
 

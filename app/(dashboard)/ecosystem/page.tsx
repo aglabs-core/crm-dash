@@ -18,7 +18,7 @@ const descriptions: Record<string, string> = {
   mecard: 'Usuários e contas seguem o relatório administrativo do MeCard, incluindo contas internas. Pro pode incluir teste e administração; não comprova pagamento.',
   members: 'Marketplace: a unidade é o produtor e a receita da plataforma vem das vendas (produtos próprios e comissões). Usuários incluem alunos, produtores e administração.',
   vibekit: 'Produto de compra única. Eventos anônimos e compras registradas têm unidades diferentes das contas de assinatura dos aplicativos.',
-  'aglabs-app': 'Créditos: assinatura mensal com créditos ou pacote avulso. Usuários, compras, assinaturas e créditos dos últimos 30 dias, como no admin do app.',
+  'aglabs-app': 'Créditos por assinatura ou pacote avulso. Cadastros e assinaturas vigentes; compras, atividade e consumo na janela de 30 dias do admin.',
 };
 export default function EcosystemPage() {
   const [products, setProducts] = useState<Product[]>([]);

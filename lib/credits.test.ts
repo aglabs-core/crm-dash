@@ -28,6 +28,13 @@ test('unavailable admin sections stay null; snapshot without the block is accept
   assert.equal(validateSnapshot(snapshot({ credits: undefined }), 'aglabs-app').credits, undefined);
 });
 
+test('unknown price coverage preserves subscriptions without inventing MRR or a period', () => {
+  const raw=snapshot({credits:{...credits(),subscriptions:{...credits().subscriptions,mrrCents:null}}});
+  assert.equal(validateSnapshot(raw,'aglabs-app').credits?.subscriptions?.mrrCents,null);
+  assert.equal(validateSnapshot(raw,'aglabs-app').credits?.subscriptions?.active,18);
+  assert.throws(()=>validateSnapshot({...raw,window:{...raw.window,from:'2026-01-01T00:00:00.000Z'}},'aglabs-app'));
+});
+
 test('rejects SaaS numbers and inconsistent credits values', () => {
   assert.throws(() => validateSnapshot(snapshot({ metrics: { users: 500, ...nulls, payingAccounts: 18 } }), 'aglabs-app'));
   assert.throws(() => validateSnapshot(snapshot({ metrics: { users: 499, ...nulls } }), 'aglabs-app'));

@@ -7,7 +7,7 @@ export type Credits = {
   basis: 'admin_analytics_30d';
   users: { total: number; active30d: number; generating: number };
   sales: { count: number; payingUsers: number; revenueCents: number };
-  subscriptions: { active: number; trialing: number; mrrCents: number; byPlan: { plan: Plan; active: number }[] } | null;
+  subscriptions: { active: number; trialing: number; mrrCents: number | null; byPlan: { plan: Plan; active: number }[] } | null;
   credits: { sold: number; purchased: number; bonus: number | null; consumed: number; refunded: number } | null;
   generations: number;
 };
@@ -29,7 +29,7 @@ export function projectCredits(raw: unknown): Credits {
     if (!s || !Array.isArray(s.byPlan) || s.byPlan.length > PLANS.length) throw new Error('Assinaturas inválidas');
     const byPlan = s.byPlan.map(p => { if (!PLANS.includes(p?.plan)) throw new Error('Plano inválido'); return { plan: p.plan, active: need(p.active) }; });
     if (new Set(byPlan.map(p => p.plan)).size !== byPlan.length || byPlan.reduce((sum, p) => sum + p.active, 0) > need(s.active)) throw new Error('Planos inválidos');
-    subscriptions = { active: need(s.active), trialing: need(s.trialing), mrrCents: need(s.mrrCents), byPlan };
+    subscriptions = { active: need(s.active), trialing: need(s.trialing), mrrCents: s.mrrCents === null ? null : need(s.mrrCents), byPlan };
   }
   let credits: Credits['credits'] = null;
   if (v.credits !== null) {

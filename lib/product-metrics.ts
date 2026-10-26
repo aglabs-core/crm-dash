@@ -54,6 +54,7 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     // Modelo de créditos: só users no contrato v1; o resto vai no bloco próprio.
     if (Object.entries(metrics).some(([key, n]) => key !== 'users' && n !== null)) throw new Error('Unidade de créditos inválida');
     if (value.credits !== undefined) {
+      if (Date.parse(value.window.to) - Date.parse(value.window.from) !== 30 * 86_400_000 || Date.parse(value.window.to) !== Date.parse(value.generatedAt)) throw new Error('Janela de créditos inválida');
       credits = projectCredits(value.credits);
       if (metrics.users !== credits.users.total || Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Créditos divergentes');
     }
