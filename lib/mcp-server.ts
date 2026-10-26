@@ -229,7 +229,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'crm_metricas_produto', scope: 'leitura', readOnly: true, openWorld: true, title: 'Dados administrativos do produto',
-    description: 'Agregados de contas, usuários, ativação e assinaturas consultados na API do produto pelo CRM. Sem cadastros pessoais. Não confundir assinantes vigentes com receita do ledger.',
+    description: 'Agregados administrativos consultados na API do produto pelo CRM. VibeKit inclui eventos anônimos e compras registradas na janela informada: eventos não são visitantes únicos; valor de checkout não é receita líquida ou liquidada. Sem cadastros pessoais. Não confundir assinantes vigentes com receita do ledger.',
     inputSchema: { type: 'object', properties: { produto: productProp }, required: ['produto'], additionalProperties: false },
     async run(args) { return productMetrics(productArg(args) ?? ''); },
   },

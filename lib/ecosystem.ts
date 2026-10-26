@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { productMetrics, type ProductMetricsResult } from './product-metrics';
-export const ECOSYSTEM_PRODUCTS = ['barberias', 'mecard', 'members'] as const;
+export const ECOSYSTEM_PRODUCTS = ['barberias', 'mecard', 'members', 'vibekit'] as const;
 const reply = (status: number, body: object) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store', Vary: 'Authorization' } });
 /** Product-wide aggregates require administrator membership, not merely a valid CRM login. */
 export async function ecosystemOverview(request: Request, dependencies?: {

@@ -1,3 +1,4 @@
+import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
 // Business metrics are collected by the CRM; the application remains authoritative.
 const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAccounts', 'complimentaryAccounts', 'canceledAccounts', 'activatedAccounts'] as const;
 type Metric = typeof keys[number];
@@ -5,9 +6,10 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   barberias: { hosts: ['barberias.com.br', 'www.barberias.com.br'], path: '/api/integrations/orbita/metrics' },
   mecard: { hosts: ['mecard.com.br', 'www.mecard.com.br'], path: '/api/integrations/crm/metrics' },
   members: { hosts: ['members.ia.br', 'www.members.ia.br'], path: '/api/integrations/crm/metrics' },
+  vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -29,8 +31,13 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
       || funnel.firstAppointment !== metrics.activatedAccounts) throw new Error('Funil inválido');
     activationFunnel = { professional: funnel.professional, catalog: funnel.catalog, readyForBooking: funnel.readyForBooking, firstAppointment: funnel.firstAppointment };
   }
+  let commerceFunnel: CommerceFunnel | undefined;
+  if (product === 'vibekit') {
+    if (Object.values(metrics).some(n => n !== null) || Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Unidade comercial inválida');
+    commerceFunnel = projectCommerceFunnel(value.commerceFunnel, value.window.to);
+  }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}) };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
