@@ -87,9 +87,15 @@ export async function productMetrics(product: string): Promise<ProductMetricsRes
   const result = (status: ProductMetricsResult['status'], message: string, data: ProductSnapshot | null = null): ProductMetricsResult => ({ status, message, data, checkedAt, via: 'crm' });
   try {
     if (!/^[a-z0-9][a-z0-9_-]{1,59}$/.test(product)) return result('unavailable', 'Produto inválido.');
-    const config: unknown = JSON.parse(process.env.APP_METRICS_SOURCES || '[]');
-    if (!Array.isArray(config)) throw new Error('Configuração inválida');
-    const source = config.find((row: unknown) => row && typeof row === 'object' && 'product' in row && row.product === product) as { url?: unknown; token?: unknown } | undefined;
+    // Write-only production secrets cannot be safely read back for an append.
+    // Keep the original untouched and accept separately managed additions.
+    const primary: unknown = JSON.parse(process.env.APP_METRICS_SOURCES || '[]');
+    const extra: unknown = JSON.parse(process.env.APP_METRICS_SOURCES_EXTRA || '[]');
+    if (!Array.isArray(primary) || !Array.isArray(extra)) throw new Error('Configuração inválida');
+    const matches = [...primary, ...extra].filter((row: unknown) => row && typeof row === 'object' && 'product' in row && row.product === product);
+    // Never silently shadow an existing destination/token for the same product.
+    if (matches.length > 1) throw new Error('Fonte duplicada');
+    const source = matches[0] as { url?: unknown; token?: unknown } | undefined;
     if (!source) return result('not_configured', 'Coleta administrativa ainda não configurada no CRM.');
     if (typeof source.url !== 'string' || typeof source.token !== 'string' || source.token.length < 32) throw new Error('Configuração inválida');
     const url = new URL(source.url);
