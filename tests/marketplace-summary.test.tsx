@@ -13,5 +13,5 @@ it('shows marketplace units with the admin definitions and limits', () => {
   expect(screen.getByText(/14 vendas/)).toBeTruthy();
   expect(screen.getByText('12')).toBeTruthy();
   expect(screen.getByText(/de 40 com cadastro iniciado/)).toBeTruthy();
-  expect(screen.getByText(/não liquidados/)).toBeTruthy();
+  expect(screen.getByText(/não comprova liquidação/)).toBeTruthy();
 });
