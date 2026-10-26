@@ -1,5 +1,6 @@
 import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
 import { projectMarketplace, type Marketplace } from './marketplace';
+import { projectCredits, type Credits } from './credits';
 // Business metrics are collected by the CRM; the application remains authoritative.
 const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAccounts', 'complimentaryAccounts', 'canceledAccounts', 'activatedAccounts'] as const;
 type Metric = typeof keys[number];
@@ -7,10 +8,11 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   barberias: { hosts: ['barberias.com.br', 'www.barberias.com.br'], path: '/api/integrations/orbita/metrics' },
   mecard: { hosts: ['mecard.com.br', 'www.mecard.com.br'], path: '/api/integrations/crm/metrics' },
   members: { hosts: ['members.ia.br', 'www.members.ia.br'], path: '/api/integrations/crm/metrics' },
+  'aglabs-app': { hosts: ['aglabs.app.br', 'www.aglabs.app.br'], path: '/api/integrations/crm/metrics' },
   vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -47,8 +49,17 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
       if (metrics.users !== marketplace.users.total) throw new Error('Usuários divergentes');
     }
   }
+  let credits: Credits | undefined;
+  if (product === 'aglabs-app') {
+    // Modelo de créditos: só users no contrato v1; o resto vai no bloco próprio.
+    if (Object.entries(metrics).some(([key, n]) => key !== 'users' && n !== null)) throw new Error('Unidade de créditos inválida');
+    if (value.credits !== undefined) {
+      credits = projectCredits(value.credits);
+      if (metrics.users !== credits.users.total || Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Créditos divergentes');
+    }
+  }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}) };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {

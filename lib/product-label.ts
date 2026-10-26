@@ -8,6 +8,7 @@ const labels: Record<string, string> = {
   barberias: 'Barberias',
   barberpro: 'Barberias',
   aglabs: 'AG LABS institucional',
+  'aglabs-app': 'AG LABS App',
   mecard: 'MeCard',
   members: 'Members',
   vibekit: 'VibeKit',
