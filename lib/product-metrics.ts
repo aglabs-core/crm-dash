@@ -61,7 +61,7 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     }
   }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  const audience = value.audience === undefined ? undefined : projectAudience(value.audience, metrics.users, value.generatedAt);
+  const audience = value.audience === undefined ? undefined : projectAudience(value.audience, metrics.users, value.generatedAt, product);
   if (audience && product === 'vibekit') throw new Error('Compra única não mede usuários');
   return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}) };
 }

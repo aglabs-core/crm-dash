@@ -17,3 +17,11 @@ test('CRM preserves audience aggregates and legacy compatibility without leaking
   assert.equal(validateSnapshot({ ...raw, audience: undefined }, 'members', Date.parse(at)).audience, undefined);
   assert.throws(() => validateSnapshot({ ...raw, audience: { ...audience, newMonth: 11 } }, 'members', Date.parse(at)));
 });
+test('preserves Members role overlap and playback coverage without identities or cross-product reuse',()=>{
+  const counts={engaged:3,creating:2,selling:1,learning:2};
+  const members={rolling30d:counts,currentMonth:counts,playbackObservedFrom:'2026-10-31T12:00:00Z'};
+  const out=projectAudience({...audience,members:{...members,email:'private@example.invalid'}},10,at,'members');
+  assert.deepEqual(out.members,members);
+  assert.throws(()=>projectAudience({...audience,members},10,at,'barberias'));
+  assert.throws(()=>projectAudience({...audience,members:{...members,rolling30d:{...counts,engaged:1}}},10,at,'members'));
+});
