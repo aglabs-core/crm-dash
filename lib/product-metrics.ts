@@ -1,6 +1,7 @@
 import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
 import { projectMarketplace, type Marketplace } from './marketplace';
 import { projectCredits, type Credits } from './credits';
+import { projectAudience, type Audience } from './audience';
 // Business metrics are collected by the CRM; the application remains authoritative.
 const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAccounts', 'complimentaryAccounts', 'canceledAccounts', 'activatedAccounts'] as const;
 type Metric = typeof keys[number];
@@ -12,7 +13,7 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits; audience?: Audience };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -60,7 +61,9 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     }
   }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}) };
+  const audience = value.audience === undefined ? undefined : projectAudience(value.audience, metrics.users, value.generatedAt);
+  if (audience && product === 'vibekit') throw new Error('Compra única não mede usuários');
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
