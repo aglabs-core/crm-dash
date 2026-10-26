@@ -1,4 +1,5 @@
 import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
+import { projectMarketplace, type Marketplace } from './marketplace';
 // Business metrics are collected by the CRM; the application remains authoritative.
 const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAccounts', 'complimentaryAccounts', 'canceledAccounts', 'activatedAccounts'] as const;
 type Metric = typeof keys[number];
@@ -9,7 +10,7 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -36,8 +37,17 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     if (Object.values(metrics).some(n => n !== null) || Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Unidade comercial inválida');
     commerceFunnel = projectCommerceFunnel(value.commerceFunnel, value.window.to);
   }
+  let marketplace: Marketplace | undefined;
+  if (product === 'members') {
+    // Marketplace não tem conta SaaS: só users é aceito no contrato v1; o resto vai no bloco próprio.
+    if (Object.entries(metrics).some(([key, n]) => key !== 'users' && n !== null)) throw new Error('Unidade de marketplace inválida');
+    if (value.marketplace !== undefined) {
+      marketplace = projectMarketplace(value.marketplace, value.window);
+      if (metrics.users !== marketplace.users.total) throw new Error('Usuários divergentes');
+    }
+  }
   // Explicit projection prevents accidental transmission of identities or provider secrets.
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}) };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
