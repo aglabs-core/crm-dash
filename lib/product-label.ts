@@ -10,6 +10,7 @@ const labels: Record<string, string> = {
   aglabs: 'AG LABS institucional',
   mecard: 'MeCard',
   members: 'Members',
+  vibekit: 'VibeKit',
   atendente_ia: 'Atendente de IA',
   'sem produto': 'Produto a definir',
 };
