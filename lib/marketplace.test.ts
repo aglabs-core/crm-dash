@@ -50,3 +50,17 @@ test('marketplace block is ignored for other products', () => {
   const barberias = { ...snapshot(), product: 'barberias', metrics: { users: 3, accounts: 2, activeAccounts: 1, trialAccounts: 1, payingAccounts: 0, complimentaryAccounts: 0, canceledAccounts: 0, activatedAccounts: null } };
   assert.equal(validateSnapshot(barberias, 'barberias').marketplace, undefined);
 });
+
+test('month boundaries are consecutive São Paulo calendar months, including UTC/year rollover', () => {
+  const mid = '2026-10-02T03:00:00.000Z';
+  assert.throws(() => validateSnapshot(snapshot({ window: { from: mid, to: generatedAt }, marketplace: { ...marketplace(), currentMonth: { ...marketplace().currentMonth, from: mid }, previousMonth: { ...marketplace().previousMonth, to: mid } } }), 'members'));
+  assert.throws(() => validateSnapshot(snapshot({ marketplace: { ...marketplace(), previousMonth: { ...marketplace().previousMonth, from: '2026-08-01T03:00:00.000Z' } } }), 'members'));
+  for (const [to, current, previous] of [
+    ['2027-01-01T02:30:00.000Z', '2026-12-01T03:00:00.000Z', '2026-11-01T03:00:00.000Z'],
+    ['2027-01-01T03:00:00.000Z', '2027-01-01T03:00:00.000Z', '2026-12-01T03:00:00.000Z'],
+  ]) {
+    const row = snapshot({ generatedAt: to, window: { from: current, to }, marketplace: { ...marketplace(), currentMonth: { ...marketplace().currentMonth, from: current }, previousMonth: { ...marketplace().previousMonth, from: previous, to: current } } });
+    assert.ok(validateSnapshot(row, 'members', Date.parse(to)).marketplace);
+    assert.throws(() => validateSnapshot({ ...row, generatedAt: new Date(Date.parse(to) - 1000).toISOString() }, 'members', Date.parse(to)));
+  }
+});

@@ -42,6 +42,7 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
     // Marketplace não tem conta SaaS: só users é aceito no contrato v1; o resto vai no bloco próprio.
     if (Object.entries(metrics).some(([key, n]) => key !== 'users' && n !== null)) throw new Error('Unidade de marketplace inválida');
     if (value.marketplace !== undefined) {
+      if (Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Geração divergente da janela');
       marketplace = projectMarketplace(value.marketplace, value.window);
       if (metrics.users !== marketplace.users.total) throw new Error('Usuários divergentes');
     }
