@@ -47,7 +47,11 @@ test('registered applications have separate fixed origins and explicit unknown m
   try {
     for (const [product, host] of [['mecard', 'mecard.com.br'], ['members', 'members.ia.br']]) {
       process.env.APP_METRICS_SOURCES = JSON.stringify([{ product, url: `https://${host}/api/integrations/crm/metrics`, token: 'x'.repeat(32) }]);
-      globalThis.fetch = async () => Response.json({ ...snapshot(), product, metrics: { ...snapshot().metrics, payingAccounts: null } });
+      // Members é marketplace: só users no contrato v1; os campos de conta SaaS chegam nulos.
+      const metrics = product === 'members'
+        ? { users: 3, accounts: null, activeAccounts: null, trialAccounts: null, payingAccounts: null, complimentaryAccounts: null, canceledAccounts: null, activatedAccounts: null }
+        : { ...snapshot().metrics, payingAccounts: null };
+      globalThis.fetch = async () => Response.json({ ...snapshot(), product, metrics });
       assert.equal((await productMetrics(product)).status, 'ok');
       globalThis.fetch = async () => Response.json(snapshot());
       assert.equal((await productMetrics(product)).status, 'unavailable');
