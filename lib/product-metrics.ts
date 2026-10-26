@@ -1,3 +1,4 @@
+import { projectFreemium, type FreemiumMetrics } from './freemium';
 import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
 import { projectMarketplace, type Marketplace } from './marketplace';
 import { projectCredits, type Credits } from './credits';
@@ -7,13 +8,14 @@ const keys = ['users', 'accounts', 'activeAccounts', 'trialAccounts', 'payingAcc
 type Metric = typeof keys[number];
 const origins: Record<string, { hosts: string[]; path: string }> = {
   barberias: { hosts: ['barberias.com.br', 'www.barberias.com.br'], path: '/api/integrations/orbita/metrics' },
+  viajeki: { hosts: ['viajeki.com.br', 'www.viajeki.com.br'], path: '/api/integrations/crm/metrics' },
   mecard: { hosts: ['mecard.com.br', 'www.mecard.com.br'], path: '/api/integrations/crm/metrics' },
   members: { hosts: ['members.ia.br', 'www.members.ia.br'], path: '/api/integrations/crm/metrics' },
   'aglabs-app': { hosts: ['aglabs.app.br', 'www.aglabs.app.br'], path: '/api/integrations/crm/metrics' },
   vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits; audience?: Audience };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits; audience?: Audience; freemium?: FreemiumMetrics };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -60,10 +62,12 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
       if (metrics.users !== credits.users.total || Date.parse(value.window.to) > Date.parse(value.generatedAt)) throw new Error('Créditos divergentes');
     }
   }
+  const freemium = value.freemium === undefined ? undefined : projectFreemium(value.freemium, product, metrics.users);
+  if (freemium && Object.entries(metrics).some(([key,n]) => key !== 'users' && n !== null)) throw new Error('Unidade freemium inválida');
   // Explicit projection prevents accidental transmission of identities or provider secrets.
   const audience = value.audience === undefined ? undefined : projectAudience(value.audience, metrics.users, value.generatedAt, product);
   if (audience && product === 'vibekit') throw new Error('Compra única não mede usuários');
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}) };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}), ...(freemium ? { freemium } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
@@ -95,7 +99,8 @@ export async function productMetrics(product: string): Promise<ProductMetricsRes
     const primary: unknown = JSON.parse(process.env.APP_METRICS_SOURCES || '[]');
     const extra: unknown = JSON.parse(process.env.APP_METRICS_SOURCES_EXTRA || '[]');
     if (!Array.isArray(primary) || !Array.isArray(extra)) throw new Error('Configuração inválida');
-    const matches = [...primary, ...extra].filter((row: unknown) => row && typeof row === 'object' && 'product' in row && row.product === product);
+    const dedicated = [['mecard', process.env.APP_METRICS_MECARD_TOKEN], ['viajeki', process.env.APP_METRICS_VIAJEKI_TOKEN]].filter(([,token]) => token?.trim()).map(([product,token]) => ({ product, token, url: `https://${product}.com.br/api/integrations/crm/metrics` }));
+    const matches = [...primary, ...extra, ...dedicated].filter((row: unknown) => row && typeof row === 'object' && 'product' in row && row.product === product);
     // Never silently shadow an existing destination/token for the same product.
     if (matches.length > 1) throw new Error('Fonte duplicada');
     const source = matches[0] as { url?: unknown; token?: unknown } | undefined;
