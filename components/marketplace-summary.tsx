@@ -12,6 +12,6 @@ export function MarketplaceSummary({ data }: { data: Marketplace }) {
       <div><dt className="text-xs text-muted">Produtores aprovados</dt><dd className="text-xl font-semibold tabular-nums">{n(data.producers.approved)}</dd><dd className="text-xs text-muted">de {n(data.producers.onboarding)} com cadastro iniciado</dd></div>
       <div><dt className="text-xs text-muted">Usuários</dt><dd className="text-xl font-semibold tabular-nums">{n(data.users.total)}</dd><dd className="text-xs text-muted">{n(data.users.new30d)} novos em 30 dias</dd></div>
     </dl>
-    <p className="text-xs leading-relaxed text-muted">Mesmos números do painel administrativo do Members. Receita da plataforma inclui produtos próprios e comissões; valores sem taxas do provedor, não liquidados. Marketplace não tem contas de assinatura.</p>
+    <p className="text-xs leading-relaxed text-muted">Mesma fonte do painel administrativo do Members. Mês atual parcial; mês anterior completo. Receita da plataforma inclui produtos próprios e comissões, com valores conciliados ou estimados e estornos alocados conforme o relatório; não comprova liquidação nem saldo disponível. Marketplace não tem contas de assinatura.</p>
   </div>;
 }

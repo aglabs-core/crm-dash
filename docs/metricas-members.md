@@ -8,6 +8,6 @@ No contrato v1, só `metrics.users` é aceito para `members`; os demais campos d
 - `producers`: cadastro iniciado e aprovados (aprovados ≤ iniciados ≤ usuários);
 - `users`: total de perfis e novos em 30 dias, igual a `metrics.users`.
 
-Receita da plataforma não pode passar do bruto; venda zero não tem valor. Valores em centavos BRL, sem taxas do provedor: não são valores liquidados. A versão atual do app em produção, sem o bloco, continua aceita.
+Receita da plataforma não pode passar do bruto; venda zero não tem valor. Valores em centavos BRL. No relatório canônico, a receita usa alocações da plataforma e de produtos próprios, conciliadas quando disponíveis ou estimadas, menos estornos alocados. O legado usa o valor líquido do produto próprio ou a comissão registrada de terceiros. Portanto não afirmar que taxas nunca foram descontadas nem que os valores comprovam liquidação bancária ou saldo disponível. A versão do app sem o bloco continua aceita.
 
 A tela Ecossistema mostra esses indicadores no cartão do Members; `crm_metricas_produto` transporta a mesma projeção para a Órbita. Ativação: `CRM_METRICS_TOKEN` no Members e o mesmo valor na entrada `members` de `APP_METRICS_SOURCES` do CRM; conferir com o painel `/plataforma` antes de considerar integrado.
