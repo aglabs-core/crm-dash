@@ -1,0 +1,5 @@
+import type { FreemiumMetrics } from '@/lib/freemium';
+export function FreemiumSummary({ data, users }: { data: FreemiumMetrics; users: number | null }) {
+ const items = [['Usuários',users],['Acesso por plano (não comprova pagamento)',data.subscriptionAccessUsers],['Assinantes pagantes',data.paidSubscriptionUsers],['Páginas publicadas',data.publishedPages],['Páginas no ar',data.onlinePages],['Viagens criadas',data.trips],['Compras de roteiro · 30d',data.tripPurchases30d],['Compradores · 30d',data.tripBuyers30d]] as const;
+ return <div><dl className="mt-4 grid grid-cols-2 gap-4">{items.filter(([,value])=>value!==null).map(([label,value])=><div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="text-xl font-semibold tabular-nums">{value?.toLocaleString('pt-BR')}</dd></div>)}</dl><p className="mt-3 text-xs text-muted">Pagamento aprovado com período vigente; acesso administrativo e teste grátis não comprovam pagamento. Compras avulsas e assinatura são medidas separadas.</p></div>;
+}
