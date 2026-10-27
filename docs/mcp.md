@@ -7,7 +7,7 @@
 | Ferramenta | Escopo | O que faz |
 | --- | --- | --- |
 | `crm_prioridades` | `leitura` | Agregados por `produto` opcional: tarefas vencidas, testes encerrados confirmados e oportunidades sem tarefa pendente. Sem nomes, IDs, assuntos ou mensagens. Consulta completa; erro nunca vira zero. Revisão humana em `/actions` |
-| `crm_resumo` | `leitura` | Funil por etapa (sem a base fria), contas no produto (trial, trial encerrado, ativo, cancelado), novos contatos em 7 e 30 dias, receita líquida do mês e do mês anterior, tarefas pendentes, vencidas e por responsável. Com `produto` (ex.: `barberias`), tudo filtrado por ele; sem `produto`, inclui `por_produto` |
+| `crm_resumo` | `leitura` | Funil por etapa (sem a base fria), contas no produto (trial, trial encerrado, ativo, cancelado), novos contatos em 7 e 30 dias, receita líquida acumulada (`receita_total`), do mês e do mês anterior, tarefas pendentes, vencidas e por responsável. Com `produto` (ex.: `barberias`), tudo filtrado por ele; sem `produto`, inclui `por_produto` |
 | `crm_funil_emails` | `leitura` | Totais dos e-mails registrados no período (`dias`, padrão 30): enviados, entregues, abertos, cliques, respostas, falhas e descadastros, com taxas sobre entregues, por categoria e por origem. Filtra por `produto` e `categoria`. Sem endereço, assunto ou conteúdo |
 | `crm_tarefas` | `leitura` | Tarefas pendentes, das mais urgentes para as menos urgentes; filtro por responsável e por situação (`vencidas`, `hoje`, `ate_hoje`) |
 | `crm_buscar_contatos` | `leitura` | Busca por nome, empresa, e-mail ou Instagram (até 10 fichas) |
@@ -66,3 +66,7 @@ Na Órbita: `CRM_MCP_URL=https://<endereço do CRM>/api/mcp` e `CRM_MCP_TOKEN=<t
 - `lib/mcp-server.test.ts`: protocolo, escopos, validação, cálculo do resumo e escrita, com banco falso.
 
 Não há migration: o servidor usa as tabelas e as regras que já existem.
+
+### Janelas de receita
+
+`receita_total` usa o histórico de pagamentos registrados, após estornos, inclusive registros sem data de pagamento. `receita_mes` e `receita_mes_anterior` usam `paid_at` e o calendário de São Paulo; registros sem data não são atribuídos a um mês. Datas futuras ficam fora dos agregados. O cartão principal do dashboard é acumulado, portanto deve ser comparado a `receita_total`, não à receita do mês. A consulta preserva o filtro por produto e não devolve transações nem identidades.
