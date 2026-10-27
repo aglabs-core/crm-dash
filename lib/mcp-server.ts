@@ -72,7 +72,7 @@ export type McpEmailRow = {
 export type CrmStore = {
   actionContacts(): Promise<Pick<Contact, 'id' | 'status' | 'produto' | 'prospecting_pool' | 'account_status' | 'account_updated_at' | 'updated_at'>[]>;
   funnelContacts(): Promise<McpFunnelContact[]>;
-  paymentsSince(iso: string): Promise<PaymentTransaction[]>;
+  paymentsSince(iso?: string): Promise<PaymentTransaction[]>;
   pendingTasks(): Promise<McpTask[]>;
   searchContacts(term: string, limit: number): Promise<McpContact[]>;
   contact(id: string): Promise<McpContact | null>;
@@ -241,7 +241,7 @@ export const TOOLS: Tool[] = [
       const today = localToday(now);
       const product = productArg(args);
       const inProduct = (value?: string | null) => !product || productKey(value) === product;
-      const [allContacts, allPayments, allTasks] = await Promise.all([store.funnelContacts(), store.paymentsSince(spIso(previousMonthStart(today))), store.pendingTasks()]);
+      const [allContacts, allPayments, allTasks] = await Promise.all([store.funnelContacts(), store.paymentsSince(), store.pendingTasks()]);
       const contacts = allContacts.filter((c) => inProduct(c.produto));
       const payments = allPayments.filter((p) => inProduct(p.product));
       const tasks = product ? allTasks.filter((t) => t.contact_id && inProduct(t.contact_product)) : allTasks;
@@ -284,8 +284,9 @@ export const TOOLS: Tool[] = [
         base_prospeccao: contacts.length - active.length,
         contas_no_produto: accounts(contacts),
         novos_7d: since(7), novos_30d: since(30),
+        receita_total: paymentRevenue(payments.filter(p => !p.paid_at || Date.parse(p.paid_at) <= now.getTime())),
         receita_mes: paymentRevenue(monthPayments),
-        receita_mes_anterior: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) < thisMonth)),
+        receita_mes_anterior: paymentRevenue(payments.filter((p) => p.paid_at && Date.parse(p.paid_at) >= Date.parse(spIso(previousMonthStart(today))) && Date.parse(p.paid_at) < thisMonth)),
         tarefas: {
           pendentes: tasks.length, vencidas: tasks.filter((t) => t.due_date && t.due_date < today).length,
           para_hoje: tasks.filter((t) => t.due_date === today).length, por_responsavel: owners,

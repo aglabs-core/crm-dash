@@ -68,7 +68,10 @@ export function supabaseCrmStore(): CrmStore | null {
       return paged((from, to) => client.from('contacts').select('status,prospecting_pool,created_at,produto,account_status').order('id').range(from, to));
     },
     async paymentsSince(iso) {
-      return paged<PaymentTransaction>((from, to) => client.from('payment_transactions').select('*').gte('paid_at', iso).order('id').range(from, to));
+      return paged<PaymentTransaction>((from, to) => {
+        const query = client.from('payment_transactions').select('*');
+        return (iso ? query.gte('paid_at', iso) : query).order('id').range(from, to);
+      });
     },
     async pendingTasks() {
       const rows = await paged<TaskRow>((from, to) => client.from('tasks').select(TASK_COLUMNS).eq('status', 'pending').order('id').range(from, to));

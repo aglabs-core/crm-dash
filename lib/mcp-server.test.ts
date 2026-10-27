@@ -286,3 +286,21 @@ test('entrega sem timestamp usa o mesmo critério nos totais e nas pendências',
   assert.equal(data.entregues_sem_resposta, 1);
   assert.equal(data.aguardando_entrega, 1);
 });
+
+test('resumo distinguishes accumulated revenue from current and previous months', async () => {
+  const { store } = fakeStore();
+  store.paymentsSince = async iso => {
+    assert.equal(iso,undefined);
+    return [
+      { currency:'BRL', status:'paid', net_amount:100, paid_at:'2026-08-10T12:00:00Z' },
+      { currency:'BRL', status:'paid', net_amount:50, paid_at:'2026-09-10T12:00:00Z' },
+      { currency:'BRL', status:'paid', net_amount:200, paid_at:'2026-10-10T12:00:00Z' },
+      { currency:'BRL', status:'paid', net_amount:999, paid_at:'2027-01-10T12:00:00Z' },
+      { currency:'BRL', status:'refunded', net_amount:100, paid_at:'2026-10-11T12:00:00Z' },
+    ] as PaymentTransaction[];
+  };
+  const data = (await call('crm_resumo',{},READER,store)).result!.structuredContent as Record<string,unknown>;
+  assert.equal(data.receita_total,350);
+  assert.equal(data.receita_mes,200);
+  assert.equal(data.receita_mes_anterior,50);
+});
