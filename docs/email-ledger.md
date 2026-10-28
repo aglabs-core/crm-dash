@@ -66,6 +66,7 @@ Para a organização por produto e a carteira paginada, aplicar também `2026102
 
 `lib/email-ledger-db.test.ts` (PGlite) cobre:
 
+- ponte restrita da Maia: evento admitido, escopo de identidade, referência RFC, exigência de interação, resposta idempotente e recibo `unmatched` sem vínculo presumido;
 - registro idempotente e vínculo de identidade;
 - espelho do webhook com status que só avança;
 - clique anonimizado;
@@ -74,6 +75,8 @@ Para a organização por produto e a carteira paginada, aplicar também `2026102
 - bounce bloqueando o contato;
 - trial virando Lead sem regredir conta ativa;
 - RLS.
+
+Esses testes são locais e usam dados sintéticos. As tabelas de intake e interação são fixtures com o formato esperado; não executam os workflows n8n, o gateway ou o recebimento real na caixa de suporte e não comprovam entrega nem identificação do remetente no atendimento em produção.
 
 `lib/email-integrations.test.ts` cobre:
 

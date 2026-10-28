@@ -28,6 +28,7 @@ async function setup() {
     CREATE POLICY owner_contacts ON public.contacts TO authenticated USING(user_id=auth.uid()) WITH CHECK(user_id=auth.uid());
     GRANT ALL ON public.contacts TO authenticated,service_role;
     CREATE TABLE public.activities(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid,contact_id uuid,type text,channel text,content text,created_at timestamptz DEFAULT now());
+    ALTER TABLE public.activities ADD COLUMN maia_pending_id uuid;
     GRANT ALL ON public.activities TO service_role;
     CREATE TABLE public.tasks(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),contact_id uuid,title text,status text,due_date date,assigned_to text,created_at timestamptz DEFAULT now());
     CREATE FUNCTION public.clear_pool() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
@@ -40,6 +41,10 @@ async function setup() {
 
     CREATE TABLE maia_intake_private.identities(user_id uuid NOT NULL,channel text NOT NULL,subject text NOT NULL,contact_id uuid NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,channel,subject));
+    CREATE TABLE maia_intake_private.threads(user_id uuid NOT NULL,mailbox text NOT NULL,thread_id text NOT NULL,subject text NOT NULL,PRIMARY KEY(user_id,mailbox,thread_id));
+    CREATE TABLE maia_intake_private.interactions(user_id uuid NOT NULL,mailbox text NOT NULL,event_id text NOT NULL,thread_id text NOT NULL,
+      subject text NOT NULL,summary text NOT NULL,activity_id uuid NOT NULL REFERENCES public.activities(id),identity_pending boolean NOT NULL,
+      PRIMARY KEY(user_id,mailbox,event_id),FOREIGN KEY(user_id,mailbox,thread_id) REFERENCES maia_intake_private.threads(user_id,mailbox,thread_id));
     INSERT INTO public.contacts(id,user_id,name,email,status,origin,produto,prospecting_pool,outreach_status)
       VALUES('${prospect}','${admin}','Barbearia Sintética','dono@barbearia.example.invalid','Arquivado','prospeccao','barberias',true,'contactable');`);
   for (const file of ['20261016052215_email_campaign_observability.sql', '20261017034819_guided_campaign_preparation.sql',
@@ -49,6 +54,7 @@ async function setup() {
   // Reapplying must be harmless.
   await db.exec(await readFile('supabase/migrations/20261022120000_unified_email_ledger.sql', 'utf8'));
   await db.exec(await readFile('supabase/migrations/20261022130000_account_access_reconciliation.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261022184326_maia_email_ledger_bridge_v1.sql', 'utf8'));
   await db.exec(`INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${admin}','Brevo');
     INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis,status)
       VALUES('${campaign}','${admin}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
@@ -72,6 +78,59 @@ const prospectMessage = {
   summary: 'Abordagem individual: pergunta como organizam os horários e apresenta o Barberias.',
   body_html: '<p>Olá</p>', sent_at: '2026-10-16T12:00:00Z', contact_id: prospect,
 };
+
+test('restricted Maia ledger bridge requires admitted identity and registered interaction', async () => {
+  const { db, service, asUser } = await setup();
+  const sender = 'dono@barbearia.example.invalid';
+  const mailbox = 'support@example.invalid';
+  const thread = 'thread-fixture';
+  const event = 'message-fixture';
+  const summary = 'Solicitou informações sobre o produto.';
+  const context = (senderValue: string, eventValue: string, references: string[]) => service<{ r: Record<string, unknown> }>(
+    'SELECT public.maia_email_ledger_context_v1($1,$2,$3,$4,$5) r', [senderValue, mailbox, thread, eventValue, references]);
+  const replyArgs = [sender, mailbox, thread, event, [brevoId], '<fixture-reply@example.invalid>', 'Re: agenda', summary, '2026-10-17T10:00:00Z'];
+  const replySql = 'SELECT public.maia_email_ledger_reply_v1($1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz) r';
+  try {
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    await assert.rejects(context(sender, event, [brevoId]), /ledger scope not authorized/);
+    await service('SELECT public.maia_contact_intake($1,$2,$3,$4)', ['email', sender, mailbox, event]);
+    const found = (await context(sender, event, [brevoId])).rows[0].r;
+    assert.equal(found.status, 'found');
+    assert.equal(found.match, 'thread');
+    assert.equal(JSON.stringify(found).includes('<p>'), false);
+    assert.equal((await context(sender, event, ['<missing@example.invalid>'])).rows[0].r.status, 'unknown');
+    await assert.rejects(context('outro@example.invalid', event, [brevoId]), /ledger scope not authorized/);
+    const otherContact = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    await db.query('INSERT INTO public.contacts(id,user_id,name,email) VALUES($1,$2,$3,$4)', [otherContact, admin, 'Contato sintético', 'outro@example.invalid']);
+    const otherMessage = { ...prospectMessage, provider_message_id: '<other-contact@example.invalid>', address: 'outro@example.invalid', contact_id: otherContact, campaign_id: null, recipient_id: null };
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(otherMessage)]);
+    assert.equal((await context(sender, event, ['<other-contact@example.invalid>'])).rows[0].r.status, 'unknown');
+    await assert.rejects(asUser(admin, 'SELECT public.maia_email_ledger_context_v1($1,$2,$3,$4,$5)', [sender, mailbox, thread, event, [brevoId]]));
+    await assert.rejects(service(replySql, replyArgs), /successful interaction required/);
+    const activityId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    await db.query('INSERT INTO public.activities(id,user_id,contact_id,type,channel,content) VALUES($1,$2,$3,$4,$5,$6)', [activityId, tenant, prospect, 'note', 'email', summary]);
+    await db.query('INSERT INTO maia_intake_private.threads VALUES($1,$2,$3,$4)', [tenant, mailbox, thread, sender]);
+    await db.query('INSERT INTO maia_intake_private.interactions VALUES($1,$2,$3,$4,$5,$6,$7,false)', [tenant, mailbox, event, thread, sender, summary, activityId]);
+    const first = (await service<{ r: { status: string } }>(replySql, replyArgs)).rows[0].r;
+    assert.equal(first.status, 'recorded');
+    assert.equal((await service<{ r: { status: string } }>(replySql, replyArgs)).rows[0].r.status, 'duplicate');
+    const messages = await db.query<{ direction: string; in_reply_to_message_id: string | null }>("SELECT direction,in_reply_to_message_id FROM public.email_messages WHERE rfc_message_id=$1", [replyArgs[5]]);
+    assert.equal(messages.rows.length, 1);
+    assert.equal(messages.rows[0].direction, 'inbound');
+    assert.ok(messages.rows[0].in_reply_to_message_id);
+    await assert.rejects(service(replySql, [...replyArgs.slice(0, 6), 'Outra resposta', ...replyArgs.slice(7)]), /immutable ledger reply conflict/);
+    const otherEvent = 'message-without-reference';
+    const otherActivity = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    await service('SELECT public.maia_contact_intake($1,$2,$3,$4)', ['email', sender, mailbox, otherEvent]);
+    await db.query('INSERT INTO public.activities(id,user_id,contact_id,type,channel,content) VALUES($1,$2,$3,$4,$5,$6)', [otherActivity, tenant, prospect, 'note', 'email', summary]);
+    await db.query('INSERT INTO maia_intake_private.interactions VALUES($1,$2,$3,$4,$5,$6,$7,false)', [tenant, mailbox, otherEvent, thread, sender, summary, otherActivity]);
+    const unmatched = [sender, mailbox, thread, otherEvent, [], '<unmatched@example.invalid>', 'Sem referência', summary, '2026-10-17T10:00:00Z'];
+    assert.equal((await service<{ r: { status: string } }>(replySql, unmatched)).rows[0].r.status, 'unmatched');
+    assert.equal((await service<{ r: { status: string } }>(replySql, unmatched)).rows[0].r.status, 'unmatched');
+    assert.equal((await db.query('SELECT 1 FROM public.email_messages WHERE rfc_message_id=$1', [unmatched[5]])).rows.length, 0);
+    await assert.rejects(service(replySql, [...unmatched.slice(0, 4), [brevoId], ...unmatched.slice(5)]), /immutable ledger reply conflict/);
+  } finally { await db.close(); }
+});
 
 test('ledger records prospecting, mirrors Brevo events, binds identity and gives Maia the thread context', async (t) => {
   const { db, service, asUser } = await setup();
