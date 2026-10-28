@@ -35,9 +35,12 @@ Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse 
 
 ## Maia
 
-- `maia_email_context(p_sender, p_reference_ids)`: chamar **antes de responder**, com o remetente e os IDs de `In-Reply-To`/`References`. Devolve `match` (`thread` ou `address`), o e-mail respondido (`replying_to`: origem, assunto, resumo, data, status), a ficha (nome, produto, etapa, estado da conta, prospecção, não contatar), os últimos e-mails e a próxima tarefa. Não devolve corpo, IDs ou dados de outros contatos.
-- `maia_email_reply_record(p_sender, p_reference_ids, p_rfc_message_id, p_subject, p_summary, p_received_at)`: registra a resposta recebida e marca `respondeu` na mensagem original e na campanha. O resumo passa pelo mesmo filtro de dados sensíveis.
-- `maia_email_record`/`maia_email_history` continuam iguais. As RPCs `maia_trial_outbound_*` da continuidade de trial (Barberias PR #122) seguem independentes. Quando aquele fluxo for ativado, ele pode ler o mesmo registro.
+O contrato restrito para o gateway está na migration `20261022184326_maia_email_ledger_bridge_v1.sql`. Ele exige a identidade de e-mail admitida no intake e vincula remetente, caixa, thread e evento; a Maia não recebe credencial de banco nem chama essas funções diretamente.
+
+- `maia_email_ledger_context_v1(p_sender, p_mailbox, p_thread_id, p_event_id, p_reference_ids)`: consulta somente a mensagem de saída vinculada ao contato canônico e a uma referência RFC informada. Retorna metadados e resumo da mensagem ou `unknown`; não retorna o corpo nem escolhe uma mensagem recente por endereço. O restante do histórico autorizado é um contrato separado.
+- `maia_email_ledger_reply_v1(...)`: exige também interação de e-mail já registrada com sucesso para o mesmo evento, resumo e contato. Vincula a resposta apenas à mensagem referenciada e guarda um recibo idempotente por evento e Message-ID; se não houver correspondência, registra `unmatched`, sem marcar uma campanha por suposição. Reenvio idêntico é seguro; alteração do conteúdo para o mesmo evento é conflito.
+- As funções `maia_email_context` e `maia_email_reply_record` pertencem ao contrato anterior do ledger. A segunda permite correspondência pelo último envio em 30 dias e é chamada internamente pela ponte somente após selecionar a referência canônica; não usá-las diretamente para contornar o escopo da sessão da Maia.
+- `maia_email_record`/`maia_email_history` seguem como contratos distintos. As RPCs `maia_trial_outbound_*` da continuidade de trial são independentes. Configuração, migration presente ou workflow ativo não comprovam que o gateway executou a ponte para uma mensagem real.
 
 ## Interface
 
@@ -55,7 +58,7 @@ Ao registrar um envio para o e-mail principal de um contato, o CRM vincula esse 
 3. Backfill (não envia nada): `NODE_USE_ENV_PROXY=1 tsx scripts/backfill-email-ledger.ts resend --apply` e `... brevo <manifest.json> --apply`. O manifesto da prospecção é montado fora do repositório, porque contém dados de leads.
 4. Resend: criar o webhook para `https://crm.aglabs.api.br/api/integrations/resend/webhook` com os eventos `email.*`, e configurar `RESEND_WEBHOOK_SECRET` no servidor. `RESEND_API_KEY` é opcional: permite gravar o Message-ID já no evento `email.sent`.
 5. Produto: configurar `ACCOUNT_EVENTS_TOKEN` (≥ 32 caracteres) no CRM e no Barberias.
-6. Maia (n8n VPS-03): chamar `maia_email_context` antes de responder e `maia_email_reply_record` depois de registrar a conversa.
+6. Maia (n8n VPS-03): conferir que a migration da ponte restrita foi aplicada e que o gateway usa o evento admitido e os endpoints de contexto/resposta correspondentes. A consulta de contexto ocorre antes de responder; o registro da resposta exige interação registrada. Verificar associação e recibo no ambiente apropriado, sem enviar mensagens a clientes como teste.
 
 Para a organização por produto e a carteira paginada, aplicar também `20261022195737_crm_workspace_indexes.sql` antes de publicar o front correspondente. A migration é aditiva e idempotente, não altera estágios nem dispara automações. As views usam `security_invoker` e não têm acesso anônimo. Validar os planos das consultas com o volume real antes de adicionar mais índices.
 
