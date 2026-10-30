@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { CrmStore, McpContact, McpEmailRow, McpTask } from './mcp-server';
+import type { CrmStore, McpContact, McpEmailRow, McpFeedback, McpTask } from './mcp-server';
 import type { Contact, PaymentTransaction } from './types';
 
 // Implementação do CrmStore com a chave service_role.
@@ -113,6 +113,22 @@ export function supabaseCrmStore(): CrmStore | null {
     },
     async emailMessagesSince(iso) {
       return paged<McpEmailRow>((from, to) => client.from('email_messages').select(EMAIL_COLUMNS).gte('sent_at', iso).order('id').range(from, to));
+    },
+    async feedback({ product, status, limit }) {
+      let query = client.from('product_feedback')
+        .select('id,product,message,pathname,status,occurred_at,contacts(id,name,status,account_status)')
+        .order('occurred_at', { ascending: false }).limit(limit);
+      if (product) query = query.eq('product', product);
+      query = status ? query.eq('status', status) : query.neq('status', 'arquivado');
+      type Row = Omit<McpFeedback, 'contact'> & { contacts: McpFeedback['contact'] | McpFeedback['contact'][] };
+      const rows = (check(await query) ?? []) as Row[];
+      return rows.map(({ contacts, ...f }) => ({ ...f, contact: (Array.isArray(contacts) ? contacts[0] : contacts) ?? null }));
+    },
+    async setFeedbackStatus(id, status, actor) {
+      const { error } = await client.rpc('crm_set_product_feedback_status', { p_id: id, p_status: status, p_actor: actor });
+      if (error && /feedback not found/.test(error.message)) return false;
+      if (error) throw new Error(error.message);
+      return true;
     },
   };
 }
