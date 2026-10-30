@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticate, handleMcp, hasSensitiveData, parseMcpTokens, type CrmStore, type McpContact, type McpEmailRow, type McpTask } from './mcp-server';
+import { authenticate, handleMcp, hasSensitiveData, parseMcpTokens, type CrmStore, type McpContact, type McpEmailRow, type McpFeedback, type McpTask } from './mcp-server';
 import type { PaymentTransaction } from './types';
 
 const TOKEN = 'o'.repeat(40);
@@ -9,6 +9,7 @@ const config = { tokens: parseMcpTokens(`orbita:${TOKEN}:leitura,tarefas,ativida
 const NOW = new Date('2026-10-23T15:00:00Z'); // 12h em São Paulo
 const CONTACT = '11111111-1111-4111-8111-111111111111';
 const T1 = '44444444-4444-4444-8444-444444444444';
+const F1 = '55555555-5555-4555-8555-555555555555';
 
 function fakeStore() {
   const contact: McpContact = {
@@ -37,7 +38,12 @@ function fakeStore() {
     email({ sent_at: '2027-01-01T12:00:00Z', campaign_id: 'future-campaign', clicked_at: '2027-01-01T13:00:00Z' }),
     email({ sent_at: '2020-01-01T12:00:00Z', campaign_id: 'old-campaign' }),
   ];
-  const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[] } = { tasks: [], activities: [], completed: [] };
+  const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[]; feedback: string[] } = { tasks: [], activities: [], completed: [], feedback: [] };
+  const feedbacks: McpFeedback[] = [
+    { id: F1, product: 'members', message: 'O Pix demorou para liberar o curso.', pathname: '/checkout/curso', status: 'novo', occurred_at: '2026-10-22T12:00:00Z',
+      contact: { id: CONTACT, name: 'Barbearia Sintética', status: 'Proposta', account_status: 'trial' } },
+    { id: 'f2', product: 'mecard', message: 'Antigo e já tratado.', pathname: null, status: 'arquivado', occurred_at: '2026-10-01T12:00:00Z', contact: null },
+  ];
   const store: CrmStore = {
     actionContacts: async () => [{ id: CONTACT, status: 'Proposta', produto: 'barberias', prospecting_pool: false, account_status: 'trial' }],
     funnelContacts: async () => [
@@ -58,6 +64,14 @@ function fakeStore() {
     completeTask: async (id) => { writes.completed.push(id); },
     insertActivity: async (row) => { writes.activities.push(row); },
     emailMessagesSince: async () => emails.map((e) => ({ ...e })),
+    feedback: async ({ product, status, limit }) => feedbacks
+      .filter((f) => (!product || f.product === product) && (status ? f.status === status : f.status !== 'arquivado')).slice(0, limit),
+    setFeedbackStatus: async (id, status, actor) => {
+      const row = feedbacks.find((f) => f.id === id);
+      if (!row) return false;
+      row.status = status; writes.feedback.push(`${id}:${status}:${actor}`);
+      return true;
+    },
   };
   return { store, writes };
 }
@@ -104,7 +118,7 @@ test('escopos: token de leitura não vê nem chama ferramentas de escrita', asyn
   const { store } = fakeStore();
   const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, READER), { config, store: () => store, now: NOW })).json();
   const names = list.result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names, ['crm_prioridades', 'crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato']);
+  assert.deepEqual(names, ['crm_prioridades', 'crm_metricas_produto', 'crm_resumo', 'crm_tarefas', 'crm_funil_emails', 'crm_buscar_contatos', 'crm_contato', 'crm_feedback']);
   const denied = await call('crm_criar_tarefa', { titulo: 'Teste', responsavel: 'leo' }, READER, store);
   assert.match(denied.error!.message, /escopos/);
 });
@@ -303,4 +317,19 @@ test('resumo distinguishes accumulated revenue from current and previous months'
   assert.equal(data.receita_total,350);
   assert.equal(data.receita_mes,200);
   assert.equal(data.receita_mes_anterior,50);
+});
+
+test('feedback: lista sem arquivados, filtra por produto e atualiza status com o nome de quem chamou', async () => {
+  const { store, writes } = fakeStore();
+  const list = (await call('crm_feedback', {}, READER, store)).result!.structuredContent as Record<string, any>;
+  assert.equal(list.feedbacks.length, 1);
+  assert.equal(list.feedbacks[0].tela, '/checkout/curso');
+  assert.equal(list.feedbacks[0].contato.etapa, 'Proposta');
+  assert.doesNotMatch(JSON.stringify(list), /@|has_email/);
+  assert.equal(((await call('crm_feedback', { produto: 'mecard', status: 'arquivado' }, READER, store)).result!.structuredContent as any).feedbacks.length, 1);
+  assert.equal((await call('crm_feedback', { limite: 500 }, READER, store)).result!.isError, true);
+  assert.match((await call('crm_atualizar_feedback', { feedback_id: F1, status: 'lido' }, READER, store)).error!.message, /escopos/);
+  assert.equal((await call('crm_atualizar_feedback', { feedback_id: F1, status: 'resolvido' }, TOKEN, store)).result!.isError, false);
+  assert.deepEqual(writes.feedback, [`${F1}:resolvido:orbita`]);
+  assert.equal((await call('crm_atualizar_feedback', { feedback_id: T1, status: 'lido' }, TOKEN, store)).result!.isError, true);
 });

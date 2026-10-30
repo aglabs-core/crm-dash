@@ -15,6 +15,8 @@
 | `crm_criar_tarefa` | `tarefas` | Cria tarefa com responsável (`maia`, `leo`, `antonio`, `tecnico`), prazo, prioridade e contato |
 | `crm_concluir_tarefa` | `tarefas` | Conclui tarefa pendente e registra o motivo em `activities` (vale para cancelada ou substituída) |
 | `crm_registrar_atividade` | `atividades` | Registra nota, follow-up, suporte ou reunião que já aconteceu |
+| `crm_feedback` | `leitura` | Feedback enviado pelos apps (botão *Enviar feedback*), do mais recente ao mais antigo: produto, texto, tela de origem, status e o contato (nome, etapa, conta) quando o e-mail bate. Filtros `produto`, `status` e `limite` (até 100). Sem `status`, todos exceto arquivados. Sem e-mail ou telefone |
+| `crm_atualizar_feedback` | `atividades` | Marca um feedback como `novo`, `lido`, `resolvido` ou `arquivado`, registrando o nome do token |
 
 E-mail para um contato é enviado pelo Léo: a tarefa vai para `leo`, com o contato e o conteúdo. Atribuir não prova que ele recebeu (veja *Requisitos de integridade do CRM* no vault).
 
@@ -65,7 +67,22 @@ Na Órbita: `CRM_MCP_URL=https://<endereço do CRM>/api/mcp` e `CRM_MCP_TOKEN=<t
 - `lib/mcp-store.ts`: consultas ao Supabase.
 - `lib/mcp-server.test.ts`: protocolo, escopos, validação, cálculo do resumo e escrita, com banco falso.
 
-Não há migration: o servidor usa as tabelas e as regras que já existem.
+O feedback dos apps usa a migration `20261030010000_product_feedback.sql` (tabela `product_feedback` e RPCs `crm_ingest_product_feedback` / `crm_set_product_feedback_status`, só `service_role`). As demais ferramentas usam as tabelas que já existiam.
+
+## Feedback dos apps
+
+O backend de cada produto envia `POST /api/integrations/feedback` com `Authorization: Bearer <ACCOUNT_EVENTS_TOKEN>` (o mesmo token dos eventos de conta):
+
+```json
+{ "event": "feedback.submitted", "event_key": "<id do feedback no app>", "occurred_at": "2026-10-29T12:00:00Z",
+  "product": "members", "account_ref": "<id da conta>", "owner_email": "pessoa@exemplo.com",
+  "message": "texto de 3 a 2000 caracteres", "pathname": "/tela/de/origem" }
+```
+
+- `event_key` deduplica por produto: reenviar o mesmo feedback não duplica.
+- O CRM liga ao contato pelo e-mail e grava uma nota *suporte* na linha do tempo. **Não cria contato**: sem e-mail conhecido, o feedback fica sem contato.
+- Só o caminho da tela é guardado (query string é descartada).
+- Respostas: `200` aceito, `400` evento inválido, `401` token errado, `503` receptor sem configuração ou banco indisponível (reenviar depois).
 
 ### Janelas de receita
 
