@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { validateSnapshot } from './product-metrics';
 
 const from = '2026-10-01T03:00:00.000Z';
-const generatedAt = new Date().toISOString();
+// Keep the calendar fixture in the same month; the wall clock must not invalidate it.
+const generatedAt = '2026-10-26T12:00:00.000Z';
 const marketplace = () => ({
   version: 1, currency: 'BRL', basis: 'platform_financial_report_and_producer_status',
   currentMonth: { from, grossCents: 125000, platformFeeCents: 9800, paidItems: 14 },
