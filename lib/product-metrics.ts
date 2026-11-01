@@ -1,3 +1,4 @@
+import { projectDailyMetrics, type DailyMetrics } from './daily-metrics';
 import { projectFreemium, type FreemiumMetrics } from './freemium';
 import { projectCommerceFunnel, type CommerceFunnel } from './commerce-funnel';
 import { projectMarketplace, type Marketplace } from './marketplace';
@@ -15,7 +16,7 @@ const origins: Record<string, { hosts: string[]; path: string }> = {
   vibekit: { hosts: ['templates.aglabs.ia.br'], path: '/api/integrations/crm/metrics' },
 };
 export type ActivationFunnel = { professional: number; catalog: number; readyForBooking: number; firstAppointment: number };
-export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits; audience?: Audience; freemium?: FreemiumMetrics };
+export type ProductSnapshot = { version: 1; product: string; generatedAt: string; window: { from: string; to: string }; metrics: Record<Metric, number | null>; activationFunnel?: ActivationFunnel; commerceFunnel?: CommerceFunnel; marketplace?: Marketplace; credits?: Credits; audience?: Audience; freemium?: FreemiumMetrics; daily?: DailyMetrics };
 export type ProductMetricsResult = { status: 'ok' | 'stale' | 'not_configured' | 'unavailable'; checkedAt: string; data: ProductSnapshot | null; message: string; via: 'crm' };
 
 export function validateSnapshot(raw: unknown, product: string, now = Date.now()): ProductSnapshot {
@@ -64,10 +65,11 @@ export function validateSnapshot(raw: unknown, product: string, now = Date.now()
   }
   const freemium = value.freemium === undefined ? undefined : projectFreemium(value.freemium, product, metrics.users);
   if (freemium && Object.entries(metrics).some(([key,n]) => key !== 'users' && n !== null)) throw new Error('Unidade freemium inválida');
+  const daily = value.daily === undefined ? undefined : projectDailyMetrics(value.daily, value.generatedAt, metrics.users);
   // Explicit projection prevents accidental transmission of identities or provider secrets.
   const audience = value.audience === undefined ? undefined : projectAudience(value.audience, metrics.users, value.generatedAt, product);
   if (audience && product === 'vibekit') throw new Error('Compra única não mede usuários');
-  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}), ...(freemium ? { freemium } : {}) };
+  return { version: 1, product, generatedAt: value.generatedAt, window: { from: value.window.from, to: value.window.to }, metrics, ...(activationFunnel ? { activationFunnel } : {}), ...(commerceFunnel ? { commerceFunnel } : {}), ...(marketplace ? { marketplace } : {}), ...(credits ? { credits } : {}), ...(audience ? { audience } : {}), ...(freemium ? { freemium } : {}), ...(daily ? { daily } : {}) };
 }
 
 async function boundedJson(response: Response): Promise<unknown> {

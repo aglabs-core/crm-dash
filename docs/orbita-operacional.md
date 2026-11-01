@@ -17,3 +17,12 @@ Sem alterações de schema, RLS, credenciais, campanhas ativas, envio ou contato
 API somente leitura, origem fixa HTTPS, sem redirects, timeout 8s, resposta até32KiB. Snapshot antigo mantém generatedAt e status stale; indisponibilidade não vira zero. Campos desconhecidos são descartados, nunca chegam à Órbita. Contagens não alteram o funil nem substituem pagamentos do ledger. Eventos de conta continuam no receptor de contas existente, com identidade externa explícita.
 
 Ativação exige configurar o mesmo segredo dedicado no produto e no CRM e comparar com o superadmin. Não declarar conexão ativa apenas por publicar o conector.
+
+
+## Jornal diário — 01/11/2026
+
+O coletor administrativo passa a fornecer `daily` opcional, com `date`, `timeZone: America/Sao_Paulo`, `from` (meia-noite local em UTC), `to` (igual a `generatedAt`), `newUsers` e `sales`. Zero é uma contagem consultada; `null` é indisponível ou não aplicável. O bloco contém somente agregados e não altera cobrança, acesso, envio de mensagens ou autenticação. Consumidores antigos continuam compatíveis.
+
+A Órbita publica apenas fatos positivos da edição de hoje. Totais mensais continuam nos painéis. Publicar o código, aplicar eventual migration e conferir uma coleta autenticada são etapas distintas.
+
+O CRM valida e projeta explicitamente o bloco, recusando data/fuso/janela divergente, números negativos e cadastros acima do total. Não calcula deltas de snapshots. O campo opcional `registeredPurchases` preserva compras registradas do VibeKit sem chamá-las de vendas conciliadas.
