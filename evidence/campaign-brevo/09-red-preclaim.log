@@ -8,9 +8,9 @@ not ok 1 - mismatched frozen sender is rejected before claim
   failureType: 'testCodeFailure'
   error: |-
     Expected values to be strictly equal:
-    
+
     200 !== 503
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected: 503

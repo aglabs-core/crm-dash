@@ -68,9 +68,9 @@ not ok 11 - Next entrypoint is wired and dormant with no configuration
   failureType: 'testCodeFailure'
   error: |-
     Expected values to be strictly equal:
-    
+
     404 !== 200
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected: 200

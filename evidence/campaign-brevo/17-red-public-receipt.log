@@ -51,7 +51,7 @@ not ok 8 - accepted send publishes once and repeated execution never resends
   error: |-
     Expected values to be strictly deep-equal:
     + actual - expected
-    
+
       {
     -   outcomes: [
     -     {
@@ -62,7 +62,7 @@ not ok 8 - accepted send publishes once and repeated execution never resends
         processed: 1,
         status: 'complete'
       }
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected:
@@ -97,7 +97,7 @@ not ok 10 - accepted reconciliation works while off without provider key or cust
   error: |-
     Expected values to be strictly deep-equal:
     + actual - expected
-    
+
       {
     -   outcomes: [
     -     {
@@ -107,7 +107,7 @@ not ok 10 - accepted reconciliation works while off without provider key or cust
         processed: 1,
         status: 'complete'
       }
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected:

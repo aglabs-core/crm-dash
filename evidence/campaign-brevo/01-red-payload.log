@@ -9,7 +9,7 @@ not ok 1 - Brevo sends fixed-origin mapped text payload and typed acceptance
   error: |-
     Expected values to be strictly deep-equal:
     + actual - expected
-    
+
       {
     +   from: 'sender@example.test',
     +   replyTo: 'support@example.test',
@@ -29,7 +29,7 @@ not ok 1 - Brevo sends fixed-origin mapped text payload and typed acceptance
     -     }
     -   ]
       }
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected:

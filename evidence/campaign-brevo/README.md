@@ -2,7 +2,7 @@
 
 Candidate stacks on PR #69 `ff28733619b64cbf6169c9f4d5d124de83ef9954`. Independent isolated clone `/home/ubuntu/crm-brevo-executor`; reference checkout untouched. No SQL migration, historical worker, live deployment configuration, credential, campaign or scheduler changed.
 
-Behavioral TDD slices (actual failing assertions, not missing-import errors):
+Behavioral TDD slices (actual failing assertions, not missing-import errors; saved logs normalize trailing whitespace/CR only, preserving outcomes):
 
 - `01-red-payload.log` → `02-green-payload.log`: generic HTTP payload is not Brevo's single-recipient SMTP text contract.
 - `03-red-binding.log` → `04-green-binding.log`: immutable Reply-To mismatch must prevent HTTP.
