@@ -48,4 +48,3 @@ Ignored nodes: comments, script, style
       Tests  1 failed | 2 passed (3)
    Start at  20:52:35
    Duration  4.60s (transform 377ms, setup 0ms, import 1.66s, tests 1.35s, environment 1.20s)
-
