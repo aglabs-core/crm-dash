@@ -125,6 +125,71 @@ test('follow-up review recognizes delivered cross-owner bridge, stops trials, re
   } finally { await db.close(); }
 });
 
+test('campaign deletion preserves linked messages and clears both nullable references', async () => {
+  const { db, service } = await setup();
+  try {
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    const before = (await db.query('SELECT id,user_id,contact_id,address,product,subject,summary FROM public.email_messages')).rows;
+    await db.query('DELETE FROM public.email_campaigns WHERE id=$1', [campaign]);
+    assert.equal((await db.query('SELECT id FROM public.email_campaigns')).rows.length, 0);
+    assert.equal((await db.query('SELECT id FROM public.email_campaign_recipients')).rows.length, 0);
+    assert.deepEqual((await db.query('SELECT id,user_id,contact_id,address,product,subject,summary FROM public.email_messages')).rows, before);
+    assert.deepEqual((await db.query('SELECT campaign_id,recipient_id FROM public.email_messages')).rows, [{ campaign_id: null, recipient_id: null }]);
+  } finally { await db.close(); }
+});
+
+test('recipient deletion preserves the message campaign and exact replay can no longer restore the deleted recipient', async () => {
+  const { db, service } = await setup();
+  try {
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    const id = (await db.query<{ id: string }>('SELECT id FROM public.email_messages')).rows[0].id;
+    await db.query('DELETE FROM public.email_campaign_recipients WHERE id=$1', [recipient]);
+    assert.deepEqual((await db.query('SELECT id,campaign_id,recipient_id FROM public.email_messages')).rows,
+      [{ id, campaign_id: campaign, recipient_id: null }]);
+    await assert.rejects(service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]), /recipient\/campaign binding conflict/);
+    const detached = { ...prospectMessage, recipient_id: null };
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(detached)]);
+    assert.deepEqual((await db.query('SELECT id,campaign_id,recipient_id FROM public.email_messages')).rows,
+      [{ id, campaign_id: campaign, recipient_id: null }]);
+  } finally { await db.close(); }
+});
+
+test('manual unlink and crossbinding fail even inside another trigger, while exact replay remains idempotent', async () => {
+  const { db, service, asUser } = await setup();
+  try {
+    const record = () => service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    await record();
+    const before = (await db.query<{ id: string }>('SELECT * FROM public.email_messages')).rows;
+    await assert.rejects(db.exec('UPDATE public.email_messages SET campaign_id=NULL'), /recipient\/campaign binding conflict/);
+    await db.exec(`CREATE FUNCTION public.probe_nested_unlink() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      UPDATE public.email_messages SET campaign_id=NULL; RETURN NEW; END $$;
+      CREATE TRIGGER probe_nested_unlink AFTER UPDATE OF notes ON public.contacts
+        FOR EACH ROW EXECUTE FUNCTION public.probe_nested_unlink();`);
+    await assert.rejects(db.query('UPDATE public.contacts SET notes=$1 WHERE id=$2', ['Synthetic', prospect]), /recipient\/campaign binding conflict/);
+    await db.exec('DROP TRIGGER probe_nested_unlink ON public.contacts; DROP FUNCTION public.probe_nested_unlink()');
+    const anotherCampaign = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const anotherRecipient = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    await db.query(`INSERT INTO public.email_campaigns(id,user_id,name,product,provider,sender_email,subject,audience_basis)
+      VALUES($1,$2,'Other synthetic campaign','barberias','brevo','sender@example.invalid','Synthetic','individual_review')`, [anotherCampaign, admin]);
+    await db.query(`INSERT INTO public.email_campaign_recipients(id,campaign_id,user_id,contact_id,email_snapshot,review_note)
+      VALUES($1,$2,$3,$4,'dono@barbearia.example.invalid','Synthetic')`, [anotherRecipient, anotherCampaign, admin, prospect]);
+    await assert.rejects(db.query('UPDATE public.email_messages SET recipient_id=$1', [anotherRecipient]), /recipient\/campaign binding conflict/);
+    await assert.rejects(db.query('UPDATE public.email_messages SET campaign_id=$1', [anotherCampaign]), /recipient\/campaign binding conflict/);
+    await assert.rejects(db.query("UPDATE public.email_messages SET product='viajeki'"), /campaign\/contact binding conflict/);
+    await assert.rejects(db.query('UPDATE public.email_messages SET user_id=$1', [other]), /ledger\/contact binding conflict/);
+    await assert.rejects(asUser(other, 'DELETE FROM public.email_campaigns WHERE id=$1', [campaign]));
+    await record();
+    assert.deepEqual((await db.query('SELECT * FROM public.email_messages')).rows, before);
+    await db.query('DELETE FROM public.email_campaigns WHERE id=$1', [campaign]);
+    await assert.rejects(record(), /campaign\/contact binding conflict/);
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify({ ...prospectMessage, campaign_id: null, recipient_id: null })]);
+    assert.deepEqual((await db.query('SELECT id,campaign_id,recipient_id FROM public.email_messages')).rows,
+      [{ id: before[0].id, campaign_id: null, recipient_id: null }]);
+    assert.equal((await asUser(admin, 'SELECT id FROM public.email_messages')).rows.length, 1);
+    assert.equal((await asUser(other, 'SELECT id FROM public.email_messages')).rows.length, 0);
+  } finally { await db.close(); }
+});
+
 test('outbound linkage preserves the technical tenant bridge but rejects a foreign campaign owner', async () => {
   const { db, service, asUser } = await setup();
   try {
