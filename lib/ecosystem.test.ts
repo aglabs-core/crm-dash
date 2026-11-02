@@ -15,7 +15,8 @@ test('authorized requests collect only registered products and preserve unavaila
     authorize: async () => true,
     metrics: async product => { seen.push(product); return { status: 'not_configured', checkedAt: new Date().toISOString(), data: null, message: 'Sem coleta', via: 'crm' }; },
   });
-  assert.deepEqual(seen, ['barberias', 'mecard', 'members', 'vibekit', 'aglabs-app']);
+  assert.deepEqual(seen, ['barberias', 'mecard', 'viajeki', 'members', 'vibekit', 'aglabs-app']);
   assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
   const body = await response.json(); assert.equal(body.products[0].data, null);
+  assert.equal(body.products.find((product: { product: string }) => product.product === 'viajeki').status, 'not_configured');
 });

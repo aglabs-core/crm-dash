@@ -18,6 +18,7 @@ const statuses = { ok: 'Coleta disponível', stale: 'Dados antigos', not_configu
 const descriptions: Record<string, string> = {
   barberias: 'Usuários de equipe e contas de assinatura. Ativação exige profissional ativo, serviço, horário e primeiro agendamento.',
   mecard: 'Usuários e contas seguem o relatório administrativo do MeCard, incluindo contas internas. Pro pode incluir teste e administração; não comprova pagamento.',
+  viajeki: 'Planejamento de viagens: usuários, criadores de viagens, assinaturas e compras avulsas de roteiros. Participantes convidados podem usar o produto sem criar uma viagem.',
   members: 'Marketplace: a unidade é o produtor e a receita da plataforma vem das vendas (produtos próprios e comissões). Usuários incluem alunos, produtores e administração.',
   vibekit: 'Produto de compra única. Eventos anônimos e compras registradas têm unidades diferentes das contas de assinatura dos aplicativos.',
   'aglabs-app': 'Créditos por assinatura ou pacote avulso. Cadastros e assinaturas vigentes; compras, atividade e consumo na janela de 30 dias do admin.',
