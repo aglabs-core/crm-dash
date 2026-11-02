@@ -89,6 +89,18 @@ test('follow-up preparation has an authenticated read-only review contract', asy
   } finally { await db.close(); }
 });
 
+test('follow-up wait starts at confirmed delivery, not the earlier send', async () => {
+  const { db, service, asUser } = await setup();
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS public.payment_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),contact_id uuid,user_id uuid,product text,status text,net_amount numeric);`);
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    await db.exec(`UPDATE public.email_messages SET sent_at=now()-interval '10 days',delivered_at=now()-interval '2 days',status='delivered'`);
+    const result = await asUser<{ r: { recipients: { reasons: string[] }[] } }>(admin,
+      'SELECT public.review_email_campaign_followup($1,168) r', [campaign]);
+    assert.ok(result.rows[0].r.recipients[0].reasons.includes('Intervalo ainda não cumprido'));
+  } finally { await db.close(); }
+});
+
 test('follow-up review recognizes delivered cross-owner bridge, stops trials, replies, failures and paid accounts without writes', async () => {
   const { db, service, asUser } = await setup();
   type Review = { mode: string; executor_available: boolean; recipients: { reasons: string[] }[] };

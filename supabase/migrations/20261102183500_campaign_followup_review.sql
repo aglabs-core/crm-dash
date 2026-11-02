@@ -21,7 +21,7 @@ BEGIN
         AND p.status IN ('paid','partially_refunded') AND p.net_amount>0) THEN 'Pagamento registrado' END,
       CASE WHEN m.id IS NULL OR m.delivered_at IS NULL THEN 'Sem envio inicial comprovado' END,
       CASE WHEN p_wait_hours IS NULL THEN 'Intervalo não definido'
-        WHEN m.sent_at + make_interval(hours=>p_wait_hours) > now() THEN 'Intervalo ainda não cumprido' END,
+        WHEN m.delivered_at + make_interval(hours=>p_wait_hours) > now() THEN 'Intervalo ainda não cumprido' END,
       CASE WHEN EXISTS(SELECT 1 FROM public.email_message_events e JOIN public.email_messages x ON x.id=e.message_id
         WHERE x.user_id=crm_ledger_private.tenant() AND x.contact_id=c.id AND e.event_type IN ('soft_bounced','bounced','failed','deferred')) THEN 'Falha de entrega; revisar endereço' END,
       CASE WHEN EXISTS(SELECT 1 FROM public.email_messages x WHERE x.user_id=crm_ledger_private.tenant() AND x.address=lower(btrim(r.email_snapshot))
