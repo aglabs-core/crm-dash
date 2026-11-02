@@ -1,18 +1,22 @@
 import { supabase } from './supabase';
 import { KANBAN_STATUSES } from './constants';
 import type { Task, Activity } from './types';
-export type PipelineSummary = { tasks: Task[]; activities: Activity[] };
-type Row = { id: string; tasks: Omit<Task, 'contact_id'>[]; activities: Omit<Activity, 'contact_id'>[] };
+export type PipelineEmail = { id: string; contact_id: string; category: string; source_key: string; status: string; sent_at: string };
+export type PipelineSummary = { tasks: Task[]; activities: Activity[]; emails?: PipelineEmail[] };
+type Row = { id: string; tasks: Omit<Task, 'contact_id'>[]; activities: Omit<Activity, 'contact_id'>[]; emails: Omit<PipelineEmail, 'contact_id'>[] };
 
 /** Embedded limits are per parent, never a global cap across the contact list. */
 export async function loadPipelineContext(signal: AbortSignal, client = supabase): Promise<PipelineSummary> {
-  const summary: PipelineSummary = { tasks: [], activities: [] };
+  const summary: PipelineSummary = { tasks: [], activities: [], emails: [] };
   let cursor: string | undefined;
   for (;;) {
     if (signal.aborted) throw new Error('Context request canceled');
-    let query = client.from('contacts').select('id,tasks(id,title,status,due_date,assigned_to),activities(id,type,channel,created_at)')
+    let query = client.from('contacts').select('id,tasks(id,title,status,due_date,assigned_to),activities(id,type,channel,created_at),emails:email_messages(id,category,source_key,status,sent_at)')
       .in('status', KANBAN_STATUSES.map((s) => s.id)).eq('prospecting_pool', false)
       .eq('tasks.status', 'pending')
+      .eq('emails.direction', 'outbound')
+      .order('sent_at', { referencedTable: 'emails', ascending: false })
+      .order('id', { referencedTable: 'emails', ascending: true }).limit(1, { referencedTable: 'emails' })
       .in('activities.type', ['followup', 'suporte', 'meeting']).neq('activities.channel', 'sistema')
       .order('due_date', { referencedTable: 'tasks', ascending: true, nullsFirst: false })
       .order('id', { referencedTable: 'tasks', ascending: true }).limit(1, { referencedTable: 'tasks' })
@@ -28,6 +32,7 @@ export async function loadPipelineContext(signal: AbortSignal, client = supabase
     const last = rows[rows.length - 1].id;
     if (cursor && last <= cursor) throw new Error('Context pagination did not advance');
     for (const row of rows) {
+      summary.emails!.push(...(row.emails || []).map((e) => ({ ...e, contact_id: row.id })));
       summary.tasks.push(...(row.tasks || []).map((t) => ({ ...t, contact_id: row.id })));
       summary.activities.push(...(row.activities || []).map((a) => ({ ...a, contact_id: row.id })));
     }

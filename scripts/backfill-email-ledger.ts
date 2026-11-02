@@ -94,24 +94,39 @@ async function backfillBrevo(path: string) {
   const connection = env('BREVO_CONNECTION_ID');
   const counts = { campaigns: 0, messages: 0, events: 0, anonymized: 0 };
   const subjects = new Set<string>(); let firstSent = '9999';
-  // Campaigns belong to the owner of the Brevo connection that receives their events.
-  const owner = apply ? String((await rest(`email_provider_connections?select=user_id&id=eq.${connection}`))[0]?.user_id || '') : '';
-  if (apply && !owner) throw new Error('Brevo connection not found');
+  // Read-only preflight for the WHOLE manifest, even in dry-run. Never select
+  // a campaign by name or a contact by address across owners, or guess oldest.
+  const connections = await rest(`email_provider_connections?select=user_id&id=eq.${encodeURIComponent(connection)}&limit=2`);
+  const owner = connections.length === 1 ? connections[0].user_id : null;
+  if (!owner) throw new Error('Brevo connection not found or ambiguous');
+  const plan: { campaignId?: string; contacts: string[] }[] = [];
   for (const lot of manifest.lots) {
+    const campaigns = await rest(`email_campaigns?select=id,user_id,product,provider&name=eq.${encodeURIComponent(lot.campaign.name)}&user_id=eq.${encodeURIComponent(owner)}&limit=2`);
+    if (campaigns.length > 1 || campaigns.some((c: { user_id: string; product: string; provider: string }) => c.user_id !== owner || c.product !== lot.campaign.product || c.provider !== 'brevo')) throw new Error('Campaign binding conflict');
+    const contacts: string[] = [];
+    for (const message of lot.messages) {
+      const email = message.email.trim().toLowerCase();
+      const selector = message.contact_id ? `id=eq.${encodeURIComponent(message.contact_id)}`
+        : `email=ilike.${encodeURIComponent(email.replace(/[\\%_]/g, '\\$&'))}`;
+      const rows = await rest(`contacts?select=id,user_id,email&user_id=eq.${encodeURIComponent(owner)}&${selector}&limit=2`);
+      if (rows.length !== 1 || rows[0].user_id !== owner || rows[0].email?.trim().toLowerCase() !== email) throw new Error('Contact binding missing or ambiguous');
+      contacts.push(rows[0].id);
+    }
+    plan.push({ campaignId: campaigns[0]?.id, contacts });
+  }
+  for (const [lotIndex, lot] of manifest.lots.entries()) {
     counts.campaigns++;
     let campaignId: string | undefined;
     if (apply) {
-      const found = await rest(`email_campaigns?select=id&name=eq.${encodeURIComponent(lot.campaign.name)}&limit=1`);
-      campaignId = found[0]?.id ?? (await rest('email_campaigns', { method: 'POST', body: JSON.stringify({ user_id: owner, name: lot.campaign.name,
+      campaignId = plan[lotIndex].campaignId ?? (await rest('email_campaigns', { method: 'POST', body: JSON.stringify({ user_id: owner, name: lot.campaign.name,
         product: lot.campaign.product, provider: 'brevo', sender_email: lot.campaign.sender_email, subject: lot.campaign.subject,
         audience_basis: 'individual_review', status: 'completed', reply_to: lot.campaign.reply_to ?? null }) }))[0].id;
     }
-    for (const message of lot.messages) {
+    for (const [messageIndex, message] of lot.messages.entries()) {
       counts.messages++; subjects.add(message.subject); if (message.sent_at < firstSent) firstSent = message.sent_at;
       if (!apply) continue;
-      const email = message.email.toLowerCase();
-      const contact = message.contact_id ?? (await rest(`contacts?select=id&email=ilike.${encodeURIComponent(email)}&order=created_at.asc&limit=1`))[0]?.id;
-      if (!contact) throw new Error('Contact not found for a manifest message');
+      const email = message.email.trim().toLowerCase();
+      const contact = plan[lotIndex].contacts[messageIndex];
       const existing = await rest(`email_campaign_recipients?select=id&campaign_id=eq.${campaignId}&contact_id=eq.${contact}&limit=1`);
       const recipient = existing[0]?.id ?? (await rest('email_campaign_recipients', { method: 'POST', body: JSON.stringify({ campaign_id: campaignId,
         user_id: owner, contact_id: contact, email_snapshot: email, review_note: message.review_note.slice(0, 1000),

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { BrevoMessageLink } from '@/components/BrevoMessageLink';
 import { CampaignPreparation } from '@/components/CampaignPreparation';
 import { CampaignApproval } from '@/components/CampaignApproval';
+import { CampaignFollowupReview } from '@/components/CampaignFollowupReview';
 import { loadContacts } from '@/lib/contact-data';
 import type { Contact } from '@/lib/types';
 import {
@@ -126,6 +127,7 @@ export default function CampaignDetail({ params }: { params: Promise<{ id: strin
       <Link href={`/campaigns/templates?product=${encodeURIComponent(campaign.product)}`} className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline"><Mail className="h-4 w-4" /> Consultar templates do produto</Link>
       {canPrepare && <CampaignPreparation key={campaign.id} campaign={campaign} contacts={contacts} recipients={recipients} onSaved={refresh} />}
       {campaign.provider === 'brevo' && campaign.user_id === viewerId && <CampaignApproval campaignId={campaign.id} onChanged={refresh} canReview={!reviewUnavailableReason} reviewUnavailableReason={reviewUnavailableReason} onLockChange={setApprovalLocked} />}
+      {campaign.provider === 'brevo' && campaign.user_id === viewerId && hasProviderHistory && <CampaignFollowupReview key={campaign.id} campaignId={campaign.id} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Na audiência" value={metrics.recipients} icon={Mail} hint={`${metrics.pending} sem qualquer evento`} />
         <StatCard label="Entregues" value={metrics.delivered} icon={CheckCircle2} hint={`${metrics.sent} envios registrados`} />
