@@ -1,0 +1,51 @@
+POSTGRES 17.11
+PASS behavioral schema gate: historical draft preparation exists
+PASS legacy review uses original ledger evidence and exact approved policy, not current offer
+PASS same-campaign simultaneous preparations converge on first creation
+PASS preparation idempotently freezes draft without initial approval or outbox
+PASS foreign owner denied and RLS hides draft and recipients
+PASS draft cannot be promoted by generic state control or initial approval API
+PASS missing delivery excludes recipient and stale approval fails
+PASS delivery not send anchor excludes recipient and stale approval fails
+PASS reply excludes recipient and stale approval fails
+PASS trial excludes recipient and stale approval fails
+PASS payment excludes recipient and stale approval fails
+PASS failure excludes recipient and stale approval fails
+PASS optout excludes recipient and stale approval fails
+PASS identical rendered initial offer is excluded, not resent as second
+PASS foreign owner and stale fingerprint cannot approve
+PASS owner explicit recipient review approves only second and dormant flags remain off
+CLEANUP container and exact volumes absent
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: sudo -n docker exec -i crm-legacy-second-698208 psql -U postgres -XAtq -v ON_ERROR_STOP=1 -c UPDATE crm_campaign_private.dispatch_control SET enabled=true,wait_seconds=1; UPDATE public.contacts SET prospecting_pool=NULL
+ERROR:  null value in column "prospecting_pool" of relation "contacts" violates not-null constraint
+DETAIL:  Failing row contains (44444444-4444-4444-8444-444444444444, c14f0f92-ac71-47d8-a1b6-52da1d83aba9, Barbearia Sintética, null, dono@barbearia.example.invalid, null, Arquivado, prospeccao, barberias, null, null, contactable, 2026-11-02 20:41:31.37382+00, 2026-11-02 20:41:31.37382+00, null, null, null).
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at docker (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:9:22)
+    at sql (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:10:14)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:80:3
+    at check (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:15:33)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:79:8
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '',
+    'ERROR:  null value in column "prospecting_pool" of relation "contacts" violates not-null constraint\n' +
+      'DETAIL:  Failing row contains (44444444-4444-4444-8444-444444444444, c14f0f92-ac71-47d8-a1b6-52da1d83aba9, Barbearia Sintética, null, dono@barbearia.example.invalid, null, Arquivado, prospeccao, barberias, null, null, contactable, 2026-11-02 20:41:31.37382+00, 2026-11-02 20:41:31.37382+00, null, null, null).\n'
+  ],
+  pid: 701298,
+  stdout: '',
+  stderr: 'ERROR:  null value in column "prospecting_pool" of relation "contacts" violates not-null constraint\n' +
+    'DETAIL:  Failing row contains (44444444-4444-4444-8444-444444444444, c14f0f92-ac71-47d8-a1b6-52da1d83aba9, Barbearia Sintética, null, dono@barbearia.example.invalid, null, Arquivado, prospeccao, barberias, null, null, contactable, 2026-11-02 20:41:31.37382+00, 2026-11-02 20:41:31.37382+00, null, null, null).\n'
+}
+
+Node.js v22.23.1

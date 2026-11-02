@@ -1,0 +1,22 @@
+POSTGRES 17.11
+CLEANUP container and exact volumes absent
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+'f' !== 't'
+
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:28:87
+    at check (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:15:33)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:28:8 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'f',
+  expected: 't',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

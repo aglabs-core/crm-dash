@@ -1,0 +1,23 @@
+POSTGRES 17.11
+PASS behavioral schema gate: historical draft preparation exists
+PASS legacy review uses original ledger evidence and exact approved policy, not current offer
+PASS same-campaign simultaneous preparations converge on first creation
+PASS preparation idempotently freezes draft without initial approval or outbox
+PASS foreign owner denied and RLS hides draft and recipients
+PASS draft cannot be promoted by generic state control or initial approval API
+PASS missing delivery excludes recipient and stale approval fails
+PASS delivery not send anchor excludes recipient and stale approval fails
+PASS reply excludes recipient and stale approval fails
+PASS trial excludes recipient and stale approval fails
+PASS payment excludes recipient and stale approval fails
+PASS failure excludes recipient and stale approval fails
+PASS optout excludes recipient and stale approval fails
+PASS identical rendered initial offer is excluded, not resent as second
+PASS foreign owner and stale fingerprint cannot approve
+PASS snapshot and base-content policy match the exact approved JSON document
+PASS owner explicit recipient review approves only second and dormant flags remain off
+PASS schema independently rejects null cold-pool eligibility
+PASS real second runner uses only legacy parent and local HTTP; accepted replay never resends
+PASS same-campaign simultaneous preparations return one durable draft on a fresh campaign
+RESULT 20 checks; zero provider HTTP; no production access
+CLEANUP container and exact volumes absent

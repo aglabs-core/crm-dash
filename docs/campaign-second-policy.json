@@ -7,7 +7,7 @@
   "maximumSecondMessages": 1,
   "waitSeconds": 604800,
   "waitAnchor": "initial.delivered_at",
-  "subject": null,
+  "subject": "Conseguiu conhecer o Barberias?",
   "text": "Oi, {{nome}}. Retomando meu e-mail sobre o Barberias: você pode ver como funciona o agendamento nesta demonstração pública: https://barberias.com.br/b/barber-ag. Para conhecer a gestão e o teste de 7 dias sem cartão: https://barberias.com.br/sobre. Faz sentido para a rotina da sua barbearia? Se não quiser receber outros contatos comerciais, é só responder pedindo para encerrar.",
   "stopOn": ["account", "trial", "response", "payment", "optout", "delivery_failure"],
   "replyHandling": "Maia",
