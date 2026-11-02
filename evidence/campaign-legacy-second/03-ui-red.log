@@ -1,0 +1,183 @@
+
+ RUN  v4.1.11 /home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2
+
+ ❯ tests/campaign-legacy-second.test.tsx (2 tests | 2 failed) 2286ms
+   × prepares and explicitly approves reviewed recipients with exact readbacks, never dispatching 1243ms
+   × stale approval remains unconfirmed and requires a fresh manual selection 1041ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/campaign-legacy-second.test.tsx > prepares and explicitly approves reviewed recipients with exact readbacks, never dispatching
+TestingLibraryElementError: Unable to find an element with the text: Original offer. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"rounded-xl border border-border bg-surface shadow-sm space-y-3 p-5"[39m
+    [36m>[39m
+      [36m<h2[39m
+        [33mclass[39m=[32m"font-semibold"[39m
+      [36m>[39m
+        [0mSegunda etapa de prospecção[0m
+      [36m</h2>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-sm text-muted"[39m
+      [36m>[39m
+        [0mExecutor automático não implementado. Templates e campanha concluída não agendam uma segunda mensagem. Texto final e intervalo precisam de aprovação; o ciclo de teste do produto é separado.[0m
+      [36m</p>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap bg-surface text-fg border border-border hover:bg-surface-2 h-9 px-4 text-sm"[39m
+      [36m>[39m
+        [0mConferir impedimentos da segunda etapa[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"alert"[39m
+      [36m>[39m
+        [0mRevisão indisponível. Confira acesso e migração; nenhuma mensagem foi enviada.[0m
+      [36m</p>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-xs text-muted"[39m
+      [36m>[39m
+        [0mConsulta somente de leitura. Não reserva, não aprova nem dispara envios. Verificar novamente antes de qualquer execução futura.[0m
+      [36m</p>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"rounded-xl border border-border bg-surface shadow-sm space-y-3 p-5"[39m
+    [36m>[39m
+      [36m<h2[39m
+        [33mclass[39m=[32m"font-semibold"[39m
+      [36m>[39m
+        [0mSegunda etapa de prospecção[0m
+      [36m</h2>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-sm text-muted"[39m
+      [36m>[39m
+        [0mExecutor automático não implementado. Templates e campanha concluída não agendam uma segunda mensagem. Texto final e intervalo precisam de aprovação; o ciclo de teste do produto é separado.[0m
+      [36m</p>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap bg-surface text-fg border border-border hover:bg-surface-2 h-9 px-4 text-sm"[39m
+      [36m>[39m
+        [0mConferir impedimentos da segunda etapa[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"alert"[39m
+      [36m>[39m
+        [0mRevisão indisponível. Confira acesso e migração; nenhuma mensagem foi enviada.[0m
+      [36m</p>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-xs text-muted"[39m
+      [36m>[39m
+        [0mConsulta somente de leitura. Não reserva, não aprova nem dispara envios. Verificar novamente antes de qualquer execução futura.[0m
+      [36m</p>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ tests/campaign-legacy-second.test.tsx:19:22
+     17|  render(<CampaignFollowupReview campaignId="campaign" legacySecond />);
+     18|  fireEvent.click(screen.getByRole('button',{name:'Conferir impedimento…
+     19|  expect(await screen.findByText('Original offer')).toBeTruthy();
+       |                      ^
+     20|  expect(screen.getByText('Approved text Synthetic')).toBeTruthy();
+     21|  fireEvent.click(screen.getByRole('button',{name:'Preparar rascunho hi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/campaign-legacy-second.test.tsx > stale approval remains unconfirmed and requires a fresh manual selection
+TestingLibraryElementError: Unable to find an element with the text: Original offer. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"rounded-xl border border-border bg-surface shadow-sm space-y-3 p-5"[39m
+    [36m>[39m
+      [36m<h2[39m
+        [33mclass[39m=[32m"font-semibold"[39m
+      [36m>[39m
+        [0mSegunda etapa de prospecção[0m
+      [36m</h2>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-sm text-muted"[39m
+      [36m>[39m
+        [0mExecutor automático não implementado. Templates e campanha concluída não agendam uma segunda mensagem. Texto final e intervalo precisam de aprovação; o ciclo de teste do produto é separado.[0m
+      [36m</p>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap bg-surface text-fg border border-border hover:bg-surface-2 h-9 px-4 text-sm"[39m
+      [36m>[39m
+        [0mConferir impedimentos da segunda etapa[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"alert"[39m
+      [36m>[39m
+        [0mRevisão indisponível. Confira acesso e migração; nenhuma mensagem foi enviada.[0m
+      [36m</p>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-xs text-muted"[39m
+      [36m>[39m
+        [0mConsulta somente de leitura. Não reserva, não aprova nem dispara envios. Verificar novamente antes de qualquer execução futura.[0m
+      [36m</p>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"rounded-xl border border-border bg-surface shadow-sm space-y-3 p-5"[39m
+    [36m>[39m
+      [36m<h2[39m
+        [33mclass[39m=[32m"font-semibold"[39m
+      [36m>[39m
+        [0mSegunda etapa de prospecção[0m
+      [36m</h2>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-sm text-muted"[39m
+      [36m>[39m
+        [0mExecutor automático não implementado. Templates e campanha concluída não agendam uma segunda mensagem. Texto final e intervalo precisam de aprovação; o ciclo de teste do produto é separado.[0m
+      [36m</p>[39m
+      [36m<button[39m
+        [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap bg-surface text-fg border border-border hover:bg-surface-2 h-9 px-4 text-sm"[39m
+      [36m>[39m
+        [0mConferir impedimentos da segunda etapa[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"alert"[39m
+      [36m>[39m
+        [0mRevisão indisponível. Confira acesso e migração; nenhuma mensagem foi enviada.[0m
+      [36m</p>[39m
+      [36m<p[39m
+        [33mclass[39m=[32m"text-xs text-muted"[39m
+      [36m>[39m
+        [0mConsulta somente de leitura. Não reserva, não aprova nem dispara envios. Verificar novamente antes de qualquer execução futura.[0m
+      [36m</p>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ tests/campaign-legacy-second.test.tsx:38:15
+     36|  render(<CampaignFollowupReview campaignId="campaign" legacySecond />);
+     37|  fireEvent.click(screen.getByRole('button',{name:'Conferir impedimento…
+     38|  await screen.findByText('Original offer');
+       |               ^
+     39|  fireEvent.click(screen.getByRole('checkbox',{name:'Revisado synthetic…
+     40|  fireEvent.change(screen.getByLabelText('Nota da revisão manual'),{tar…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  20:37:35
+   Duration  6.59s (transform 505ms, setup 0ms, import 2.14s, tests 2.29s, environment 1.48s)
+

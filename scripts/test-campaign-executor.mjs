@@ -31,7 +31,7 @@ async function setup(){
   const end=source.indexOf('`);',start);
   const values={tenant,other,admin:owner,prospect};
   sql(source.slice(start,end).replace(/\$\{(\w+)\}/g,(_,key)=>values[key]));
-  const files=['20261016052215_email_campaign_observability.sql','20261017034819_guided_campaign_preparation.sql','20261017160727_brevo_event_receiver.sql','20261017173524_campaign_approval_queue.sql','20261022120000_unified_email_ledger.sql','20261022130000_account_access_reconciliation.sql','20261022184326_maia_email_ledger_bridge_v1.sql','20261102183000_guard_email_ledger_bindings.sql','20261102183500_campaign_followup_review.sql'];
+  const files=['20261016052215_email_campaign_observability.sql','20261017034819_guided_campaign_preparation.sql','20261017160727_brevo_event_receiver.sql','20261017173524_campaign_approval_queue.sql','20261022120000_unified_email_ledger.sql','20261022130000_account_access_reconciliation.sql','20261022184326_maia_email_ledger_bridge_v1.sql','20261102203246_guard_email_ledger_bindings_20261102183000.sql','20261102203544_campaign_followup_review_20261102183500.sql'];
   for(const file of files)sql(readFileSync(`supabase/migrations/${file}`,'utf8'));
   sql(`CREATE TABLE public.payment_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),contact_id uuid,user_id uuid,product text,status text,net_amount numeric);
     INSERT INTO public.email_provider_connections(id,user_id,name) VALUES('${connection}','${owner}','Synthetic');
@@ -55,6 +55,8 @@ try{
   if(existsSync(migration))sql(readFileSync(migration,'utf8'));
   const secondMigration='supabase/migrations/20261102210000_campaign_second_step.sql';
   if(existsSync(secondMigration))sql(readFileSync(secondMigration,'utf8'));
+  const legacyMigration='supabase/migrations/20261102220000_campaign_legacy_second.sql';
+  if(existsSync(legacyMigration))sql(readFileSync(legacyMigration,'utf8'));
   console.log(`POSTGRES ${sql('SHOW server_version')}`);
   // Behavioral RED can run before implementation, without import/SQL errors.
   await check('durable executor schema is installed',()=>{
