@@ -1,0 +1,6 @@
+PASS durable executor schema is installed
+PASS flag off prevents claims and network in both layers
+PASS missing explicit interval prevents admission
+PASS one authorized frozen message has durable accepted receipt; replay never resends
+RESULT 4 checks, 1 local HTTP requests
+CLEANUP disposable container removed; no volumes or published ports

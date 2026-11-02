@@ -1,0 +1,6 @@
+
+> ai-studio-applet@0.1.0 audit:gate
+> node audit-gate.mjs
+
+
+Auditoria aprovada: 0 aviso(s) avaliado(s), 0 exceção(ões) aplicada(s).
