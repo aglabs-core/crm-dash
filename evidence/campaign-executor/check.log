@@ -1082,9 +1082,9 @@ ok 132 - task assignment handoff
    Checking validity of types ...
    Collecting page data ...
    Generating static pages (0/18) ...
-   Generating static pages (4/18) 
-   Generating static pages (8/18) 
-   Generating static pages (13/18) 
+   Generating static pages (4/18)
+   Generating static pages (8/18)
+   Generating static pages (13/18)
  ✓ Generating static pages (18/18)
    Finalizing page optimization ...
    Collecting build traces ...
@@ -1124,4 +1124,3 @@ Route (app)                                 Size  First Load JS
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
-
