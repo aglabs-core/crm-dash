@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: strict malformed provider receipts fail closed, never retry
+not ok 1 - strict malformed provider receipts fail closed, never retry
+  ---
+  duration_ms: 29.596977
+  type: 'test'
+  location: '/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:8:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:12:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: provider timeout aborts once with no retry
+ok 2 - provider timeout aborts once with no retry
+  ---
+  duration_ms: 5001.26587
+  type: 'test'
+  ...
+# Subtest: provider rejection, oversized JSON and additional message fields fail closed
+ok 3 - provider rejection, oversized JSON and additional message fields fail closed
+  ---
+  duration_ms: 4.108681
+  type: 'test'
+  ...
+# Subtest: invalid account/source/address bindings reject with zero HTTP
+ok 4 - invalid account/source/address bindings reject with zero HTTP
+  ---
+  duration_ms: 0.772008
+  type: 'test'
+  ...
+# Subtest: immutable sender mismatch is rejected without HTTP
+ok 5 - immutable sender mismatch is rejected without HTTP
+  ---
+  duration_ms: 0.490005
+  type: 'test'
+  ...
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+ok 6 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 6.602186
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5371.800832

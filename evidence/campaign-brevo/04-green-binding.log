@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: immutable sender mismatch is rejected without HTTP
+ok 1 - immutable sender mismatch is rejected without HTTP
+  ---
+  duration_ms: 2.03894
+  type: 'test'
+  ...
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+ok 2 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 52.119243
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 465.421632
