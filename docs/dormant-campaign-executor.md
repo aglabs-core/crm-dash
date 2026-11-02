@@ -1,5 +1,9 @@
 # Executor comum — vertical de envio único, dormente
 
+> Registro histórico do PR67 initial-only. A continuação dependente implementa
+> step2 text-only e reconciliação: [contrato atual da fatia](campaign-second-step.md).
+> As limitações abaixo descrevem a entrega original, não o alcance da continuação.
+
 ## Entrega e limite de autorização
 
 Implementação **offline**, sem import por rota/job, sem cron, sem credenciais, sem provider real e sem migration remota. A migration instala `enabled=false` e `wait_seconds=NULL`; não há RPC de ativação. O executável exige também `enabled === true`. Aprovar um lote continua sendo aprovação de conteúdo/público, não ativação do executor.

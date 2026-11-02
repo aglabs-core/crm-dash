@@ -1,0 +1,13 @@
+
+> ai-studio-applet@0.1.0 check
+> npm run lint && npm run typecheck && npm run test && npm run build
+
+
+> ai-studio-applet@0.1.0 lint
+> eslint .
+
+
+/home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-step2-unit.mjs
+  9:1  error  Do not assign to the variable `module`. See: https://nextjs.org/docs/messages/no-assign-module-variable  @next/next/no-assign-module-variable
+
+✖ 1 problem (1 error, 0 warnings)
