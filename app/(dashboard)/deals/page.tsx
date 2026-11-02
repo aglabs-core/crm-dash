@@ -73,7 +73,7 @@ function PipelineContent() {
   const [needsTask, setNeedsTask] = useState(false);
   const [contextRevision, setContextRevision] = useState(0);
   const requestVersion = useRef({ value: 0 }).current;
-  const { tasks, activities, available: contextAvailable } = usePipelineContext(contacts, contextRevision);
+  const { tasks, activities, emails, available: contextAvailable } = usePipelineContext(contacts, contextRevision);
   const [view, setView] = useState<'board' | 'archived'>('board');
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -469,7 +469,7 @@ function PipelineContent() {
                                       </span>
                                     )}
                                   </div>
-                                  <PipelineContext contactId={c.id} tasks={taskMap.get(c.id) || []} activities={activityMap.get(c.id) || []} available={contextAvailable} />
+                                  <PipelineContext contactId={c.id} tasks={taskMap.get(c.id) || []} activities={activityMap.get(c.id) || []} available={contextAvailable} accountStatus={c.account_status} email={emails?.find((e) => e.contact_id === c.id)} />
                                 </div>
                               )}
                             </Draggable>

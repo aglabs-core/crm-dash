@@ -13,7 +13,7 @@ async function readPages<T>(table: string, columns: string, signal: AbortSignal)
   for (let offset = 0; offset < 5000; offset = rows.length) {
     let query = supabase.from(table).select(columns).order('created_at', { ascending: false }).order('id').range(offset, offset + 499).abortSignal(signal);
     if (table === 'tasks') query = query.eq('status', 'pending');
-    if (table === 'email_messages') query = query.not('category', 'in', '(automacao,transacional)');
+    // Include lifecycle evidence: excluding it makes manual-task gaps look like no contact.
     const { data, error } = await query;
     if (error) throw error;
     rows.push(...(data as unknown as T[]));
@@ -39,7 +39,7 @@ export default function ActionsPage() {
       return Promise.all([
       readPages<Contact>('contacts', 'id,name,company,produto,status,prospecting_pool,account_status,account_updated_at,updated_at', controller.signal),
       readPages<Task>('tasks', 'id,title,contact_id,due_date,status', controller.signal),
-      readPages<ActionEmail>('email_messages', 'id,contact_id,product,direction,category,status,sent_at,created_at,subject', controller.signal),
+      readPages<ActionEmail>('email_messages', 'id,contact_id,product,direction,category,source_key,status,sent_at,created_at,subject,delivered_at', controller.signal),
       ]);
     }).then(([contacts, tasks, emails]) => {
       if (controller.signal.aborted) return;
@@ -63,7 +63,7 @@ export default function ActionsPage() {
       <div className="overflow-hidden rounded-xl border border-border bg-surface"><div className="border-b border-border px-4 py-3 text-sm font-medium">{kind === 'all' ? 'Todas as ações' : ACTION_LABELS[kind]} <span className="text-muted">· {visible.length}</span></div>
         {!visible.length ? <p className="p-5 text-sm text-muted">Nenhuma ação encontrada com estes filtros.</p> : <ul className="divide-y divide-border">{visible.slice(page * 25, page * 25 + 25).map((item) => <li key={item.id}><Link href={item.href} className="flex min-w-0 items-center gap-3 px-4 py-3 hover:bg-surface-2"><div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap gap-x-2 text-xs text-muted"><span className="text-brand">{productLabel(item.product)}</span><span>{ACTION_LABELS[item.kind]}</span></div><p className="truncate text-sm font-medium">{item.title}</p><p className="mt-0.5 break-words text-xs text-muted">{item.detail}</p></div><ArrowUpRight className="h-4 w-4 shrink-0 text-muted" /></Link></li>)}</ul>}
         {visible.length > 25 && <div className="flex items-center justify-between border-t border-border px-4 py-3"><Button size="sm" variant="ghost" disabled={!page} onClick={() => setPage((p) => p - 1)}>Anterior</Button><span className="text-xs text-muted">Página {page + 1} de {Math.ceil(visible.length / 25)}</span><Button size="sm" variant="ghost" disabled={(page + 1) * 25 >= visible.length} onClick={() => setPage((p) => p + 1)}>Próxima</Button></div>}
-      </div><p className="text-xs leading-relaxed text-muted">Uma pessoa pode ter mais de uma ação. Respostas indicam a última mensagem de e-mail consultada, sem envio posterior fora das categorias automação e transacional; confira também os outros canais no histórico. Teste encerrado não significa pagamento pendente.</p>
+      </div><p className="text-xs leading-relaxed text-muted">Uma pessoa pode ter mais de uma ação. Respostas indicam a última mensagem de e-mail consultada, sem envio posterior fora das categorias automação e transacional; confira também os outros canais no histórico. Teste encerrado não significa pagamento pendente. Sem tarefa manual não significa ausência de e-mails nem autoriza nova abordagem. Entrega histórica não comprova automação futura agendada.</p>
     </>}
   </div>;
 }

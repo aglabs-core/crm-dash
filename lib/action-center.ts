@@ -4,16 +4,21 @@ export const ACTION_LABELS = {
   overdue: 'Tarefas vencidas',
   reply: 'Respostas recebidas',
   trial: 'Testes encerrados',
-  next_step: 'Sem próximo passo',
+  next_step: 'Sem tarefa manual',
 } as const;
 export type ActionKind = keyof typeof ACTION_LABELS;
 export type ActionItem = { id: string; kind: ActionKind; product: string; title: string; detail: string; href: string; at: string | null };
-export type ActionEmail = { id: string; contact_id: string | null; product: string | null; direction: string; category: string; status: string; sent_at: string | null; created_at: string; subject: string | null };
+export type ActionEmail = { id: string; contact_id: string | null; product: string | null; direction: string; category: string; status: string; sent_at: string | null; created_at: string; subject: string | null; source_key?: string; delivered_at?: string | null };
 
 /** Signals for human review, never a stage change or permission to send. */
 export function buildActions(contacts: Contact[], tasks: Task[], emails: ActionEmail[], now = new Date()): ActionItem[] {
   const byId = new Map(contacts.map((c) => [c.id, c]));
   const pending = new Set(tasks.filter((t) => t.status === 'pending' && t.contact_id).map((t) => t.contact_id));
+  const lifecycleDelivered = new Set(emails.filter((e) => e.direction === 'outbound' && e.category === 'automacao'
+    && e.product === 'barberias' && e.source_key?.startsWith('barberias.trial.')
+    && (e.delivered_at || ['delivered', 'opened', 'clicked', 'replied'].includes(e.status))
+    && Number.isFinite(Date.parse(e.sent_at || e.created_at)) && Date.parse(e.sent_at || e.created_at) <= now.getTime())
+    .map((e) => e.contact_id));
   const actions: ActionItem[] = [];
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   for (const task of tasks) {
@@ -31,7 +36,7 @@ export function buildActions(contacts: Contact[], tasks: Task[], emails: ActionE
       actions.push({ ...base, id: `trial:${contact.id}`, kind: 'trial', detail: 'Encerramento confirmado pelo aplicativo · revisar conta e histórico', at: contact.account_updated_at || null });
     }
     if (['Lead', 'Contatado', 'Atendimento', 'Proposta', 'Pagamento'].includes(contact.status) && !pending.has(contact.id)) {
-      actions.push({ ...base, id: `next:${contact.id}`, kind: 'next_step', detail: `${contact.status} · nenhuma tarefa pendente vinculada`, at: contact.updated_at || null });
+      actions.push({ ...base, id: `next:${contact.id}`, kind: 'next_step', detail: `${contact.status} · sem tarefa manual pendente${contact.produto === 'barberias' && lifecycleDelivered.has(contact.id) ? ' · e-mail do ciclo de teste entregue; conferir histórico antes de nova abordagem' : ''}`, at: contact.updated_at || null });
     }
   }
   // Show the latest conversational message per contact/product, ignoring automated sends.

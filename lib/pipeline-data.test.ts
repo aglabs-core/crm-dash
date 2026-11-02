@@ -13,6 +13,7 @@ function fixture(total: number, cap: number, failure = false, failOn = 1) {
       const cursor = url.searchParams.get('id')?.replace('gt.', '') || '';
       const rows = Array.from({ length: total }, (_, i) => ({ id: String(i + 1).padStart(6, '0'),
         tasks: [{ id: `task-${i}`, title: 'Synthetic task', status: 'pending', due_date: '2026-10-16' }],
+        emails: [{ id: `email-${i}`, category: 'automacao', source_key: 'barberias.trial.recuperacao', status: 'delivered', sent_at: '2026-10-15T12:00:00Z' }],
         activities: [{ id: `activity-${i}`, type: 'meeting', channel: 'telefone', created_at: '2026-10-15T12:00:00Z' }],
       })).filter((r) => r.id > cursor).slice(0, cap);
       return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -28,6 +29,12 @@ test('1000 contacts need three summary requests with one task and interaction pe
   assert.equal(summary.tasks.length, 1000);
   assert.equal(summary.activities.length, 1000);
   assert.equal(summary.tasks[999].contact_id, '001000');
+  assert.equal(summary.emails?.length, 1000);
+  assert.equal(summary.emails?.[999].contact_id, '001000');
+  assert.equal(urls[0].searchParams.get('emails.limit'), '1');
+  assert.equal(urls[0].searchParams.get('emails.direction'), 'eq.outbound');
+  assert.equal(urls[0].searchParams.get('emails.order'), 'sent_at.desc,id.asc');
+  assert.equal(urls[0].searchParams.has('emails.user_id'), false); // RLS, not contact-owner equality: the approved Maia bridge has a technical owner.
   const params = urls[0].searchParams;
   assert.equal(params.get('tasks.limit'), '1');
   assert.equal(params.get('activities.limit'), '1');

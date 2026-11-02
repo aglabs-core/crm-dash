@@ -6,6 +6,11 @@ const contact = (id: string, extra: Partial<Contact> = {}): Contact => ({ id, na
 const task = (extra: Partial<Task>): Task => ({ id: 't', title: 'Revisar', status: 'pending', due_date: '2026-10-24', contact_id: 'c', ...extra } as Task);
 const email = (extra: Partial<ActionEmail>): ActionEmail => ({ id: 'e', contact_id: 'c', product: 'barberias', direction: 'inbound', category: 'atendimento', status: 'received', sent_at: '2026-10-24T10:00:00Z', created_at: '2026-10-24T10:00:00Z', subject: null, ...extra });
 const now = new Date(2026, 9, 25, 12);
+test('lifecycle delivery is evidence of email contact, not absence of all next steps', () => {
+  const actions = buildActions([contact('c', { account_status: 'trial_encerrado' })], [], [email({ direction: 'outbound', category: 'automacao', status: 'delivered', source_key: 'barberias.trial.recuperacao' })], now);
+  assert.equal(actions.find((a) => a.kind === 'next_step')?.detail, 'Lead · sem tarefa manual pendente · e-mail do ciclo de teste entregue; conferir histórico antes de nova abordagem');
+});
+
 test('cold pool, clients and archived contacts never create acquisition next steps', () => {
   const actions = buildActions([contact('cold', { prospecting_pool: true }), contact('client', { status: 'Cliente', account_status: 'trial_encerrado' }), contact('archived', { status: 'Arquivado' }), contact('active')], [], [], now);
   assert.deepEqual(actions.map((a) => a.id), ['next:active']);
