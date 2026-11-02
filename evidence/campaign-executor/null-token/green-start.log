@@ -1,0 +1,27 @@
+PASS durable executor schema is installed
+PASS flag off prevents claims and network in both layers
+PASS missing explicit interval prevents admission
+PASS one authorized frozen message has durable accepted receipt; replay never resends
+PASS timeout after local acceptance is uncertain and never resent
+PASS claims serialize across independent PostgreSQL connections
+PASS expired pre-effect claim retries safely and fences old attempt
+PASS revocation after claim blocks dispatch before HTTP
+PASS database flag off after claim blocks start and network
+PASS authenticated foreign owner cannot claim or finish
+PASS provider preflight failure has zero durable claim and no HTTP
+PASS trial is rechecked before claim and after claim
+PASS optout is rechecked before claim and after claim
+PASS payment is rechecked before claim and after claim
+PASS provider suppression is rechecked before claim and after claim
+PASS interval is rechecked before claim and after claim
+PASS prior provider effect is rechecked before claim and after claim
+PASS canonical contact retarget after claim is fenced even with same address
+PASS malformed HTTP acceptance receipt is uncertain, not successful or retryable
+PASS unknown start commit and unknown receipt commit never trigger another HTTP
+PASS inbound response and prior prospecting ledger history stop new mail
+PASS duplicate address in another approved campaign cannot acquire another send
+PASS post-start completion cannot be overwritten or released
+PASS NULL start tokens remain fenced across repeated calls and token rotation
+PASS real worker SIGKILL after HTTP acceptance plus PostgreSQL restart never resends
+RESULT 25 checks, 6 local HTTP requests
+CLEANUP disposable container and exact anonymous volumes removed; no published ports
