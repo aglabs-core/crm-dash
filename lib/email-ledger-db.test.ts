@@ -60,9 +60,9 @@ async function setup() {
       VALUES('${campaign}','${admin}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
     INSERT INTO public.email_campaign_recipients(id,campaign_id,user_id,contact_id,email_snapshot,review_note,provider_message_id)
       VALUES('${recipient}','${campaign}','${admin}','${prospect}','dono@barbearia.example.invalid','Revisão sintética','${brevoId}');`);
-  await db.exec(await readFile('supabase/migrations/20261102183000_guard_email_ledger_bindings.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/20261102183000_guard_email_ledger_bindings.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/20261102183500_campaign_followup_review.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203246_guard_email_ledger_bindings_20261102183000.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203246_guard_email_ledger_bindings_20261102183000.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203544_campaign_followup_review_20261102183500.sql', 'utf8'));
   const service = async <T = Record<string, unknown>>(sql: string, args: unknown[] = []) => {
     await db.exec('SET ROLE service_role');
     try { return await db.query<T>(sql, args); } finally { await db.exec('RESET ROLE'); }
