@@ -185,8 +185,8 @@ it('pipeline task shortcut is enabled only after context loads', async () => {
   const shortcut = screen.getByRole('button', { name: 'Sem próxima tarefa' });
   await waitFor(() => expect((shortcut as HTMLButtonElement).disabled).toBe(false));
   await user.click(shortcut);
-  expect(screen.getByText('Definir próxima tarefa')).toBeTruthy();
-  expect(screen.getByText('Sem interação registrada')).toBeTruthy();
+  expect(screen.getByText(/Definir tarefa manual/)).toBeTruthy();
+  expect(screen.getByText('Sem conversa humana registrada')).toBeTruthy();
   expect(api.writes).toHaveLength(0);
 });
 
