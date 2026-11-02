@@ -53,6 +53,9 @@ try{
   await setup();
   const migration='supabase/migrations/20261102200000_dormant_campaign_executor.sql';
   if(existsSync(migration))sql(readFileSync(migration,'utf8'));
+  const secondMigration='supabase/migrations/20261102210000_campaign_second_step.sql';
+  if(existsSync(secondMigration))sql(readFileSync(secondMigration,'utf8'));
+  console.log(`POSTGRES ${sql('SHOW server_version')}`);
   // Behavioral RED can run before implementation, without import/SQL errors.
   await check('durable executor schema is installed',()=>{
     assert.equal(sql("SELECT to_regclass('crm_campaign_private.dispatch_outbox') IS NOT NULL"),'t');
@@ -252,6 +255,132 @@ try{
     }
     sql("UPDATE crm_campaign_private.dispatch_outbox SET lease_until=now()-interval '1 second'");
     assert.equal((await run()).status,'uncertain');assert.equal(calls,before+1);assert.equal(sql('SELECT state FROM crm_campaign_private.dispatch_outbox'),'uncertain');
+  });
+  const step2Migration='supabase/migrations/20261102210000_campaign_second_step.sql';
+  if(existsSync(step2Migration)&&sql("SELECT to_regprocedure('public.claim_campaign_second_dispatch(uuid)') IS NULL")==='t')sql(readFileSync(step2Migration,'utf8'));
+  reset();
+  sql(`INSERT INTO public.email_messages(user_id,contact_id,direction,provider,category,source_key,product,campaign_id,recipient_id,address,subject,body_text,provider_message_id,sent_at,delivered_at,status) VALUES('${tenant}','${prospect}','outbound','brevo','prospeccao','synthetic.initial','barberias','${campaign}','${recipient}','dono@barbearia.example.invalid','Initial historical','Historical immutable offer for Barbearia Sintética','initial-history@example.invalid',now()-interval '7 days',now()-interval '7 days','delivered')`);
+  const parent=sql("SELECT id FROM public.email_messages WHERE source_key='synthetic.initial'");
+  const hasSecond=sql("SELECT to_regprocedure('public.claim_campaign_second_dispatch(uuid)') IS NOT NULL")==='t';
+  if(hasSecond)await check('second personalized template cannot repeat immutable initial body',()=>{
+    assert.throws(()=>json(`SELECT public.approve_campaign_second_step('${batch}','Second subject','Historical immutable offer for {{nome}}',604800,gen_random_uuid(),'Synthetic explicit step two approval')`));
+  });
+  if(hasSecond)json(`SELECT public.approve_campaign_second_step('${batch}','Second subject','Second explicit text for {{nome}}',604800,gen_random_uuid(),'Synthetic explicit step two approval')`);
+  const secondRun=()=>executeOne({enabled:true,step:hasSecond?'second':'initial',rpc,provider:httpProvider({url:`http://127.0.0.1:${server.address().port}`,timeoutMs:1000}),itemId:item});
+  await check('second step uses delivered historical initial and never repeats its body',async()=>{
+    const before=calls;
+    const result=await secondRun();assert.equal(result.status,'accepted');assert.equal(calls,before+1);
+    assert.notEqual(observed.text,'Historical immutable offer');assert.match(observed.text,/Second explicit text/);
+    assert.equal(sql("SELECT step FROM crm_campaign_private.dispatch_outbox"),'second');
+    assert.equal(sql("SELECT parent_message_id FROM crm_campaign_private.dispatch_outbox"),parent);
+    assert.equal(sql(`SELECT status FROM public.contacts WHERE id='${prospect}'`),'Arquivado');
+    assert.equal((await secondRun()).status,'accepted');assert.equal(calls,before+1);
+  });
+  await check('accepted second send publishes exact immutable content through current ledger contract',async()=>{
+    const row=JSON.parse(sql("SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o"));
+    const m=JSON.parse(sql(`SELECT coalesce((SELECT row_to_json(x) FROM public.email_messages x WHERE x.id='${row.ledger_message_id || '00000000-0000-0000-0000-000000000000'}'),'{}')`));
+    assert.equal(m.body_text,observed.text);assert.equal(m.contact_id,prospect);assert.equal(m.campaign_id,campaign);assert.equal(m.recipient_id,recipient);
+    assert.equal(m.user_id,tenant);assert.equal(m.status,'accepted');assert.equal(m.source_key,'crm.campaign.second');
+  });
+  await check('publication timeout after commit reconciles independently while send flag is off',async()=>{
+    const id=sql('SELECT id FROM crm_campaign_private.dispatch_outbox');const before=calls;
+    const snapshot=sql('SELECT count(*) FROM public.email_messages');
+    const lost=async(name,args)=>{await rpc(name,args);throw Error('synthetic publication timeout after commit');};
+    await assert.rejects(lost('publish_campaign_second_dispatch',[id]));
+    sql('UPDATE crm_campaign_private.dispatch_control SET enabled=false');
+    assert.equal((await rpc('publish_campaign_second_dispatch',[id])).status,'published');
+    assert.equal((await secondRun()).status,'disabled');
+    assert.equal(sql('SELECT count(*) FROM public.email_messages'),snapshot);assert.equal(calls,before);
+    assert.throws(()=>json(`SELECT public.publish_campaign_second_dispatch('${id}')`,other));
+  });
+  for(const [label,change,restore] of [
+    ['trial',"UPDATE public.contacts SET account_status='trial'","UPDATE public.contacts SET account_status=NULL"],
+    ['optout',"UPDATE public.contacts SET outreach_status='blocked'","UPDATE public.contacts SET outreach_status='contactable'"],
+    ['payment',`INSERT INTO public.payment_transactions(contact_id,user_id,product,status,net_amount) VALUES('${prospect}','${tenant}','barberias','paid',49)`,'DELETE FROM public.payment_transactions'],
+    ['response',`UPDATE public.email_messages SET replied_at=now() WHERE id='${parent}'`,`UPDATE public.email_messages SET replied_at=NULL WHERE id='${parent}'`],
+    ['failure',`UPDATE public.email_messages SET status='failed' WHERE id='${parent}'`,`UPDATE public.email_messages SET status='delivered' WHERE id='${parent}'`],
+    ['bounce',`UPDATE public.email_messages SET status='bounced' WHERE id='${parent}'`,`UPDATE public.email_messages SET status='delivered' WHERE id='${parent}'`],
+    ['wait',`UPDATE public.email_messages SET delivered_at=now()-interval '6 days' WHERE id='${parent}'`,`UPDATE public.email_messages SET delivered_at=now()-interval '7 days' WHERE id='${parent}'`],
+    ['address',"UPDATE public.contacts SET email='changed@example.invalid'","UPDATE public.contacts SET email='dono@barbearia.example.invalid'"],
+  ]) await check(`second ${label} revalidated at admission and immediately before effect`,async()=>{
+    reset();sql("DELETE FROM public.email_messages WHERE source_key='crm.campaign.second'");
+    const before=calls;sql(change);assert.notEqual((await rpc('claim_campaign_second_dispatch',[item])).status,'claimed');sql(restore);
+    const first=await rpc('claim_campaign_second_dispatch',[item]);assert.equal(first.status,'claimed');sql(change);
+    assert.equal((await rpc('start_campaign_dispatch',[first.id,first.token])).status,'review');assert.equal(calls,before);sql(restore);
+  });
+  await check('second approval rejects missing explicit content/wait and immutable edits',()=>{
+    for(const [text,wait] of [[null,604800],['Different text',null],['Different text',0]]) assert.throws(()=>json(`SELECT public.approve_campaign_second_step('${batch}','Second subject',${lit(text)},${lit(wait)},gen_random_uuid(),'Synthetic explicit approval')`));
+    assert.throws(()=>sql("UPDATE public.email_campaign_batch_recipients SET second_message='{}'"));
+    assert.throws(()=>sql("UPDATE public.email_campaign_batches SET second_approval='{}'"));
+  });
+  await check('second NULL attempt fences and accepted ledger never broadens read access',async()=>{
+    reset();const first=await rpc('claim_campaign_second_dispatch',[item]);
+    assert.equal((await rpc('start_campaign_dispatch',[first.id,null])).status,'fenced');
+    assert.equal((await rpc('start_campaign_dispatch',[first.id,first.token])).status,'dispatch_started');
+    assert.equal((await rpc('finish_campaign_dispatch',[first.id,null,'forged'])).status,'fenced');
+    assert.equal(sql("SELECT has_function_privilege('authenticated','public.crm_record_outbound_email(jsonb)','EXECUTE')"),'f');
+    assert.equal(sql("SELECT has_table_privilege('authenticated','crm_campaign_private.dispatch_outbox','SELECT')"),'f');
+  });
+  await check('bounded runner admits and executes second work through real PostgreSQL and HTTP',async()=>{
+    reset();const before=calls;
+    const fn=sql("SELECT to_regprocedure('public.list_campaign_second_work(text,integer)') IS NOT NULL")==='t';
+    const rows=fn?await rpc('list_campaign_second_work',['send',1]):[];
+    assert.equal(rows.length,1);assert.equal(rows[0].item_id,item);
+    const { runSecondBatch }=await import('../lib/campaign-executor.mjs');
+    const result=await runSecondBatch({enabled:true,rpc,provider:httpProvider({url:`http://127.0.0.1:${server.address().port}`,timeoutMs:1000}),limit:1});
+    assert.equal(result.results[0].status,'accepted');assert.equal(result.results[0].ledger,'published');assert.equal(calls,before+1);
+  });
+  await check('executor publication failures before or after commit never resend; runner reconciles with send disabled',async()=>{
+    const {runSecondBatch}=await import('../lib/campaign-executor.mjs');
+    for(const committed of [false,true]){
+      reset();sql("DELETE FROM public.email_messages WHERE source_key='crm.campaign.second'");const before=calls;
+      const lossy=async(name,args)=>{
+        if(name==='publish_campaign_second_dispatch'){
+          if(committed)await rpc(name,args);
+          throw Error('synthetic ledger timeout');
+        }
+        return rpc(name,args);
+      };
+      const result=await executeOne({enabled:true,step:'second',rpc:lossy,provider:httpProvider({url:`http://127.0.0.1:${server.address().port}`,timeoutMs:1000}),itemId:item});
+      assert.equal(result.status,'accepted');assert.equal(result.ledger,'pending');assert.equal(calls,before+1);
+      const retried=await secondRun();assert.equal(retried.status,'accepted');assert.equal(retried.ledger,'published');assert.equal(calls,before+1);
+      // Clear only local publication marker to exercise independent discovery,
+      // not mail admission. The committed remote ledger stays intact.
+      sql('UPDATE crm_campaign_private.dispatch_outbox SET ledger_message_id=NULL; UPDATE crm_campaign_private.dispatch_control SET enabled=false');
+      const reconciled=await runSecondBatch({enabled:false,reconcile:true,rpc,limit:1});
+      assert.equal(reconciled.results[0].status,'published');assert.equal(calls,before+1);
+      assert.equal(sql("SELECT count(*) FROM public.email_messages WHERE source_key='crm.campaign.second'"),'1');
+    }
+  });
+  await check('second approval and admission preserve owner isolation and person/address/product/step uniqueness',async()=>{
+    reset();sql("DELETE FROM public.email_messages WHERE source_key='crm.campaign.second'");
+    assert.throws(()=>json(`SELECT public.approve_campaign_second_step('${batch}','Subject','Text',604800,gen_random_uuid(),'Synthetic approval note')`,other));
+    assert.throws(()=>json(`SELECT public.claim_campaign_second_dispatch('${item}')`,other));
+    const first=await rpc('claim_campaign_second_dispatch',[item]);assert.equal(first.status,'claimed');
+    const secondItem=sql(`SELECT id FROM public.email_campaign_batch_recipients WHERE batch_id<>'${batch}' LIMIT 1`);
+    // A privileged fixture copy represents a separately approved same-person batch.
+    sql(`UPDATE public.email_campaign_batches SET second_approval=(SELECT second_approval FROM public.email_campaign_batches WHERE id='${batch}') WHERE id=(SELECT batch_id FROM public.email_campaign_batch_recipients WHERE id='${secondItem}'); UPDATE public.email_campaign_batch_recipients SET second_parent='${parent}',second_message=(SELECT second_message FROM public.email_campaign_batch_recipients WHERE id='${item}') WHERE id='${secondItem}'`);
+    assert.throws(()=>sql(`INSERT INTO crm_campaign_private.dispatch_outbox(user_id,item_id,batch_id,contact_id,product,address,step,state,lease_until,parent_message_id,immutable_content) SELECT user_id,'${secondItem}',batch_id,contact_id,product,address,step,state,lease_until,parent_message_id,immutable_content FROM crm_campaign_private.dispatch_outbox`));
+    assert.equal((await rpc('claim_campaign_second_dispatch',[item])).status,'busy');
+  });
+  await check('one-shot CLI uses authenticated HTTP RPC loopback and explicit second-send flag',async()=>{
+    reset();sql("DELETE FROM public.email_messages WHERE source_key='crm.campaign.second'");const before=calls;
+    const keys={list_campaign_second_work:['p_mode','p_limit'],claim_campaign_second_dispatch:['p_item'],start_campaign_dispatch:['p_id','p_token'],finish_campaign_dispatch:['p_id','p_token','p_provider_id'],publish_campaign_second_dispatch:['p_id']};
+    const rpcServer=createServer(async(req,res)=>{
+      try{
+        assert.equal(req.headers.authorization,'Bearer synthetic-owner-session');assert.equal(req.headers.apikey,'synthetic-public-key');
+        const name=req.url.slice(1);assert.ok(Object.hasOwn(keys,name));let raw='';for await(const part of req)raw+=part;
+        const body=JSON.parse(raw);assert.deepEqual(Object.keys(body).sort(),[...keys[name]].sort());
+        const result=await rpc(name,keys[name].map(key=>body[key]));res.setHeader('content-type','application/json');res.end(JSON.stringify(result));
+      }catch{res.statusCode=400;res.end('{}');}
+    });
+    await new Promise(r=>rpcServer.listen(0,'127.0.0.1',r));
+    try{
+      const child=spawn(process.execPath,['scripts/run-campaign-second-step.mjs'],{env:{PATH:process.env.PATH,CRM_CAMPAIGN_SECOND_ENABLED:'true',CRM_CAMPAIGN_RPC_URL:`http://127.0.0.1:${rpcServer.address().port}/`,CRM_CAMPAIGN_OWNER_TOKEN:'synthetic-owner-session',CRM_CAMPAIGN_ANON_KEY:'synthetic-public-key',CRM_CAMPAIGN_TEST_PROVIDER_URL:`http://127.0.0.1:${server.address().port}`,CRM_CAMPAIGN_BATCH_LIMIT:'1'},stdio:['ignore','pipe','pipe']});
+      let out='',err='';child.stdout.on('data',x=>out+=x);child.stderr.on('data',x=>err+=x);
+      const code=await new Promise(r=>child.on('exit',r));assert.equal(code,0,err);
+      const result=JSON.parse(out);assert.equal(result.results[0].status,'accepted');assert.equal(result.results[0].ledger,'published');assert.equal(calls,before+1);
+    }finally{await new Promise(r=>rpcServer.close(r));}
   });
   mkdirSync('evidence/campaign-executor',{recursive:true});
   writeFileSync('evidence/campaign-executor/last-run.json',JSON.stringify({passed,providerRequests:calls,image},null,2)+'\n');

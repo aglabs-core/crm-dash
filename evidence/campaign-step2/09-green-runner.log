@@ -1,0 +1,2 @@
+PASS second step never routes through initial admission
+PASS bounded runner discovers and executes only second work
