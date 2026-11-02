@@ -1,0 +1,21 @@
+PASS durable executor schema is installed
+PASS flag off prevents claims and network in both layers
+PASS missing explicit interval prevents admission
+PASS one authorized frozen message has durable accepted receipt; replay never resends
+PASS timeout after local acceptance is uncertain and never resent
+PASS claims serialize across independent PostgreSQL connections
+PASS expired pre-effect claim retries safely and fences old attempt
+PASS revocation after claim blocks dispatch before HTTP
+PASS database flag off after claim blocks start and network
+PASS authenticated foreign owner cannot claim or finish
+PASS provider preflight failure has zero durable claim and no HTTP
+PASS trial is rechecked before claim and after claim
+PASS optout is rechecked before claim and after claim
+PASS payment is rechecked before claim and after claim
+PASS provider suppression is rechecked before claim and after claim
+PASS interval is rechecked before claim and after claim
+PASS prior provider effect is rechecked before claim and after claim
+PASS post-start completion cannot be overwritten or released
+PASS real worker SIGKILL after HTTP acceptance plus PostgreSQL restart never resends
+RESULT 19 checks, 4 local HTTP requests
+CLEANUP disposable container removed; no volumes or published ports

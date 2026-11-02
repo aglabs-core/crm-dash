@@ -1,0 +1,16 @@
+test_authenticated_access_is_read_only_and_tenant_scoped (__main__.PaymentLedger.test_authenticated_access_is_read_only_and_tenant_scoped) ... ok
+test_conflicting_identity_is_rejected_without_partial_write (__main__.PaymentLedger.test_conflicting_identity_is_rejected_without_partial_write) ... ok
+test_migration_can_be_applied_again (__main__.PaymentLedger.test_migration_can_be_applied_again) ... ok
+test_onboarding_failure_rolls_back_payment (__main__.PaymentLedger.test_onboarding_failure_rolls_back_payment) ... ok
+test_other_cakto_product_does_not_create_web_task (__main__.PaymentLedger.test_other_cakto_product_does_not_create_web_task) ... ok
+test_refund_replay_cannot_restore_revenue (__main__.PaymentLedger.test_refund_replay_cannot_restore_revenue) ... ok
+test_replay_with_conflicting_amount_or_currency_is_rejected (__main__.PaymentLedger.test_replay_with_conflicting_amount_or_currency_is_rejected) ... ok
+test_reversal_without_original_payment_is_rejected (__main__.PaymentLedger.test_reversal_without_original_payment_is_rejected) ... ok
+test_same_payment_replay_is_idempotent_under_concurrency (__main__.PaymentLedger.test_same_payment_replay_is_idempotent_under_concurrency) ... ok
+test_two_purchases_share_contact_and_keep_two_transactions (__main__.PaymentLedger.test_two_purchases_share_contact_and_keep_two_transactions) ... ok
+test_web_onboarding_is_atomic_and_idempotent_without_phone (__main__.PaymentLedger.test_web_onboarding_is_atomic_and_idempotent_without_phone) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 7.824s
+
+OK

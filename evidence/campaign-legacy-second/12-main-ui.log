@@ -1,0 +1,50 @@
+
+ RUN  v4.1.11 /home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2
+
+stderr | tests/campaign-legacy-entry.test.tsx > main campaign detail opens the same historical review, without duplicate initial approval or send controls
+A component suspended inside an `act` scope, but the `act` call was not awaited. When testing React components that depend on asynchronous data, you must await the result:
+
+await act(() => ...)
+
+ ❯ tests/campaign-legacy-entry.test.tsx (1 test | 1 failed) 1029ms
+   × main campaign detail opens the same historical review, without duplicate initial approval or send controls 1027ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/campaign-legacy-entry.test.tsx > main campaign detail opens the same historical review, without duplicate initial approval or send controls
+TestingLibraryElementError: Unable to find role="button" and name "Conferir impedimentos da segunda etapa"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<p>[39m
+      [0mLoading[0m
+    [36m</p>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<p>[39m
+      [0mLoading[0m
+    [36m</p>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ tests/campaign-legacy-entry.test.tsx:25:31
+     23|  });
+     24|  render(<Suspense fallback={<p>Loading</p>}><CampaignDetail params={Pr…
+     25|  fireEvent.click(await screen.findByRole('button',{name:'Conferir impe…
+       |                               ^
+     26|  expect(await screen.findByText('Original ledger offer')).toBeTruthy();
+     27|  expect(screen.getByRole('button',{name:'Preparar rascunho histórico'}…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 2 passed (3)
+   Start at  20:52:35
+   Duration  4.60s (transform 377ms, setup 0ms, import 1.66s, tests 1.35s, environment 1.20s)

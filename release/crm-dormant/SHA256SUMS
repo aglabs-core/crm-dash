@@ -1,0 +1,3 @@
+b1689ed34ebf9c4b76fba5c9c70eb2c1efc7be0c57aaa78426b32204ac1b19ac  release/crm-dormant/ddl/01_dormant_campaign_executor.sql
+f9e26ec183374a3eb192d687576879ee54f7742430357abc52c41c885a971562  release/crm-dormant/ddl/02_campaign_second_step.sql
+6090528349600faeff743c413c43a4e6996bbcf43b48cfe539f364b11df76e94  release/crm-dormant/ddl/03_campaign_legacy_second.sql

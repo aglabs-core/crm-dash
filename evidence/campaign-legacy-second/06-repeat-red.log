@@ -1,0 +1,36 @@
+POSTGRES 17.11
+PASS behavioral schema gate: historical draft preparation exists
+PASS legacy review uses original ledger evidence and exact approved policy, not current offer
+PASS same-campaign simultaneous preparations converge on first creation
+PASS preparation idempotently freezes draft without initial approval or outbox
+PASS foreign owner denied and RLS hides draft and recipients
+PASS draft cannot be promoted by generic state control or initial approval API
+PASS missing delivery excludes recipient and stale approval fails
+PASS delivery not send anchor excludes recipient and stale approval fails
+PASS reply excludes recipient and stale approval fails
+PASS trial excludes recipient and stale approval fails
+PASS payment excludes recipient and stale approval fails
+PASS failure excludes recipient and stale approval fails
+PASS optout excludes recipient and stale approval fails
+CLEANUP container and exact volumes absent
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(review().recipients[0].reasons.includes('repeated_initial_text'))
+
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:70:10
+    at check (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:15:33)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-legacy-second.mjs:68:8
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: mismatched frozen sender is rejected before claim
+ok 1 - mismatched frozen sender is rejected before claim
+  ---
+  duration_ms: 42.916791
+  type: 'test'
+  ...
+# Subtest: default off ignores forged activation and performs zero I/O
+ok 2 - default off ignores forged activation and performs zero I/O
+  ---
+  duration_ms: 1.761698
+  type: 'test'
+  ...
+# Subtest: invalid server binding or key is rejected before authentication I/O
+ok 3 - invalid server binding or key is rejected before authentication I/O
+  ---
+  duration_ms: 4.361564
+  type: 'test'
+  ...
+# Subtest: foreign verified session cannot use approved owner binding
+ok 4 - foreign verified session cannot use approved owner binding
+  ---
+  duration_ms: 2.145581
+  type: 'test'
+  ...
+# Subtest: missing or mismatched connection never reads customer work
+ok 5 - missing or mismatched connection never reads customer work
+  ---
+  duration_ms: 10.379344
+  type: 'test'
+  ...
+# Subtest: forged configuration body is not accepted even with owner token
+ok 6 - forged configuration body is not accepted even with owner token
+  ---
+  duration_ms: 0.525765
+  type: 'test'
+  ...
+# Subtest: start revalidation denial prevents provider networking
+ok 7 - start revalidation denial prevents provider networking
+  ---
+  duration_ms: 5.311613
+  type: 'test'
+  ...
+# Subtest: accepted send publishes once and repeated execution never resends
+not ok 8 - accepted send publishes once and repeated execution never resends
+  ---
+  duration_ms: 16.343644
+  type: 'test'
+  location: '/home/ubuntu/crm-brevo-executor/lib/campaign-execution.test.ts:63:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+    -   outcomes: [
+    -     {
+    -       ledger: 'published',
+    -       status: 'accepted'
+    -     }
+    -   ],
+        processed: 1,
+        status: 'complete'
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 'complete'
+    processed: 1
+    outcomes:
+      0:
+        status: 'accepted'
+        ledger: 'published'
+  actual:
+    status: 'complete'
+    processed: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/ubuntu/crm-brevo-executor/lib/campaign-execution.test.ts:65:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: timeout after dispatch marks uncertainty and repeated execution never resends
+ok 9 - timeout after dispatch marks uncertainty and repeated execution never resends
+  ---
+  duration_ms: 35.797359
+  type: 'test'
+  ...
+# Subtest: accepted reconciliation works while off without provider key or customer read
+not ok 10 - accepted reconciliation works while off without provider key or customer read
+  ---
+  duration_ms: 27.87496
+  type: 'test'
+  location: '/home/ubuntu/crm-brevo-executor/lib/campaign-execution.test.ts:75:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+    -   outcomes: [
+    -     {
+    -       status: 'published'
+    -     }
+    -   ],
+        processed: 1,
+        status: 'complete'
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 'complete'
+    processed: 1
+    outcomes:
+      0:
+        status: 'published'
+  actual:
+    status: 'complete'
+    processed: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/ubuntu/crm-brevo-executor/lib/campaign-execution.test.ts:77:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: Next entrypoint is wired and dormant with no configuration
+ok 11 - Next entrypoint is wired and dormant with no configuration
+  ---
+  duration_ms: 13.271973
+  type: 'test'
+  ...
+# Subtest: enabled endpoint rejects missing authentication before any network
+ok 12 - enabled endpoint rejects missing authentication before any network
+  ---
+  duration_ms: 10.212423
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 10
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1091.018357

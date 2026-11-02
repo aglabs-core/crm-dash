@@ -1,0 +1,57 @@
+PASS durable executor schema is installed
+PASS flag off prevents claims and network in both layers
+PASS missing explicit interval prevents admission
+PASS one authorized frozen message has durable accepted receipt; replay never resends
+PASS timeout after local acceptance is uncertain and never resent
+PASS claims serialize across independent PostgreSQL connections
+PASS expired pre-effect claim retries safely and fences old attempt
+PASS revocation after claim blocks dispatch before HTTP
+PASS database flag off after claim blocks start and network
+PASS authenticated foreign owner cannot claim or finish
+PASS provider preflight failure has zero durable claim and no HTTP
+PASS trial is rechecked before claim and after claim
+PASS optout is rechecked before claim and after claim
+PASS payment is rechecked before claim and after claim
+PASS provider suppression is rechecked before claim and after claim
+PASS interval is rechecked before claim and after claim
+PASS prior provider effect is rechecked before claim and after claim
+PASS canonical contact retarget after claim is fenced even with same address
+PASS malformed HTTP acceptance receipt is uncertain, not successful or retryable
+PASS unknown start commit and unknown receipt commit never trigger another HTTP
+PASS inbound response and prior prospecting ledger history stop new mail
+PASS duplicate address in another approved campaign cannot acquire another send
+PASS post-start completion cannot be overwritten or released
+CLEANUP disposable container removed; no volumes or published ports
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: sudo -n docker exec -i crm-executor-proof-152913 psql -U postgres -d postgres -XAtq -v ON_ERROR_STOP=1 -c UPDATE crm_campaign_private.dispatch_outbox SET lease_until=now()-interval '1 second'
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+	Is the server running locally and accepting connections on that socket?
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at docker (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:12:25)
+    at sql (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:13:19)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:194:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async check (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:44:31)
+    at async file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:186:3 {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    '',
+    'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory\n' +
+      '\tIs the server running locally and accepting connections on that socket?\n'
+  ],
+  pid: 160190,
+  stdout: '',
+  stderr: 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory\n' +
+    '\tIs the server running locally and accepting connections on that socket?\n'
+}
+
+Node.js v22.23.1

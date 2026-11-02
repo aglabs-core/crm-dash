@@ -1,0 +1,11 @@
+PASS second step never routes through initial admission
+file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-step2-unit.mjs:16
+  throw Error(`Unexpected ${name} ${args}`);
+        ^
+
+Error: Unexpected claim_campaign_dispatch
+    at batchRpc (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-step2-unit.mjs:16:9)
+    at executeOne (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/lib/campaign-executor.mjs:9:23)
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-step2-unit.mjs:18:24
+
+Node.js v22.23.1

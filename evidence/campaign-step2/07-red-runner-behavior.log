@@ -1,0 +1,28 @@
+PASS second step never routes through initial admission
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
+  {
++   status: 'review'
+-   results: [
+-     {
+-       status: 'review'
+-     }
+-   ],
+-   status: 'complete'
+  }
+
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-step2/scripts/test-campaign-step2-unit.mjs:18:8 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: { status: 'review' },
+  expected: { status: 'complete', results: [ { status: 'review' } ] },
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

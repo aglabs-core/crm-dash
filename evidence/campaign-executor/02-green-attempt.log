@@ -1,0 +1,27 @@
+PASS durable executor schema is installed
+PASS flag off prevents claims and network in both layers
+PASS missing explicit interval prevents admission
+CLEANUP disposable container removed; no volumes or published ports
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'uncertain'
+- 'accepted'
+
+    at file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:74:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async check (file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:44:31)
+    at async file:///home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-campaign-executor/scripts/test-campaign-executor.mjs:73:3 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'uncertain',
+  expected: 'accepted',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

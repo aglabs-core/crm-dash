@@ -1,0 +1,65 @@
+TAP version 13
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+not ok 1 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 50.972031
+  type: 'test'
+  location: '/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+    +   from: 'sender@example.test',
+    +   replyTo: 'support@example.test',
+    -   replyTo: {
+    -     email: 'support@example.test'
+    -   },
+    -   sender: {
+    -     email: 'sender@example.test'
+    -   },
+        subject: 'Approved subject',
+    +   text: 'Approved immutable text',
+    +   to: 'recipient@example.test'
+    -   textContent: 'Approved immutable text',
+    -   to: [
+    -     {
+    -       email: 'recipient@example.test'
+    -     }
+    -   ]
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    sender:
+      email: 'sender@example.test'
+    replyTo:
+      email: 'support@example.test'
+    to:
+      0:
+        email: 'recipient@example.test'
+    subject: 'Approved subject'
+    textContent: 'Approved immutable text'
+  actual:
+    from: 'sender@example.test'
+    replyTo: 'support@example.test'
+    to: 'recipient@example.test'
+    subject: 'Approved subject'
+    text: 'Approved immutable text'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:19:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 562.192003

@@ -1,0 +1,60 @@
+{
+  "baseMain": "bd99e4423c6a1ad28a982708bca44a7098939949",
+  "appliedPrerequisites": [
+    {
+      "version": "20261102203246",
+      "name": "guard_email_ledger_bindings_20261102183000"
+    },
+    {
+      "version": "20261102203544",
+      "name": "campaign_followup_review_20261102183500"
+    }
+  ],
+  "migrations": [
+    {
+      "order": 1,
+      "originalVersion": "20261102200000",
+      "repositoryVersion": "20261102212703",
+      "name": "dormant_campaign_executor",
+      "reviewedHead": "f6c935041da3c81f0e239073bd19853c72fcbf25",
+      "migration": "supabase/migrations/20261102212703_dormant_campaign_executor.sql",
+      "payload": "release/crm-dormant/ddl/01_dormant_campaign_executor.sql",
+      "sha256": "b1689ed34ebf9c4b76fba5c9c70eb2c1efc7be0c57aaa78426b32204ac1b19ac",
+      "dependsOn": "20261102203544",
+      "appliedVersion": "20261102212703",
+      "appliedName": "dormant_campaign_executor"
+    },
+    {
+      "order": 2,
+      "originalVersion": "20261102210000",
+      "repositoryVersion": "20261102212748",
+      "name": "campaign_second_step",
+      "reviewedHead": "ff28733619b64cbf6169c9f4d5d124de83ef9954",
+      "migration": "supabase/migrations/20261102212748_campaign_second_step.sql",
+      "payload": "release/crm-dormant/ddl/02_campaign_second_step.sql",
+      "sha256": "f9e26ec183374a3eb192d687576879ee54f7742430357abc52c41c885a971562",
+      "dependsOn": "20261102212703",
+      "appliedVersion": "20261102212748",
+      "appliedName": "campaign_second_step"
+    },
+    {
+      "order": 3,
+      "originalVersion": "20261102220000",
+      "repositoryVersion": "20261102212834",
+      "name": "campaign_legacy_second",
+      "reviewedHead": "a69813cdfef22447fd209ae988bad5e2bb5f5f31",
+      "migration": "supabase/migrations/20261102212834_campaign_legacy_second.sql",
+      "payload": "release/crm-dormant/ddl/03_campaign_legacy_second.sql",
+      "sha256": "6090528349600faeff743c413c43a4e6996bbcf43b48cfe539f364b11df76e94",
+      "dependsOn": "20261102212748",
+      "appliedVersion": "20261102212834",
+      "appliedName": "campaign_legacy_second"
+    }
+  ],
+  "policy": {
+    "path": "docs/campaign-second-policy.json",
+    "sha256": "07f1a5fa33fa3220129c1f0c7b8754006baf7d46c420451b285112d712143c98"
+  },
+  "activation": false,
+  "connectorMapping": "Three versions/names verified by remote readback after explicitly authorized connector installation; repository filenames and fixture references aligned without history repair."
+}
