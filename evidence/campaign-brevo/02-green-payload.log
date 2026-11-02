@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+ok 1 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 105.427738
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 300.968301

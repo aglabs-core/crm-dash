@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: mismatched frozen sender is rejected before claim
+ok 1 - mismatched frozen sender is rejected before claim
+  ---
+  duration_ms: 57.586338
+  type: 'test'
+  ...
+# Subtest: default off ignores forged activation and performs zero I/O
+ok 2 - default off ignores forged activation and performs zero I/O
+  ---
+  duration_ms: 1.780978
+  type: 'test'
+  ...
+# Subtest: invalid server binding or key is rejected before authentication I/O
+ok 3 - invalid server binding or key is rejected before authentication I/O
+  ---
+  duration_ms: 4.616926
+  type: 'test'
+  ...
+# Subtest: foreign verified session cannot use approved owner binding
+ok 4 - foreign verified session cannot use approved owner binding
+  ---
+  duration_ms: 2.365184
+  type: 'test'
+  ...
+# Subtest: missing or mismatched connection never reads customer work
+ok 5 - missing or mismatched connection never reads customer work
+  ---
+  duration_ms: 10.310543
+  type: 'test'
+  ...
+# Subtest: forged configuration body is not accepted even with owner token
+ok 6 - forged configuration body is not accepted even with owner token
+  ---
+  duration_ms: 0.631206
+  type: 'test'
+  ...
+# Subtest: start revalidation denial prevents provider networking
+ok 7 - start revalidation denial prevents provider networking
+  ---
+  duration_ms: 5.087811
+  type: 'test'
+  ...
+# Subtest: accepted send publishes once and repeated execution never resends
+ok 8 - accepted send publishes once and repeated execution never resends
+  ---
+  duration_ms: 14.126222
+  type: 'test'
+  ...
+# Subtest: timeout after dispatch marks uncertainty and repeated execution never resends
+ok 9 - timeout after dispatch marks uncertainty and repeated execution never resends
+  ---
+  duration_ms: 7.681197
+  type: 'test'
+  ...
+# Subtest: accepted reconciliation works while off without provider key or customer read
+ok 10 - accepted reconciliation works while off without provider key or customer read
+  ---
+  duration_ms: 3.337074
+  type: 'test'
+  ...
+# Subtest: Next entrypoint is wired and dormant with no configuration
+ok 11 - Next entrypoint is wired and dormant with no configuration
+  ---
+  duration_ms: 4.656526
+  type: 'test'
+  ...
+# Subtest: enabled endpoint rejects missing authentication before any network
+ok 12 - enabled endpoint rejects missing authentication before any network
+  ---
+  duration_ms: 23.085032
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 591.550261

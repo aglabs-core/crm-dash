@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: immutable sender mismatch is rejected without HTTP
+not ok 1 - immutable sender mismatch is rejected without HTTP
+  ---
+  duration_ms: 34.110262
+  type: 'test'
+  location: '/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:9:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (/home/ubuntu/crm-brevo-executor/lib/campaign-brevo.test.ts:12:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+ok 2 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 5.161092
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 434.785964
