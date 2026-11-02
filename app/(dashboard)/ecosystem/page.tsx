@@ -11,6 +11,7 @@ import { ActivationFunnel } from '@/components/activation-funnel';
 import { CommerceFunnel } from '@/components/commerce-funnel';
 import { MarketplaceSummary } from '@/components/marketplace-summary';
 import { CreditsSummary } from '@/components/credits-summary';
+import { ActivationReview } from '@/components/activation-review';
 type Product = ProductMetricsResult & { product: string };
 const names = { users: 'Usuários registrados', accounts: 'Contas', activeAccounts: 'Contas com acesso', trialAccounts: 'Em teste', payingAccounts: 'Assinaturas com acesso', activatedAccounts: 'Contas ativadas' } as const;
 const statuses = { ok: 'Coleta disponível', stale: 'Dados antigos', not_configured: 'Coleta pendente', unavailable: 'Consulta indisponível' };
@@ -42,6 +43,7 @@ export default function EcosystemPage() {
     {loading ? <PageLoader /> : error ? <p role="alert" className="rounded-xl border border-border p-4 text-sm">Consulta indisponível. Esta visão exige uma sessão administrativa válida. <Link className="text-brand underline" href="/login">Entrar no CRM</Link></p> : <div className="grid items-start gap-3 lg:grid-cols-3">{products.map(product => <section key={product.product} className="min-w-0 rounded-xl border border-border bg-surface p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{productLabel(product.product)}</h2><span className={`text-xs ${product.status === 'ok' ? 'text-emerald-500' : 'text-muted'}`}>{statuses[product.status]}</span></div>
       <p className="mt-2 text-xs leading-relaxed text-muted">{descriptions[product.product]}</p>{product.data?.freemium ? <FreemiumSummary data={product.data.freemium} users={product.data.metrics.users} /> : product.product === 'vibekit' ? product.data?.commerceFunnel && <CommerceFunnel funnel={product.data.commerceFunnel} window={product.data.window} /> : product.data?.marketplace ? <MarketplaceSummary data={product.data.marketplace} /> : product.data?.credits ? <CreditsSummary data={product.data.credits} /> : <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4">{Object.entries(names).map(([key, name]) => { const value = product.data?.metrics[key as keyof typeof names]; return <div key={key}><dt className="text-xs text-muted">{name}</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums">{value == null ? '—' : value.toLocaleString('pt-BR')}</dd></div>; })}</dl>}
       {product.data && <ActivationFunnel snapshot={product.data} />}
+      <ActivationReview result={product} />
       <p className="mt-4 border-t border-border pt-3 text-xs text-muted">{product.message}</p><p className="mt-1 text-xs text-muted">{product.data ? `Origem: ${new Date(product.data.generatedAt).toLocaleString('pt-BR')}` : 'Sem snapshot confirmado na origem.'}</p>
     </section>)}</div>}
     <div className="flex flex-wrap gap-4 text-sm"><Link className="inline-flex items-center gap-1 text-brand" href="/actions">Revisar ações comerciais <ArrowUpRight className="h-3.5 w-3.5" /></Link><Link className="text-brand" href="/campaigns">E-mails e campanhas</Link><Link className="text-brand" href="/reports">Receita registrada</Link></div>
