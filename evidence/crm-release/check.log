@@ -1,0 +1,1254 @@
+
+> ai-studio-applet@0.1.0 check
+> npm run lint && npm run typecheck && npm run test && npm run build
+
+
+> ai-studio-applet@0.1.0 lint
+> eslint .
+
+
+> ai-studio-applet@0.1.0 typecheck
+> tsc --noEmit
+
+
+> ai-studio-applet@0.1.0 test
+> tsx --test lib/*.test.ts && npm run test:ui
+
+TAP version 13
+# Subtest: lifecycle delivery is evidence of email contact, not absence of all next steps
+ok 1 - lifecycle delivery is evidence of email contact, not absence of all next steps
+  ---
+  duration_ms: 1.494695
+  type: 'test'
+  ...
+# Subtest: cold pool, clients and archived contacts never create acquisition next steps
+ok 2 - cold pool, clients and archived contacts never create acquisition next steps
+  ---
+  duration_ms: 0.937569
+  type: 'test'
+  ...
+# Subtest: pending tasks prevent a false missing next step; today and completed are not overdue
+ok 3 - pending tasks prevent a false missing next step; today and completed are not overdue
+  ---
+  duration_ms: 0.495125
+  type: 'test'
+  ...
+# Subtest: only explicit ended trial creates a trial review, independently of commercial stage
+ok 4 - only explicit ended trial creates a trial review, independently of commercial stage
+  ---
+  duration_ms: 11.90976
+  type: 'test'
+  ...
+# Subtest: automatic sends cannot hide a reply, human outbound can, and products stay separate
+ok 5 - automatic sends cannot hide a reply, human outbound can, and products stay separate
+  ---
+  duration_ms: 1.404614
+  type: 'test'
+  ...
+# Subtest: Barberias gaps partition incomplete activation without double counting
+ok 6 - Barberias gaps partition incomplete activation without double counting
+  ---
+  duration_ms: 1.687697
+  type: 'test'
+  ...
+# Subtest: missing metrics and fully activated inventory do not invent a bottleneck
+ok 7 - missing metrics and fully activated inventory do not invent a bottleneck
+  ---
+  duration_ms: 0.265882
+  type: 'test'
+  ...
+# Subtest: Members uses producers instead of treating all students as unactivated sellers
+ok 8 - Members uses producers instead of treating all students as unactivated sellers
+  ---
+  duration_ms: 0.208322
+  type: 'test'
+  ...
+# Subtest: freemium uses distinct publishers and creators, never number of pages or trips
+ok 9 - freemium uses distinct publishers and creators, never number of pages or trips
+  ---
+  duration_ms: 0.222242
+  type: 'test'
+  ...
+# Subtest: keeps cold outreach in contacts without counting it as lost sales or new leads
+ok 10 - keeps cold outreach in contacts without counting it as lost sales or new leads
+  ---
+  duration_ms: 1.97642
+  type: 'test'
+  ...
+# Subtest: shows customer lifetime revenue from linked payments, including repeat purchases and refunds
+ok 11 - shows customer lifetime revenue from linked payments, including repeat purchases and refunds
+  ---
+  duration_ms: 1.229532
+  type: 'test'
+  ...
+# Subtest: Asaas full refund is zero net even without the optional refunds array
+ok 12 - Asaas full refund is zero net even without the optional refunds array
+  ---
+  duration_ms: 1.336974
+  type: 'test'
+  ...
+# Subtest: Asaas partial refund sums only completed refunds and never counts fees as gross
+ok 13 - Asaas partial refund sums only completed refunds and never counts fees as gross
+  ---
+  duration_ms: 0.320243
+  type: 'test'
+  ...
+# Subtest: Asaas pending or inconsistent refund cannot silently become a paid replay
+ok 14 - Asaas pending or inconsistent refund cannot silently become a paid replay
+  ---
+  duration_ms: 0.391484
+  type: 'test'
+  ...
+# Subtest: audience has a closed projection and uses the São Paulo calendar, with confirmed zero
+ok 15 - audience has a closed projection and uses the São Paulo calendar, with confirmed zero
+  ---
+  duration_ms: 23.047912
+  type: 'test'
+  ...
+# Subtest: CRM preserves audience aggregates and legacy compatibility without leaking private fields
+ok 16 - CRM preserves audience aggregates and legacy compatibility without leaking private fields
+  ---
+  duration_ms: 1.242333
+  type: 'test'
+  ...
+# Subtest: preserves Members role overlap and playback coverage without identities or cross-product reuse
+ok 17 - preserves Members role overlap and playback coverage without identities or cross-product reuse
+  ---
+  duration_ms: 2.02174
+  type: 'test'
+  ...
+# Subtest: Brevo backfill resolves the entire manifest in owner scope before any write
+ok 18 - Brevo backfill resolves the entire manifest in owner scope before any write
+  ---
+  duration_ms: 210.898164
+  type: 'test'
+  ...
+# Subtest: Brevo inbox isolates accounts, reconciles early events and suppresses future email without changing contacts
+    # Subtest: event before association stays pending and never creates a contact
+    ok 1 - event before association stays pending and never creates a contact
+      ---
+      duration_ms: 29.921781
+      type: 'test'
+      ...
+    # Subtest: service cannot associate a different owner and correct association reconciles once
+    ok 2 - service cannot associate a different owner and correct association reconciles once
+      ---
+      duration_ms: 51.199316
+      type: 'test'
+      ...
+    # Subtest: same message and address in another account do not attach across owners
+    ok 3 - same message and address in another account do not attach across owners
+      ---
+      duration_ms: 12.522287
+      type: 'test'
+      ...
+    # Subtest: linked message without events preserves campaign content and recipient
+    ok 4 - linked message without events preserves campaign content and recipient
+      ---
+      duration_ms: 67.233997
+      type: 'test'
+      ...
+    # Subtest: unknown types are retained without becoming human replies
+    ok 5 - unknown types are retained without becoming human replies
+      ---
+      duration_ms: 8.728088
+      type: 'test'
+      ...
+    # Subtest: unmatched opt-out protects future audience for only the affected owner
+    ok 6 - unmatched opt-out protects future audience for only the affected owner
+      ---
+      duration_ms: 76.815014
+      type: 'test'
+      ...
+    1..6
+ok 19 - Brevo inbox isolates accounts, reconciles early events and suppresses future email without changing contacts
+  ---
+  duration_ms: 4286.646453
+  type: 'test'
+  ...
+# Brevo webhook authentication refused {
+#   headerPresent: true,
+#   bearerScheme: true,
+#   headerLength: 12,
+#   expectedLength: 47
+# }
+# Brevo webhook authentication refused {
+#   headerPresent: true,
+#   bearerScheme: false,
+#   headerLength: 40,
+#   expectedLength: 47
+# }
+# Brevo webhook authentication refused {
+#   headerPresent: true,
+#   bearerScheme: false,
+#   headerLength: 46,
+#   expectedLength: 47
+# }
+# Brevo webhook authentication refused {
+#   headerPresent: true,
+#   bearerScheme: true,
+#   headerLength: 47,
+#   expectedLength: 47
+# }
+# Brevo webhook authentication refused {
+#   headerPresent: true,
+#   bearerScheme: false,
+#   headerLength: 54,
+#   expectedLength: 47
+# }
+# Subtest: normalization ignores webhook id, uses UTC and keeps proxy opens separate
+ok 20 - normalization ignores webhook id, uses UTC and keeps proxy opens separate
+  ---
+  duration_ms: 2.434025
+  type: 'test'
+  ...
+# Subtest: receiver rejects unauthorized, disabled, oversized and partially malformed batches without persistence
+ok 21 - receiver rejects unauthorized, disabled, oversized and partially malformed batches without persistence
+  ---
+  duration_ms: 31.660399
+  type: 'test'
+  ...
+# Subtest: receiver acknowledges only after durable ingestion and never echoes recipient data
+ok 22 - receiver acknowledges only after durable ingestion and never echoes recipient data
+  ---
+  duration_ms: 4.432245
+  type: 'test'
+  ...
+# Subtest: Bearer scheme accepts HTTP casing variations while the token remains exact
+ok 23 - Bearer scheme accepts HTTP casing variations while the token remains exact
+  ---
+  duration_ms: 11.040071
+  type: 'test'
+  ...
+# Subtest: association validates the caller on the server and ignores a forged actor id
+ok 24 - association validates the caller on the server and ignores a forged actor id
+  ---
+  duration_ms: 3.188632
+  type: 'test'
+  ...
+# Subtest: campaign approval freezes reviewed messages, isolates accounts and never sends
+    # Subtest: changed personalization invalidates the exact review before any snapshot is saved
+    ok 1 - changed personalization invalidates the exact review before any snapshot is saved
+      ---
+      duration_ms: 73.232538
+      type: 'test'
+      ...
+    # Subtest: one reviewed version is durable and repeating approval cannot create another version
+    ok 2 - one reviewed version is durable and repeating approval cannot create another version
+      ---
+      duration_ms: 51.378357
+      type: 'test'
+      ...
+    # Subtest: ownership and direct writes cannot forge approvals or rewrite frozen messages
+    ok 3 - ownership and direct writes cannot forge approvals or rewrite frozen messages
+      ---
+      duration_ms: 43.654239
+      type: 'test'
+      ...
+    # Subtest: new contact blocks appear in the overview without rewriting approved text
+    ok 4 - new contact blocks appear in the overview without rewriting approved text
+      ---
+      duration_ms: 22.036422
+      type: 'test'
+      ...
+    # Subtest: cancel preserves the old version and a new review is required for any replacement
+    ok 5 - cancel preserves the old version and a new review is required for any replacement
+      ---
+      duration_ms: 76.746653
+      type: 'test'
+      ...
+    # Subtest: historical external message can still be linked after approval without rewriting snapshots
+    ok 6 - historical external message can still be linked after approval without rewriting snapshots
+      ---
+      duration_ms: 33.424017
+      type: 'test'
+      ...
+    # Subtest: suppression without campaign association is revalidated in the approval transaction
+    ok 7 - suppression without campaign association is revalidated in the approval transaction
+      ---
+      duration_ms: 25.643378
+      type: 'test'
+      ...
+    # Subtest: cancelled snapshots survive audience removal and duplicate addresses cannot be approved
+    ok 8 - cancelled snapshots survive audience removal and duplicate addresses cannot be approved
+      ---
+      duration_ms: 44.808171
+      type: 'test'
+      ...
+    1..8
+ok 25 - campaign approval freezes reviewed messages, isolates accounts and never sends
+  ---
+  duration_ms: 4725.33715
+  type: 'test'
+  ...
+# Subtest: strict malformed provider receipts fail closed, never retry
+ok 26 - strict malformed provider receipts fail closed, never retry
+  ---
+  duration_ms: 29.899301
+  type: 'test'
+  ...
+# Subtest: provider timeout aborts once with no retry
+ok 27 - provider timeout aborts once with no retry
+  ---
+  duration_ms: 5000.639562
+  type: 'test'
+  ...
+# Subtest: provider rejection, oversized JSON and additional message fields fail closed
+ok 28 - provider rejection, oversized JSON and additional message fields fail closed
+  ---
+  duration_ms: 3.804678
+  type: 'test'
+  ...
+# Subtest: invalid account/source/address bindings reject with zero HTTP
+ok 29 - invalid account/source/address bindings reject with zero HTTP
+  ---
+  duration_ms: 0.791008
+  type: 'test'
+  ...
+# Subtest: immutable sender mismatch is rejected without HTTP
+ok 30 - immutable sender mismatch is rejected without HTTP
+  ---
+  duration_ms: 0.513205
+  type: 'test'
+  ...
+# Subtest: Brevo sends fixed-origin mapped text payload and typed acceptance
+ok 31 - Brevo sends fixed-origin mapped text payload and typed acceptance
+  ---
+  duration_ms: 5.772018
+  type: 'test'
+  ...
+# Subtest: mismatched frozen sender is rejected before claim
+ok 32 - mismatched frozen sender is rejected before claim
+  ---
+  duration_ms: 39.498478
+  type: 'test'
+  ...
+# Subtest: default off ignores forged activation and performs zero I/O
+ok 33 - default off ignores forged activation and performs zero I/O
+  ---
+  duration_ms: 1.807978
+  type: 'test'
+  ...
+# Subtest: invalid server binding or key is rejected before authentication I/O
+ok 34 - invalid server binding or key is rejected before authentication I/O
+  ---
+  duration_ms: 4.580126
+  type: 'test'
+  ...
+# Subtest: foreign verified session cannot use approved owner binding
+ok 35 - foreign verified session cannot use approved owner binding
+  ---
+  duration_ms: 2.244183
+  type: 'test'
+  ...
+# Subtest: missing or mismatched connection never reads customer work
+ok 36 - missing or mismatched connection never reads customer work
+  ---
+  duration_ms: 10.792468
+  type: 'test'
+  ...
+# Subtest: forged configuration body is not accepted even with owner token
+ok 37 - forged configuration body is not accepted even with owner token
+  ---
+  duration_ms: 0.531925
+  type: 'test'
+  ...
+# Subtest: start revalidation denial prevents provider networking
+ok 38 - start revalidation denial prevents provider networking
+  ---
+  duration_ms: 5.137492
+  type: 'test'
+  ...
+# Subtest: accepted send publishes once and repeated execution never resends
+ok 39 - accepted send publishes once and repeated execution never resends
+  ---
+  duration_ms: 13.506416
+  type: 'test'
+  ...
+# Subtest: timeout after dispatch marks uncertainty and repeated execution never resends
+ok 40 - timeout after dispatch marks uncertainty and repeated execution never resends
+  ---
+  duration_ms: 7.864759
+  type: 'test'
+  ...
+# Subtest: accepted reconciliation works while off without provider key or customer read
+ok 41 - accepted reconciliation works while off without provider key or customer read
+  ---
+  duration_ms: 3.230753
+  type: 'test'
+  ...
+# Subtest: Next entrypoint is wired and dormant with no configuration
+ok 42 - Next entrypoint is wired and dormant with no configuration
+  ---
+  duration_ms: 9.169012
+  type: 'test'
+  ...
+# Subtest: enabled endpoint rejects missing authentication before any network
+ok 43 - enabled endpoint rejects missing authentication before any network
+  ---
+  duration_ms: 7.297073
+  type: 'test'
+  ...
+# Subtest: guided campaign migration enforces audience isolation, atomicity and replay safety in PostgreSQL
+    # Subtest: rejects wrong owner, blocked, wrong product and unreviewed without partial saves
+    ok 1 - rejects wrong owner, blocked, wrong product and unreviewed without partial saves
+      ---
+      duration_ms: 62.706272
+      type: 'test'
+      ...
+    # Subtest: invalid message, empty evidence and excessive audience cannot partially update a draft
+    ok 2 - invalid message, empty evidence and excessive audience cannot partially update a draft
+      ---
+      duration_ms: 21.088212
+      type: 'test'
+      ...
+    # Subtest: valid alias is accepted and repeat preparation preserves one membership
+    ok 3 - valid alias is accepted and repeat preparation preserves one membership
+      ---
+      duration_ms: 40.255165
+      type: 'test'
+      ...
+    # Subtest: direct REST-equivalent insertion cannot bypass audience checks
+    ok 4 - direct REST-equivalent insertion cannot bypass audience checks
+      ---
+      duration_ms: 12.84393
+      type: 'test'
+      ...
+    # Subtest: historical opt-out blocks only the affected address and preserves atomicity
+    ok 5 - historical opt-out blocks only the affected address and preserves atomicity
+      ---
+      duration_ms: 41.614219
+      type: 'test'
+      ...
+    1..5
+ok 44 - guided campaign migration enforces audience isolation, atomicity and replay safety in PostgreSQL
+  ---
+  duration_ms: 4351.739985
+  type: 'test'
+  ...
+# Subtest: audience keeps known aliases, isolates owners and explains exclusions
+ok 45 - audience keeps known aliases, isolates owners and explains exclusions
+  ---
+  duration_ms: 2.094341
+  type: 'test'
+  ...
+# Subtest: cold prospects and customers remain distinct from the active funnel
+ok 46 - cold prospects and customers remain distinct from the active funnel
+  ---
+  duration_ms: 0.481645
+  type: 'test'
+  ...
+# Subtest: preview substitutes known tokens as plain text without inventing a name
+ok 47 - preview substitutes known tokens as plain text without inventing a name
+  ---
+  duration_ms: 0.208162
+  type: 'test'
+  ...
+# Subtest: commerce metrics project only aggregates without inventing SaaS accounts or conversion ratios
+ok 48 - commerce metrics project only aggregates without inventing SaaS accounts or conversion ratios
+  ---
+  duration_ms: 1.96154
+  type: 'test'
+  ...
+# Subtest: commerce contract rejects missing coverage, unsafe counts and unsupported monetary definitions
+ok 49 - commerce contract rejects missing coverage, unsafe counts and unsupported monetary definitions
+  ---
+  duration_ms: 1.04145
+  type: 'test'
+  ...
+# Subtest: VibeKit collection uses only its fixed HTTPS origin and reports missing configuration
+ok 50 - VibeKit collection uses only its fixed HTTPS origin and reports missing configuration
+  ---
+  duration_ms: 29.79994
+  type: 'test'
+  ...
+# Subtest: uses a neutral label for missing or unknown origin
+ok 51 - uses a neutral label for missing or unknown origin
+  ---
+  duration_ms: 1.127652
+  type: 'test'
+  ...
+# Subtest: preserves labels for known origins
+ok 52 - preserves labels for known origins
+  ---
+  duration_ms: 0.194242
+  type: 'test'
+  ...
+# Subtest: contact page filters at the server, asks for only 50 and keeps global count
+ok 53 - contact page filters at the server, asks for only 50 and keeps global count
+  ---
+  duration_ms: 8.813928
+  type: 'test'
+  ...
+# Subtest: quoted search cannot add filter operators and also searches normalized phone
+ok 54 - quoted search cannot add filter operators and also searches normalized phone
+  ---
+  duration_ms: 2.275823
+  type: 'test'
+  ...
+# Subtest: rollups read beyond a short server page without fetching personal records
+ok 55 - rollups read beyond a short server page without fetching personal records
+  ---
+  duration_ms: 2.92751
+  type: 'test'
+  ...
+# Subtest: accepts database null names in contacts and joined task contacts
+ok 56 - accepts database null names in contacts and joined task contacts
+  ---
+  duration_ms: 0.99957
+  type: 'test'
+  ...
+# Subtest: round-trips an unknown name through editing as null, never a display label
+ok 57 - round-trips an unknown name through editing as null, never a display label
+  ---
+  duration_ms: 0.251082
+  type: 'test'
+  ...
+# Subtest: searches nameless contacts safely while preserving name and company matches
+ok 58 - searches nameless contacts safely while preserving name and company matches
+  ---
+  duration_ms: 0.385244
+  type: 'test'
+  ...
+# Subtest: renders a safe avatar for unknown or whitespace-only names
+ok 59 - renders a safe avatar for unknown or whitespace-only names
+  ---
+  duration_ms: 0.343444
+  type: 'test'
+  ...
+# Subtest: displays a neutral label for an unknown name without inventing identity
+ok 60 - displays a neutral label for an unknown name without inventing identity
+  ---
+  duration_ms: 0.189082
+  type: 'test'
+  ...
+# Subtest: neutral stage migration is repeatable and preserves sales and prospecting records
+ok 61 - neutral stage migration is repeatable and preserves sales and prospecting records
+  ---
+  duration_ms: 4136.642339
+  type: 'test'
+  ...
+# Subtest: customers keep relationship while lifecycle transitions remain possible
+ok 62 - customers keep relationship while lifecycle transitions remain possible
+  ---
+  duration_ms: 1.209132
+  type: 'test'
+  ...
+# Subtest: customer cannot be moved to the neutral unqualified state
+ok 63 - customer cannot be moved to the neutral unqualified state
+  ---
+  duration_ms: 0.200322
+  type: 'test'
+  ...
+# Subtest: aglabs-app credits block is validated and explicitly projected
+ok 64 - aglabs-app credits block is validated and explicitly projected
+  ---
+  duration_ms: 2.619146
+  type: 'test'
+  ...
+# Subtest: unavailable admin sections stay null; snapshot without the block is accepted
+ok 65 - unavailable admin sections stay null; snapshot without the block is accepted
+  ---
+  duration_ms: 0.375604
+  type: 'test'
+  ...
+# Subtest: unknown price coverage preserves subscriptions without inventing MRR or a period
+ok 66 - unknown price coverage preserves subscriptions without inventing MRR or a period
+  ---
+  duration_ms: 0.538366
+  type: 'test'
+  ...
+# Subtest: rejects SaaS numbers and inconsistent credits values
+ok 67 - rejects SaaS numbers and inconsistent credits values
+  ---
+  duration_ms: 1.459415
+  type: 'test'
+  ...
+# Subtest: credits block is ignored for other products
+ok 68 - credits block is ignored for other products
+  ---
+  duration_ms: 0.247323
+  type: 'test'
+  ...
+# Subtest: integrated release payload order, byte identity and connector mapping are explicit
+ok 69 - integrated release payload order, byte identity and connector mapping are explicit
+  ---
+  duration_ms: 2.573346
+  type: 'test'
+  ...
+# Subtest: approved text, delivery wait and dormant defaults are frozen without provider setup
+ok 70 - approved text, delivery wait and dormant defaults are frozen without provider setup
+  ---
+  duration_ms: 2.093581
+  type: 'test'
+  ...
+# Subtest: workspace views paginate, normalize phone and keep aggregates isolated by RLS
+ok 71 - workspace views paginate, normalize phone and keep aggregates isolated by RLS
+  ---
+  duration_ms: 4074.32359
+  type: 'test'
+  ...
+# Subtest: escapes spreadsheet formulas and preserves numeric amounts
+ok 72 - escapes spreadsheet formulas and preserves numeric amounts
+  ---
+  duration_ms: 1.095531
+  type: 'test'
+  ...
+# Subtest: projects explicit daily counters through the real CRM snapshot and strips private fields
+ok 73 - projects explicit daily counters through the real CRM snapshot and strips private fields
+  ---
+  duration_ms: 21.663499
+  type: 'test'
+  ...
+# Subtest: keeps zero distinct from unavailable and rejects mismatched day, timezone and inflated counts
+ok 74 - keeps zero distinct from unavailable and rejects mismatched day, timezone and inflated counts
+  ---
+  duration_ms: 2.535905
+  type: 'test'
+  ...
+# Subtest: registered purchase records survive projection without becoming confirmed sales
+ok 75 - registered purchase records survive projection without becoming confirmed sales
+  ---
+  duration_ms: 0.376443
+  type: 'test'
+  ...
+# Subtest: product-wide data requires administrator access before collection
+ok 76 - product-wide data requires administrator access before collection
+  ---
+  duration_ms: 26.851511
+  type: 'test'
+  ...
+# Subtest: authorized requests collect only registered products and preserve unavailable state
+ok 77 - authorized requests collect only registered products and preserve unavailable state
+  ---
+  duration_ms: 3.405835
+  type: 'test'
+  ...
+# Subtest: counts unique recipients and leaves an unsent draft pending
+ok 78 - counts unique recipients and leaves an unsent draft pending
+  ---
+  duration_ms: 1.863698
+  type: 'test'
+  ...
+# Subtest: a provider delivery without a separate sent event is not presented as pending
+ok 79 - a provider delivery without a separate sent event is not presented as pending
+  ---
+  duration_ms: 0.421205
+  type: 'test'
+  ...
+# Subtest: late engagement never hides opt-out, complaint or permanent delivery failure
+ok 80 - late engagement never hides opt-out, complaint or permanent delivery failure
+  ---
+  duration_ms: 0.314163
+  type: 'test'
+  ...
+# Subtest: email content checks authorization before provider access and uses no public cache
+ok 81 - email content checks authorization before provider access and uses no public cache
+  ---
+  duration_ms: 38.072903
+  type: 'test'
+  ...
+# Subtest: authorized Resend preview verifies id, exact subject and sole recipient
+ok 82 - authorized Resend preview verifies id, exact subject and sole recipient
+  ---
+  duration_ms: 10.729148
+  type: 'test'
+  ...
+# Subtest: stored content and missing configuration need no provider call; provider failures expose no payload
+ok 83 - stored content and missing configuration need no provider call; provider failures expose no payload
+  ---
+  duration_ms: 3.575196
+  type: 'test'
+  ...
+# Resend webhook signature refused { hasId: true, hasSignature: true }
+# Subtest: classifier keeps owner-facing Barberias e-mails and drops customer or staff e-mails
+ok 84 - classifier keeps owner-facing Barberias e-mails and drops customer or staff e-mails
+  ---
+  duration_ms: 3.98352
+  type: 'test'
+  ...
+# Subtest: Svix signature is required, exact and time-bounded
+ok 85 - Svix signature is required, exact and time-bounded
+  ---
+  duration_ms: 29.588178
+  type: 'test'
+  ...
+# Subtest: Resend events normalize to ledger events; customer e-mails carry no record
+ok 86 - Resend events normalize to ledger events; customer e-mails carry no record
+  ---
+  duration_ms: 1.076051
+  type: 'test'
+  ...
+# Subtest: Resend receiver rejects bad signatures and persists before acknowledging
+ok 87 - Resend receiver rejects bad signatures and persists before acknowledging
+  ---
+  duration_ms: 8.712608
+  type: 'test'
+  ...
+# Subtest: account events require a token and a well-formed lifecycle event
+ok 88 - account events require a token and a well-formed lifecycle event
+  ---
+  duration_ms: 3.609396
+  type: 'test'
+  ...
+# Subtest: anonymized Brevo opens are accepted instead of failing the batch
+ok 89 - anonymized Brevo opens are accepted instead of failing the batch
+  ---
+  duration_ms: 1.596416
+  type: 'test'
+  ...
+# Subtest: follow-up preparation has an authenticated read-only review contract
+ok 90 - follow-up preparation has an authenticated read-only review contract
+  ---
+  duration_ms: 4306.843251
+  type: 'test'
+  ...
+# Subtest: follow-up wait starts at confirmed delivery, not the earlier send
+ok 91 - follow-up wait starts at confirmed delivery, not the earlier send
+  ---
+  duration_ms: 2570.215923
+  type: 'test'
+  ...
+# Subtest: follow-up review recognizes delivered cross-owner bridge, stops trials, replies, failures and paid accounts without writes
+ok 92 - follow-up review recognizes delivered cross-owner bridge, stops trials, replies, failures and paid accounts without writes
+  ---
+  duration_ms: 2997.432624
+  type: 'test'
+  ...
+# Subtest: campaign deletion preserves linked messages and clears both nullable references
+ok 93 - campaign deletion preserves linked messages and clears both nullable references
+  ---
+  duration_ms: 2599.373536
+  type: 'test'
+  ...
+# Subtest: recipient deletion preserves the message campaign and exact replay can no longer restore the deleted recipient
+ok 94 - recipient deletion preserves the message campaign and exact replay can no longer restore the deleted recipient
+  ---
+  duration_ms: 3680.726304
+  type: 'test'
+  ...
+# Subtest: manual unlink and crossbinding fail even inside another trigger, while exact replay remains idempotent
+ok 95 - manual unlink and crossbinding fail even inside another trigger, while exact replay remains idempotent
+  ---
+  duration_ms: 2753.413887
+  type: 'test'
+  ...
+# Subtest: outbound linkage preserves the technical tenant bridge but rejects a foreign campaign owner
+ok 96 - outbound linkage preserves the technical tenant bridge but rejects a foreign campaign owner
+  ---
+  duration_ms: 2624.460347
+  type: 'test'
+  ...
+# Subtest: restricted Maia ledger bridge requires admitted identity and registered interaction
+ok 97 - restricted Maia ledger bridge requires admitted identity and registered interaction
+  ---
+  duration_ms: 3997.235211
+  type: 'test'
+  ...
+# Subtest: ledger records prospecting, mirrors Brevo events, binds identity and gives Maia the thread context
+    # Subtest: outbound prospect is recorded once with RFC id and identity binding
+    ok 1 - outbound prospect is recorded once with RFC id and identity binding
+      ---
+      duration_ms: 22.384385
+      type: 'test'
+      ...
+    # Subtest: legacy Maia intake reuses the admin-owned prospect and rejects unrelated ownership
+    ok 2 - legacy Maia intake reuses the admin-owned prospect and rejects unrelated ownership
+      ---
+      duration_ms: 17.168733
+      type: 'test'
+      ...
+    # Subtest: webhook inbox events update ledger status forward only and keep campaign metrics
+    ok 3 - webhook inbox events update ledger status forward only and keep campaign metrics
+      ---
+      duration_ms: 40.351247
+      type: 'test'
+      ...
+    # Subtest: anonymized click is attributed only by a unique recent subject
+    ok 4 - anonymized click is attributed only by a unique recent subject
+      ---
+      duration_ms: 7.016951
+      type: 'test'
+      ...
+    # Subtest: Maia context matches the thread by In-Reply-To and never exposes bodies
+    ok 5 - Maia context matches the thread by In-Reply-To and never exposes bodies
+      ---
+      duration_ms: 12.857569
+      type: 'test'
+      ...
+    # Subtest: reply marks replied on message and campaign, is idempotent
+    ok 6 - reply marks replied on message and campaign, is idempotent
+      ---
+      duration_ms: 14.059982
+      type: 'test'
+      ...
+    # Subtest: hard bounce blocks outreach
+    ok 7 - hard bounce blocks outreach
+      ---
+      duration_ms: 5.673377
+      type: 'test'
+      ...
+    # Subtest: Resend trial e-mail creates a Lead with account status; unknown customer e-mail is ignored
+    ok 8 - Resend trial e-mail creates a Lead with account status; unknown customer e-mail is ignored
+      ---
+      duration_ms: 32.529607
+      type: 'test'
+      ...
+    # Subtest: account events promote prospects, set lifecycle and deduplicate
+    ok 9 - account events promote prospects, set lifecycle and deduplicate
+      ---
+      duration_ms: 21.567937
+      type: 'test'
+      ...
+    # Subtest: gifted/lifetime access is active but never creates a paid customer
+    ok 10 - gifted/lifetime access is active but never creates a paid customer
+      ---
+      duration_ms: 8.276123
+      type: 'test'
+      ...
+    # Subtest: browser reads own ledger only and cannot write or call service RPCs
+    ok 11 - browser reads own ledger only and cannot write or call service RPCs
+      ---
+      duration_ms: 16.147482
+      type: 'test'
+      ...
+    1..11
+ok 98 - ledger records prospecting, mirrors Brevo events, binds identity and gives Maia the thread context
+  ---
+  duration_ms: 2650.048405
+  type: 'test'
+  ...
+# Subtest: SQL DATE keeps its calendar day in Sao Paulo, UTC and Tokyo
+ok 99 - SQL DATE keeps its calendar day in Sao Paulo, UTC and Tokyo
+  ---
+  duration_ms: 3.636197
+  type: 'test'
+  ...
+# Subtest: freemium projection removes identities and rejects contradictions and model swaps
+ok 100 - freemium projection removes identities and rejects contradictions and model swaps
+  ---
+  duration_ms: 2.207942
+  type: 'test'
+  ...
+# Subtest: dedicated product credential preserves opaque source lists and rejects duplicates
+ok 101 - dedicated product credential preserves opaque source lists and rejects duplicates
+  ---
+  duration_ms: 28.363686
+  type: 'test'
+  ...
+# Subtest: intake stays neutral, explicit qualification advances, and refund replay never reactivates a customer
+ok 102 - intake stays neutral, explicit qualification advances, and refund replay never reactivates a customer
+  ---
+  duration_ms: 3997.30617
+  type: 'test'
+  ...
+# Subtest: members marketplace block is validated and explicitly projected
+ok 103 - members marketplace block is validated and explicitly projected
+  ---
+  duration_ms: 22.639828
+  type: 'test'
+  ...
+# Subtest: members without the block (current production endpoint) is still accepted
+ok 104 - members without the block (current production endpoint) is still accepted
+  ---
+  duration_ms: 0.313363
+  type: 'test'
+  ...
+# Subtest: rejects SaaS numbers and inconsistent marketplace values
+ok 105 - rejects SaaS numbers and inconsistent marketplace values
+  ---
+  duration_ms: 3.720478
+  type: 'test'
+  ...
+# Subtest: marketplace block is ignored for other products
+ok 106 - marketplace block is ignored for other products
+  ---
+  duration_ms: 0.280603
+  type: 'test'
+  ...
+# Subtest: month boundaries are consecutive São Paulo calendar months, including UTC/year rollover
+ok 107 - month boundaries are consecutive São Paulo calendar months, including UTC/year rollover
+  ---
+  duration_ms: 1.632976
+  type: 'test'
+  ...
+# crm-mcp crm_prioridades private@example.test
+# Subtest: tokens: formato, tamanho mínimo e escopos conhecidos
+ok 108 - tokens: formato, tamanho mínimo e escopos conhecidos
+  ---
+  duration_ms: 2.502505
+  type: 'test'
+  ...
+# Subtest: protocolo: initialize, notificação, ping, método desconhecido e autenticação
+ok 109 - protocolo: initialize, notificação, ping, método desconhecido e autenticação
+  ---
+  duration_ms: 32.69697
+  type: 'test'
+  ...
+# Subtest: escopos: token de leitura não vê nem chama ferramentas de escrita
+ok 110 - escopos: token de leitura não vê nem chama ferramentas de escrita
+  ---
+  duration_ms: 5.382214
+  type: 'test'
+  ...
+# Subtest: prioridades mantêm escopo por produto e não expõem identidades
+ok 111 - prioridades mantêm escopo por produto e não expõem identidades
+  ---
+  duration_ms: 25.719499
+  type: 'test'
+  ...
+# Subtest: resumo: funil sem a base fria, receita líquida pelo mês de São Paulo e tarefas por responsável
+ok 112 - resumo: funil sem a base fria, receita líquida pelo mês de São Paulo e tarefas por responsável
+  ---
+  duration_ms: 2.421664
+  type: 'test'
+  ...
+# Subtest: resumo por produto: filtra funil, contas, receita e tarefas; sem produto divide por produto
+ok 113 - resumo por produto: filtra funil, contas, receita e tarefas; sem produto divide por produto
+  ---
+  duration_ms: 3.325793
+  type: 'test'
+  ...
+# Subtest: funil de e-mails: totais, taxas e respostas por produto, sem endereços
+ok 114 - funil de e-mails: totais, taxas e respostas por produto, sem endereços
+  ---
+  duration_ms: 3.99992
+  type: 'test'
+  ...
+# Subtest: tarefas e ficha: urgência, filtros e sem dados de contato
+ok 115 - tarefas e ficha: urgência, filtros e sem dados de contato
+  ---
+  duration_ms: 7.233233
+  type: 'test'
+  ...
+# Subtest: escrita: cria tarefa validada, conclui com motivo e registra atividade
+ok 116 - escrita: cria tarefa validada, conclui com motivo e registra atividade
+  ---
+  duration_ms: 7.794279
+  type: 'test'
+  ...
+# Subtest: falha do banco não vaza detalhes
+ok 117 - falha do banco não vaza detalhes
+  ---
+  duration_ms: 2.146022
+  type: 'test'
+  ...
+# Subtest: dados sensíveis: barra cartão válido e senha com valor, aceita falar de senha e telefone
+ok 118 - dados sensíveis: barra cartão válido e senha com valor, aceita falar de senha e telefone
+  ---
+  duration_ms: 0.437284
+  type: 'test'
+  ...
+# Subtest: conclusão: falha ao gravar o motivo é avisada sem esconder que a tarefa foi concluída
+ok 119 - conclusão: falha ao gravar o motivo é avisada sem esconder que a tarefa foi concluída
+  ---
+  duration_ms: 0.852849
+  type: 'test'
+  ...
+# Subtest: pagantes no mês vêm de pagamentos positivos identificados, sem futuros nem reembolsados
+ok 120 - pagantes no mês vêm de pagamentos positivos identificados, sem futuros nem reembolsados
+  ---
+  duration_ms: 1.115531
+  type: 'test'
+  ...
+# Subtest: última mensagem usa ISO UTC mesmo com timestamp Postgres com offset
+ok 121 - última mensagem usa ISO UTC mesmo com timestamp Postgres com offset
+  ---
+  duration_ms: 0.90889
+  type: 'test'
+  ...
+# Subtest: entrega sem timestamp usa o mesmo critério nos totais e nas pendências
+ok 122 - entrega sem timestamp usa o mesmo critério nos totais e nas pendências
+  ---
+  duration_ms: 0.828408
+  type: 'test'
+  ...
+# Subtest: resumo distinguishes accumulated revenue from current and previous months
+ok 123 - resumo distinguishes accumulated revenue from current and previous months
+  ---
+  duration_ms: 2.354144
+  type: 'test'
+  ...
+# Subtest: feedback: lista sem arquivados, filtra por produto e atualiza status com o nome de quem chamou
+ok 124 - feedback: lista sem arquivados, filtra por produto e atualiza status com o nome de quem chamou
+  ---
+  duration_ms: 6.474225
+  type: 'test'
+  ...
+# Subtest: Maia generic conversation never defaults to Atendimento or commercial interest
+ok 125 - Maia generic conversation never defaults to Atendimento or commercial interest
+  ---
+  duration_ms: 1.593696
+  type: 'test'
+  ...
+# Subtest: Maia qualification requires product and factual evidence, without sensitive fields
+ok 126 - Maia qualification requires product and factual evidence, without sensitive fields
+  ---
+  duration_ms: 1.173372
+  type: 'test'
+  ...
+# Subtest: n8n Asaas accepts completed refund events and ignores an in-progress refund
+ok 127 - n8n Asaas accepts completed refund events and ignores an in-progress refund
+  ---
+  duration_ms: 0.790128
+  type: 'test'
+  ...
+# Subtest: WhatsApp-only contacts are searchable by formatted and unformatted number
+ok 128 - WhatsApp-only contacts are searchable by formatted and unformatted number
+  ---
+  duration_ms: 1.191252
+  type: 'test'
+  ...
+# Subtest: SQL dates retain the local calendar day and growth from zero is undefined
+ok 129 - SQL dates retain the local calendar day and growth from zero is undefined
+  ---
+  duration_ms: 0.480204
+  type: 'test'
+  ...
+# Subtest: unqualified pool stays outside stage and cumulative funnel totals
+ok 130 - unqualified pool stays outside stage and cumulative funnel totals
+  ---
+  duration_ms: 0.436044
+  type: 'test'
+  ...
+# Subtest: full refunds contribute no revenue and do not imply an active customer
+ok 131 - full refunds contribute no revenue and do not imply an active customer
+  ---
+  duration_ms: 0.675167
+  type: 'test'
+  ...
+# Subtest: general contacts are outside commercial counts
+ok 132 - general contacts are outside commercial counts
+  ---
+  duration_ms: 0.339524
+  type: 'test'
+  ...
+# Subtest: counts repeat purchases and refunds by payment, product, and paid month
+ok 133 - counts repeat purchases and refunds by payment, product, and paid month
+  ---
+  duration_ms: 1.859299
+  type: 'test'
+  ...
+# Subtest: next task prioritizes overdue, ignores completed and puts undated last
+ok 134 - next task prioritizes overdue, ignores completed and puts undated last
+  ---
+  duration_ms: 12.548246
+  type: 'test'
+  ...
+# Subtest: sends and system changes never become latest conversation
+ok 135 - sends and system changes never become latest conversation
+  ---
+  duration_ms: 0.539045
+  type: 'test'
+  ...
+# Subtest: context never mixes contacts or unlinked records
+ok 136 - context never mixes contacts or unlinked records
+  ---
+  duration_ms: 0.903129
+  type: 'test'
+  ...
+# Subtest: 1000 contacts need three summary requests with one task and interaction per parent
+ok 137 - 1000 contacts need three summary requests with one task and interaction per parent
+  ---
+  duration_ms: 23.043912
+  type: 'test'
+  ...
+# Subtest: smaller server caps and short pages do not silently truncate contacts
+ok 138 - smaller server caps and short pages do not silently truncate contacts
+  ---
+  duration_ms: 5.799658
+  type: 'test'
+  ...
+# Subtest: failed summary rejects rather than claiming contacts have no tasks
+ok 139 - failed summary rejects rather than claiming contacts have no tasks
+  ---
+  duration_ms: 1.911979
+  type: 'test'
+  ...
+# Subtest: canceled summary makes no requests
+ok 140 - canceled summary makes no requests
+  ---
+  duration_ms: 0.731367
+  type: 'test'
+  ...
+# Subtest: a later page failure rejects the partial summary
+ok 141 - a later page failure rejects the partial summary
+  ---
+  duration_ms: 5.541815
+  type: 'test'
+  ...
+# Subtest: feedback: normaliza produto, e-mail, chave e guarda só o caminho da tela
+ok 142 - feedback: normaliza produto, e-mail, chave e guarda só o caminho da tela
+  ---
+  duration_ms: 1.808938
+  type: 'test'
+  ...
+# Subtest: feedback: receptor exige token e repassa o evento normalizado
+ok 143 - feedback: receptor exige token e repassa o evento normalizado
+  ---
+  duration_ms: 38.560348
+  type: 'test'
+  ...
+# Subtest: feedback no banco: liga ao contato sem criar lead, deduplica, registra nota e só o service role escreve
+ok 144 - feedback no banco: liga ao contato sem criar lead, deduplica, registra nota e só o service role escreve
+  ---
+  duration_ms: 4244.191976
+  type: 'test'
+  ...
+# Subtest: nomes antigos do serviço são apresentados como Desenvolvimento web
+ok 145 - nomes antigos do serviço são apresentados como Desenvolvimento web
+  ---
+  duration_ms: 0.887049
+  type: 'test'
+  ...
+# Subtest: additional sources preserve the existing write-only source and reject ambiguous overrides before fetching
+ok 146 - additional sources preserve the existing write-only source and reject ambiguous overrides before fetching
+  ---
+  duration_ms: 32.512648
+  type: 'test'
+  ...
+# Subtest: optional cumulative activation funnel is bounded, consistent and explicitly projected
+ok 147 - optional cumulative activation funnel is bounded, consistent and explicitly projected
+  ---
+  duration_ms: 2.772948
+  type: 'test'
+  ...
+# Subtest: projects aggregates without private fields and validates product and counts
+ok 148 - projects aggregates without private fields and validates product and counts
+  ---
+  duration_ms: 0.544605
+  type: 'test'
+  ...
+# Subtest: collects only the fixed authenticated origin with bounded payload
+ok 149 - collects only the fixed authenticated origin with bounded payload
+  ---
+  duration_ms: 32.896531
+  type: 'test'
+  ...
+# Subtest: registered applications have separate fixed origins and explicit unknown metrics
+ok 150 - registered applications have separate fixed origins and explicit unknown metrics
+  ---
+  duration_ms: 3.069511
+  type: 'test'
+  ...
+# Subtest: tasks paginate across short server pages without losing totals
+ok 151 - tasks paginate across short server pages without losing totals
+  ---
+  duration_ms: 12.385565
+  type: 'test'
+  ...
+# Subtest: a failed task page rejects the partial total
+ok 152 - a failed task page rejects the partial total
+  ---
+  duration_ms: 2.771788
+  type: 'test'
+  ...
+# Subtest: task assignment handoff
+    # Subtest: offers the operational owners used by Maia handoffs
+    ok 1 - offers the operational owners used by Maia handoffs
+      ---
+      duration_ms: 1.421854
+      type: 'test'
+      ...
+    # Subtest: builds a persisted task payload with a structured assignee
+    ok 2 - builds a persisted task payload with a structured assignee
+      ---
+      duration_ms: 0.234842
+      type: 'test'
+      ...
+    # Subtest: normalizes empty optional values without inventing an assignee
+    ok 3 - normalizes empty optional values without inventing an assignee
+      ---
+      duration_ms: 0.224402
+      type: 'test'
+      ...
+    # Subtest: labels and filters assigned tasks
+    ok 4 - labels and filters assigned tasks
+      ---
+      duration_ms: 0.489805
+      type: 'test'
+      ...
+    1..4
+ok 153 - task assignment handoff
+  ---
+  duration_ms: 3.852799
+  type: 'suite'
+  ...
+1..153
+# tests 186
+# suites 1
+# pass 186
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 79653.956698
+
+> ai-studio-applet@0.1.0 test:ui
+> node scripts/test-ui.mjs
+
+
+ RUN  v4.1.11 /home/ubuntu/projects/operations/ecosystem-growth-review/fixes/crm-release
+
+
+ Test Files  19 passed (19)
+      Tests  56 passed (56)
+   Start at  21:16:20
+   Duration  48.49s (transform 1.11s, setup 0ms, import 21.41s, tests 13.16s, environment 10.27s)
+
+
+> ai-studio-applet@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.28
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 9.8s
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/20) ...
+   Generating static pages (5/20)
+   Generating static pages (10/20)
+   Generating static pages (15/20)
+ ✓ Generating static pages (20/20)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    4.91 kB         292 kB
+├ ○ /_not-found                             1 kB         104 kB
+├ ○ /actions                             4.21 kB         264 kB
+├ ƒ /api/campaigns/second/execute          158 B         103 kB
+├ ƒ /api/campaigns/second/reconcile        158 B         103 kB
+├ ƒ /api/ecosystem                         158 B         103 kB
+├ ƒ /api/emails/[id]/content               158 B         103 kB
+├ ƒ /api/integrations/accounts/events      158 B         103 kB
+├ ƒ /api/integrations/brevo/associate      158 B         103 kB
+├ ƒ /api/integrations/brevo/webhook        158 B         103 kB
+├ ƒ /api/integrations/feedback             158 B         103 kB
+├ ƒ /api/integrations/resend/webhook       158 B         103 kB
+├ ƒ /api/mcp                               158 B         103 kB
+├ ○ /campaigns                           6.01 kB         283 kB
+├ ƒ /campaigns/[id]                      15.2 kB         284 kB
+├ ƒ /campaigns/templates                 4.37 kB         222 kB
+├ ○ /clients                             3.54 kB         283 kB
+├ ○ /contacts                            9.25 kB         278 kB
+├ ƒ /contacts/[id]                       9.67 kB         286 kB
+├ ○ /deals                                 34 kB         316 kB
+├ ○ /ecosystem                           5.71 kB         265 kB
+├ ○ /integrations                          158 B         103 kB
+├ ○ /leads                               6.58 kB         283 kB
+├ ○ /login                               2.19 kB         156 kB
+├ ○ /reports                             19.4 kB         347 kB
+├ ○ /search                              2.19 kB         262 kB
+├ ○ /settings                            5.55 kB         274 kB
+└ ○ /tasks                               3.84 kB         285 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/1255-60d8dc7c8c9309a1.js      46.3 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js  54.2 kB
+  └ other shared chunks (total)          2.01 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
