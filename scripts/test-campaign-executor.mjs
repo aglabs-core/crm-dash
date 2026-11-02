@@ -185,6 +185,58 @@ try{
     assert.equal((await rpc('finish_campaign_dispatch',[first.id,first.token,'late-acceptance'])).status,'fenced');
     assert.equal(sql('SELECT state FROM crm_campaign_private.dispatch_outbox'),'uncertain');
   });
+  await check('NULL start tokens remain fenced across repeated calls and token rotation',async()=>{
+    reset();const first=await claim();const before=calls;
+    const deny=async()=>{
+      const snapshot=sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o');
+      for(let attempt=0;attempt<2;attempt++){
+        assert.deepEqual(await rpc('start_campaign_dispatch',[first.id,null]),{status:'fenced'});
+        assert.equal(sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o'),snapshot);
+        assert.equal((await claim()).status,'busy');
+      }
+      assert.equal(calls,before);
+    };
+    await deny();
+    sql("UPDATE crm_campaign_private.dispatch_outbox SET lease_until=now()-interval '1 second'");
+    const second=await claim();assert.notEqual(second.token,first.token);await deny();
+    assert.deepEqual(await rpc('start_campaign_dispatch',[first.id,first.token]),{status:'fenced'});
+    assert.equal(sql("SELECT count(*) FROM crm_campaign_private.dispatch_outbox WHERE state='accepted'"),'0');
+  });
+  await check('NULL finish tokens cannot forge acceptance after valid start or change durable state',async()=>{
+    reset();const first=await claim();const before=calls;
+    sql("UPDATE crm_campaign_private.dispatch_outbox SET lease_until=now()-interval '1 second'");
+    const second=await claim();assert.notEqual(second.token,first.token);
+    assert.equal((await rpc('start_campaign_dispatch',[second.id,second.token])).status,'dispatch_started');
+    const snapshot=sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o');
+    for(const token of [null,null,first.token]){
+      assert.deepEqual(await rpc('finish_campaign_dispatch',[second.id,token,'forged-without-http']),{status:'fenced'});
+      assert.equal(sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o'),snapshot);
+      assert.equal((await claim()).status,'dispatch_started');
+    }
+    assert.equal(sql("SELECT count(*) FROM crm_campaign_private.dispatch_outbox WHERE state='accepted' OR receipt IS NOT NULL"),'0');
+    assert.equal(calls,before);
+  });
+  await check('UUID token parsing and owner isolation reject invalid attempts without mutations or HTTP',async()=>{
+    reset();const first=await claim();const before=calls;
+    for(const phase of ['claimed','dispatch_started']){
+      const snapshot=sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o');
+      for(const name of ['start_campaign_dispatch','finish_campaign_dispatch']){
+        const args=token=>[first.id,token,...(name==='finish_campaign_dispatch'?['forged-without-http']:[])];
+        for(const malformed of ['', 'not-a-uuid']){
+          await assert.rejects(rpc(name,args(malformed)),error=>/invalid input syntax for type uuid/.test(String(error.stderr)));
+        }
+        assert.deepEqual(await rpc(name,args('00000000-0000-0000-0000-000000000000')),{status:'fenced'});
+        for(const token of [null,first.token]){
+          assert.throws(()=>json(`SELECT public.${name}(${args(token).map(lit).join(',')})`,other));
+        }
+      }
+      assert.equal(sql('SELECT row_to_json(o) FROM crm_campaign_private.dispatch_outbox o'),snapshot);
+      assert.equal((await claim()).status,phase==='claimed'?'busy':'dispatch_started');
+      assert.equal(calls,before);
+      if(phase==='claimed')assert.equal((await rpc('start_campaign_dispatch',[first.id,first.token])).status,'dispatch_started');
+    }
+    assert.equal(sql("SELECT count(*) FROM crm_campaign_private.dispatch_outbox WHERE state='accepted' OR receipt IS NOT NULL"),'0');
+  });
   await check('real worker SIGKILL after HTTP acceptance plus PostgreSQL restart never resends',async()=>{
     reset();const before=calls;
     const code=`import {execFileSync} from 'node:child_process';import {executeOne,httpProvider} from './lib/campaign-executor.mjs';

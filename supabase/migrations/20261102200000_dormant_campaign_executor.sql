@@ -109,7 +109,7 @@ BEGIN
  -- Match batch-state lock before outbox lock, as in claim.
  SELECT b0.* INTO b FROM public.email_campaign_batches b0 JOIN crm_campaign_private.dispatch_outbox d ON d.batch_id=b0.id WHERE d.id=p_id AND d.user_id=auth.uid() FOR SHARE OF b0;
  SELECT * INTO STRICT o FROM crm_campaign_private.dispatch_outbox WHERE id=p_id AND user_id=auth.uid() FOR UPDATE;
- IF o.state<>'claimed' OR o.token<>p_token OR o.lease_until<=now() THEN RETURN jsonb_build_object('status','fenced'); END IF;
+ IF o.state<>'claimed' OR o.token IS DISTINCT FROM p_token OR o.lease_until<=now() THEN RETURN jsonb_build_object('status','fenced'); END IF;
  reason:=crm_campaign_private.dispatch_reason(o.item_id);
  IF reason IS NOT NULL THEN
    UPDATE crm_campaign_private.dispatch_outbox SET state='review',receipt=jsonb_build_object('reason',reason),updated_at=now() WHERE id=o.id;
@@ -126,7 +126,7 @@ DECLARE o crm_campaign_private.dispatch_outbox; final_state text;
 BEGIN
  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
  SELECT * INTO STRICT o FROM crm_campaign_private.dispatch_outbox WHERE id=p_id AND user_id=auth.uid() FOR UPDATE;
- IF o.token<>p_token OR o.state<>'dispatch_started' THEN RETURN jsonb_build_object('status','fenced'); END IF;
+ IF o.token IS DISTINCT FROM p_token OR o.state<>'dispatch_started' THEN RETURN jsonb_build_object('status','fenced'); END IF;
  final_state:=CASE WHEN p_provider_id IS NOT NULL AND length(btrim(p_provider_id)) BETWEEN 1 AND 500 AND o.lease_until>now() THEN 'accepted' ELSE 'uncertain' END;
  UPDATE crm_campaign_private.dispatch_outbox SET state=final_state,receipt=jsonb_build_object('provider_message_id',CASE WHEN final_state='accepted' THEN p_provider_id ELSE NULL END),updated_at=now() WHERE id=o.id;
  RETURN jsonb_build_object('status',final_state,'id',o.id);

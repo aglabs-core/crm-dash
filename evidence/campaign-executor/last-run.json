@@ -1,5 +1,5 @@
 {
-  "passed": 24,
+  "passed": 27,
   "providerRequests": 6,
   "image": "postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 }
