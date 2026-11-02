@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test lib/*.test.ts && npm run test:ui",
+    "test:campaign-executor": "node scripts/test-campaign-executor.mjs",
     "test:ui": "node scripts/test-ui.mjs",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "audit:gate": "node audit-gate.mjs",
