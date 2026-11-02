@@ -46,6 +46,10 @@ Provas somente sintéticas: PGlite com migrations reais e papéis autenticados, 
 
 ## Implantação / rollback
 
-PR somente, sem merge/deploy/migration remota. Antes de publicar: revisão independente das duas migrations, comparar funções remotas, executar auditoria agregada e verificar RLS com sessão administrativa real. Aplicar migrations antes do frontend. Testes PGlite e HTTP sintético não provam PostgREST/deploy.
+Nesta entrega residual, o proprietário autorizou excepcionalmente o conector Supabase para as duas migrações revisadas, sem ativar campanhas. As versões registradas no banco foram `20261102203246` (guard, origem `20261102183000`) e `20261102203544` (revisão, origem `20261102183500`); os arquivos e testes foram renomeados para refletir exatamente o histórico registrado, sem `repair` nem edição da tabela de histórico. A revisão do intervalo usa `delivered_at`, não `sent_at`. Essa exceção não altera globalmente o procedimento de implantação.
+
+O readback confirmou o trigger ativo, permissões da revisão somente para `authenticated`/proprietário da função, e preservação das contagens de contatos, mensagens e campanhas. Nenhum envio foi executado. Publicação do frontend e aceitação autenticada PostgREST continuam provas separadas.
+
+Antes de publicar qualquer versão nova: comparar funções remotas, executar auditoria agregada e verificar RLS com sessão administrativa real. Aplicar migrations antes do frontend. Testes PGlite e HTTP sintético não provam PostgREST/deploy.
 
 Rollback do frontend: revisão anterior. Reverter RPC nova/trigger só após revisão de efeitos concorrentes; não remover ledger, campanhas, eventos ou identidade. A migration não reescreve linhas históricas e ignora updates sem mudança do vínculo para não bloquear recebimento de eventos antigos.

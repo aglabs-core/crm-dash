@@ -60,9 +60,9 @@ async function setup() {
       VALUES('${campaign}','${admin}','Prospecção sintética','barberias','brevo','sender@example.invalid','Personalizado','individual_review','completed');
     INSERT INTO public.email_campaign_recipients(id,campaign_id,user_id,contact_id,email_snapshot,review_note,provider_message_id)
       VALUES('${recipient}','${campaign}','${admin}','${prospect}','dono@barbearia.example.invalid','Revisão sintética','${brevoId}');`);
-  await db.exec(await readFile('supabase/migrations/20261102183000_guard_email_ledger_bindings.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/20261102183000_guard_email_ledger_bindings.sql', 'utf8'));
-  await db.exec(await readFile('supabase/migrations/20261102183500_campaign_followup_review.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203246_guard_email_ledger_bindings_20261102183000.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203246_guard_email_ledger_bindings_20261102183000.sql', 'utf8'));
+  await db.exec(await readFile('supabase/migrations/20261102203544_campaign_followup_review_20261102183500.sql', 'utf8'));
   const service = async <T = Record<string, unknown>>(sql: string, args: unknown[] = []) => {
     await db.exec('SET ROLE service_role');
     try { return await db.query<T>(sql, args); } finally { await db.exec('RESET ROLE'); }
@@ -86,6 +86,18 @@ test('follow-up preparation has an authenticated read-only review contract', asy
   const { db } = await setup();
   try {
     assert.equal((await db.query<{ ready: boolean }>("SELECT to_regprocedure('public.review_email_campaign_followup(uuid,integer)') IS NOT NULL ready")).rows[0].ready, true);
+  } finally { await db.close(); }
+});
+
+test('follow-up wait starts at confirmed delivery, not the earlier send', async () => {
+  const { db, service, asUser } = await setup();
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS public.payment_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),contact_id uuid,user_id uuid,product text,status text,net_amount numeric);`);
+    await service('SELECT public.crm_record_outbound_email($1::jsonb)', [JSON.stringify(prospectMessage)]);
+    await db.exec(`UPDATE public.email_messages SET sent_at=now()-interval '10 days',delivered_at=now()-interval '2 days',status='delivered'`);
+    const result = await asUser<{ r: { recipients: { reasons: string[] }[] } }>(admin,
+      'SELECT public.review_email_campaign_followup($1,168) r', [campaign]);
+    assert.ok(result.rows[0].r.recipients[0].reasons.includes('Intervalo ainda não cumprido'));
   } finally { await db.close(); }
 });
 
