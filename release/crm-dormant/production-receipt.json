@@ -1,0 +1,20 @@
+{
+  "authorization": "Owner authorized connector for this reviewed deployment, recorded history and readback, no campaign activation",
+  "reviewedReleaseHead": "148f95a9356738023bdcd9c66a8675a08e325c5e",
+  "applied": [
+    {"version":"20261102212703","name":"dormant_campaign_executor","storedStatementCount":1,"storedStatementMd5":"b4eeeee231a7f83e93f96e3d738428bb"},
+    {"version":"20261102212748","name":"campaign_second_step","storedStatementCount":1,"storedStatementMd5":"27c41024dd0de1957a6cdf94e5fa840d"},
+    {"version":"20261102212834","name":"campaign_legacy_second","storedStatementCount":1,"storedStatementMd5":"7ad4f5cb6a742effe4bd73b8d5b05016"}
+  ],
+  "statementIdentity": "Each remote stored statement MD5 equals respective reviewed raw DDL bytes excluding the final LF; SHA256 of raw reviewed files remains in manifest",
+  "before": {"contacts":165,"messages":141,"campaigns":4,"batches":0},
+  "after": {"contacts":165,"messages":141,"campaigns":4,"batches":0,"dispatchOutbox":0},
+  "control": {"enabled":false,"wait_seconds":null},
+  "securityReadback": {"rpcSecurityDefiner":true,"rpcSearchPath":"empty","rpcExecuteOnly":["postgres","authenticated"],"bindingGuardEnabled":true,"secondFreezeTriggersEnabled":true,"legacyFreezeTriggersEnabled":true},
+  "policyReadback": {"version":"barberias-prospect-second-v1","waitSeconds":604800,"subject":"Conseguiu conhecer o Barberias?","format":"text_only"},
+  "recipientBatchPrepared":false,
+  "recipientBatchApproved":false,
+  "providerConfigured":false,
+  "sendActivated":false,
+  "remaining": ["Independent integrated release acceptance and publication", "Authenticated owner session for draft preparation/readback", "Branded HTML fidelity remains unsupported", "Separate recipient review and activation acceptance"]
+}

@@ -10,7 +10,7 @@ test('integrated release payload order, byte identity and connector mapping are 
  let previous='20261102203544';
  for(const m of manifest.migrations){
   assert.ok(m.repositoryVersion>previous);assert.equal(m.dependsOn,previous);previous=m.repositoryVersion;
-  assert.equal(m.appliedVersion,null);assert.equal(m.appliedName,null);
+  assert.equal(m.appliedVersion,m.repositoryVersion);assert.equal(m.appliedName,m.name);
   assert.equal(hash(m.migration),m.sha256);assert.equal(hash(m.payload),m.sha256);
   assert.ok(!files.some(f=>f.startsWith(m.originalVersion+'_')));
   for(const script of ['scripts/test-campaign-executor.mjs','scripts/test-campaign-legacy-second.mjs']){
