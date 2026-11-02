@@ -9,6 +9,14 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE c public.contacts; campaign public.email_campaigns; recipient public.email_campaign_recipients;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
+    -- Campaign SET NULL can run before recipient CASCADE/SET NULL. Clear the
+    -- unchanged recipient only when the OLD parent is actually gone; a manual
+    -- unlink from a live campaign must still fail normal binding validation.
+    -- Do not trust trigger depth or a caller-controlled session flag.
+    IF NEW.campaign_id IS NULL AND OLD.campaign_id IS NOT NULL
+      AND NEW.recipient_id IS NOT DISTINCT FROM OLD.recipient_id
+      AND NOT EXISTS (SELECT 1 FROM public.email_campaigns WHERE id = OLD.campaign_id)
+      THEN NEW.recipient_id := NULL; END IF;
     IF (NEW.user_id, NEW.contact_id, NEW.address, NEW.campaign_id, NEW.recipient_id, NEW.product)
       IS NOT DISTINCT FROM (OLD.user_id, OLD.contact_id, OLD.address, OLD.campaign_id, OLD.recipient_id, OLD.product)
       THEN RETURN NEW; END IF;
