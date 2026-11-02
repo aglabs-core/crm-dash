@@ -51,11 +51,11 @@ try{
     if(i===99)throw Error('PostgreSQL final server unavailable');await new Promise(r=>setTimeout(r,100));
   }
   await setup();
-  const migration='supabase/migrations/20261102200000_dormant_campaign_executor.sql';
+  const migration='supabase/migrations/20261102203600_dormant_campaign_executor.sql';
   if(existsSync(migration))sql(readFileSync(migration,'utf8'));
-  const secondMigration='supabase/migrations/20261102210000_campaign_second_step.sql';
+  const secondMigration='supabase/migrations/20261102203700_campaign_second_step.sql';
   if(existsSync(secondMigration))sql(readFileSync(secondMigration,'utf8'));
-  const legacyMigration='supabase/migrations/20261102220000_campaign_legacy_second.sql';
+  const legacyMigration='supabase/migrations/20261102203800_campaign_legacy_second.sql';
   if(existsSync(legacyMigration))sql(readFileSync(legacyMigration,'utf8'));
   console.log(`POSTGRES ${sql('SHOW server_version')}`);
   // Behavioral RED can run before implementation, without import/SQL errors.
@@ -258,7 +258,7 @@ try{
     sql("UPDATE crm_campaign_private.dispatch_outbox SET lease_until=now()-interval '1 second'");
     assert.equal((await run()).status,'uncertain');assert.equal(calls,before+1);assert.equal(sql('SELECT state FROM crm_campaign_private.dispatch_outbox'),'uncertain');
   });
-  const step2Migration='supabase/migrations/20261102210000_campaign_second_step.sql';
+  const step2Migration='supabase/migrations/20261102203700_campaign_second_step.sql';
   if(existsSync(step2Migration)&&sql("SELECT to_regprocedure('public.claim_campaign_second_dispatch(uuid)') IS NULL")==='t')sql(readFileSync(step2Migration,'utf8'));
   reset();
   sql(`INSERT INTO public.email_messages(user_id,contact_id,direction,provider,category,source_key,product,campaign_id,recipient_id,address,subject,body_text,provider_message_id,sent_at,delivered_at,status) VALUES('${tenant}','${prospect}','outbound','brevo','prospeccao','synthetic.initial','barberias','${campaign}','${recipient}','dono@barbearia.example.invalid','Initial historical','Historical immutable offer for Barbearia Sintética','initial-history@example.invalid',now()-interval '7 days',now()-interval '7 days','delivered')`);

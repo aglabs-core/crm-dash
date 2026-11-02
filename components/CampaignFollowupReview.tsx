@@ -23,7 +23,7 @@ function ReadOnlyFollowupReview({ campaignId }: { campaignId: string }) {
   }
   return <Card className="space-y-3 p-5">
     <h2 className="font-semibold">Segunda etapa de prospecção</h2>
-    <p className="text-sm text-muted">Executor automático não implementado. Templates e campanha concluída não agendam uma segunda mensagem. Texto final e intervalo precisam de aprovação; o ciclo de teste do produto é separado.</p>
+    <p className="text-sm text-muted">Executor automático desativado por padrão. Templates e campanha concluída não agendam uma segunda mensagem. Barberias: texto aprovado para revisão individual, uma segunda mensagem 7 dias após entrega comprovada; ativação e aprovação do lote são separadas. O ciclo de teste do produto é separado.</p>
     <Button variant="secondary" loading={loading} onClick={review}>Conferir impedimentos da segunda etapa</Button>
     {error && <p role="alert">Revisão indisponível. Confira acesso e migração; nenhuma mensagem foi enviada.</p>}
     {rows && <ul className="space-y-2 text-sm">{rows.map((r) => <li key={r.recipient_id}><Link href={`/contacts/${r.contact_id}`} className="text-brand underline">Revisar contato</Link><ul>{r.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></li>)}</ul>}

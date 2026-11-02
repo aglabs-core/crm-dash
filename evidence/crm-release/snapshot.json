@@ -1,0 +1,39 @@
+{
+  "integrationMergeHead": "8fea8c010d671f1aeaab44bd5ae59352e5e7e264",
+  "baseMain": "bd99e4423c6a1ad28a982708bca44a7098939949",
+  "exactMergedAncestors": [
+    "f6c935041da3c81f0e239073bd19853c72fcbf25",
+    "ff28733619b64cbf6169c9f4d5d124de83ef9954",
+    "a69813cdfef22447fd209ae988bad5e2bb5f5f31",
+    "120063efd50a9ec40935e856ac573168d21cc663"
+  ],
+  "rawDdlProofs": [
+    {
+      "migration": "supabase/migrations/20261102203600_dormant_campaign_executor.sql",
+      "reviewedRawBytesUnchanged": true,
+      "sha256": "b1689ed34ebf9c4b76fba5c9c70eb2c1efc7be0c57aaa78426b32204ac1b19ac"
+    },
+    {
+      "migration": "supabase/migrations/20261102203700_campaign_second_step.sql",
+      "reviewedRawBytesUnchanged": true,
+      "sha256": "f9e26ec183374a3eb192d687576879ee54f7742430357abc52c41c885a971562"
+    },
+    {
+      "migration": "supabase/migrations/20261102203800_campaign_legacy_second.sql",
+      "reviewedRawBytesUnchanged": true,
+      "sha256": "6090528349600faeff743c413c43a4e6996bbcf43b48cfe539f364b11df76e94"
+    }
+  ],
+  "envSchedulerWorkflowsUnchanged": true,
+  "productionAccess": false,
+  "tests": {
+    "checkExit": 0,
+    "auditExit": 0,
+    "runnerUnitPass": 4,
+    "pgRunnerPass": 45,
+    "pgLegacyPass": 23,
+    "adapterPass": 18,
+    "paymentExit": 0,
+    "conversionExit": 0
+  }
+}
