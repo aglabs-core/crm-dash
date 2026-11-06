@@ -42,11 +42,14 @@ Para Barberias, Viajeki, Members, MeCard e AG LABS App, identificar **quem vende
 - Se a AG LABS vende assinatura/licença/acesso, a operação exige seu tratamento fiscal; cadastro gratuito, isoladamente, não é venda. Código/competência/tributação devem ser validados pelo contador.
 - Se o gateway/integrador já emite NFS-e autorizada em nome da AG LABS para o comprador referente à mesma operação, importar/vincular a nota existente, sem emitir outra.
 - Recibo de cartão/Pix, boleto, invoice comercial ou relatório de repasse não demonstram por si só emissão de NFS-e. Documentos das taxas do intermediário referem-se a outra relação de serviço.
-- Members e outros fluxos de marketplace: separar assinatura/comissão da AG LABS das vendas de produtores/terceiros. Não emitir indiscriminadamente pelo valor total de terceiros; depende de contratos, titularidade da venda e responsabilidades.
-- Barberias: assinatura do sistema e serviços da barbearia são operações distintas. Viajeki: acesso ao planejador e serviços turísticos vendidos por terceiros também exigem separação.
-- Créditos pré-pagos do AG LABS App exigem definição contábil do momento fiscal; não emitir automaticamente uma nota por geração nem uma nova nota ao consumir créditos sem validar o modelo.
+- Modelo confirmado pelo proprietário em 06/11/2026: Barberias, Viajeki, MeCard e AG LABS App monetizam planos de uso da aplicação, sem split ou intermediação das vendas dos usuários. Members é a exceção, com split das vendas de produtos dos produtores e taxa da plataforma.
+- Barberias registra vendas da barbearia apenas para gestão/relatórios, sem movimentar esses recursos. Esses registros não alimentam faturamento, recebimentos ou emissão fiscal da AG LABS. Não presumir venda/intermediação de serviços turísticos pelo Viajeki.
+- Members: separar plano de uso, quando houver, da taxa/comissão da plataforma e dos valores pertencentes ao produtor. Não emitir indiscriminadamente pelo valor total do split; validar os contratos e responsabilidades com o contador.
+- Custos de cada aplicativo (infraestrutura, IA, taxas, suporte) são outra dimensão de gestão. Não determinam, por si sós, o valor da nota do plano. Apuração de resultado e tratamento fiscal são controles distintos.
 
 Não foi verificado se qualquer aplicativo já tem emissão fiscal ativa no gateway. Antes de automatizar, conferir documento autorizado, prestador/CNPJ, tomador, descrição, competência, valor e código de verificação; depois reconciliar a cobrança com o identificador fiscal existente.
+
+O fluxo manual inicial e a automação planejada estão em [processo fiscal dos aplicativos](fiscal-app-process.md). Upload, listagem e download sob demanda já estão implementados localmente; emissão, captura automática e anexação por trabalhador de background ainda não estão implementadas nem ativadas.
 
 Fontes consultadas em 06/11/2026:
 - [Asaas: emissão automática de NFS-e por assinatura exige configuração](https://central.ajuda.asaas.com/hc/pt-br/articles/54589317488283-Como-configurar-a-emiss%C3%A3o-autom%C3%A1tica-de-NFS-e-em-uma-assinatura).
