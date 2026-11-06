@@ -16,6 +16,7 @@ import {
   ListChecks,
   Network,
   Wallet,
+  Files,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -48,6 +49,7 @@ const navGroups: NavGroup[] = [
       { name: 'Campanhas de e-mail', href: '/campaigns', icon: Mails },
       { name: 'Relatórios', href: '/reports', icon: BarChart3 },
       { name: 'Financeiro', href: '/finance', icon: Wallet },
+      { name: 'Documentos', href: '/documents', icon: Files },
     ],
   },
 ];

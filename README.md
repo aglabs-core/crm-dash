@@ -21,7 +21,8 @@ relatórios — construído com **Next.js 15 (App Router)**, **React 19**,
   exportação CSV.
 - **Dark mode**, layout responsivo e busca global.
 - **Visão operacional** em `/operations`: distribuição da carteira, qualidade da base e rotina de trabalho.
-- **Financeiro** em `/finance`: pagamentos por mês/produto, devoluções e pendências de conferência. Controle fiscal persistente, despesas e conciliação bancária ainda não implementados.
+- **Financeiro** em `/finance`: pagamentos por mês/produto, devoluções e pendências de conferência. Emissão/validação fiscal, despesas e conciliação bancária ainda não implementadas.
+- **Documentos privados** na ficha do cliente e em `/documents`: contratos, notas e comprovantes, com vínculo opcional ao pagamento. Requer a migration de [documentos privados](docs/client-documents.md).
 
 Plano de evolução e limites: [revisão operacional e fiscal de 06/11/2026](docs/crm-operational-review-2026-11-06.md).
 
