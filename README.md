@@ -10,27 +10,32 @@ relatórios — construído com **Next.js 15 (App Router)**, **React 19**,
 
 ## Funcionalidades
 
-- **Dashboard** com métricas reais (receita por data de fechamento, pipeline,
+- **Dashboard** com métricas operacionais (recebimentos pelo ledger, pipeline,
   win/loss) e widgets acionáveis (tarefas vencidas, negócios fechando, parados).
 - **Funil de vendas** Kanban com arrastar-e-soltar, incluindo o estágio
-  `Perdido` (com motivo) para uma taxa de ganho honesta.
-- **Contato 360°**: página de detalhe com negócios, tarefas e uma linha do
+  `Arquivado` (com motivo) para uma taxa de ganho honesta. A base fria fica fora do funil.
+- **Contato 360°**: página de detalhe com posição no funil, tarefas e uma linha do
   tempo de atividades (notas, ligações, e-mails, reuniões, mudanças de estágio).
 - **Tarefas** vinculadas a contatos, com destaque de vencidas.
 - **Relatórios** com win-rate e ciclo de vendas reais, gráficos por produto e
   exportação CSV.
 - **Dark mode**, layout responsivo e busca global.
+- **Visão operacional** em `/operations`: distribuição da carteira, qualidade da base e rotina de trabalho.
+- **Financeiro** em `/finance`: pagamentos por mês/produto, devoluções e pendências de conferência. Emissão/validação fiscal, despesas e conciliação bancária ainda não implementadas.
+- **Documentos privados** na ficha do cliente e em `/documents`: contratos, notas e comprovantes, com vínculo opcional ao pagamento. Requer a migration de [documentos privados](docs/client-documents.md).
+
+Plano de evolução e limites: [revisão operacional e fiscal de 06/11/2026](docs/crm-operational-review-2026-11-06.md).
 
 ## Pré-requisitos
 
-- Node.js 18+
+- Node.js 22 (mesma versão do CI)
 - Um projeto [Supabase](https://supabase.com)
 
 ## Configuração
 
 1. Instale as dependências:
    ```bash
-   npm install
+   npm ci
    ```
 2. Copie `.env.example` para `.env.local` e preencha as credenciais do Supabase:
    ```bash
@@ -51,17 +56,21 @@ relatórios — construído com **Next.js 15 (App Router)**, **React 19**,
 
 ## Modelo de dados
 
-- **contacts** — pessoas/empresas (nome, email, telefone, empresa, status,
-  produto, lp_url).
-- **deals** — negócios do funil (título, valor, estágio, prioridade, produto,
-  `closed_at`, `lost_reason`, vínculo opcional com um contato).
+- **contacts** — pessoas/empresas, posição no funil (`status`), valor estimado,
+  produto, previsão de fechamento e histórico. A tabela `deals` foi eliminada;
+  `/deals` é somente o endereço da interface Kanban.
+- **payment_transactions** — pagamentos identificados por origem e transação,
+  separados do valor estimado do contato; `net_amount` desconta devoluções, não taxas ou impostos.
+- **leads_institucional** — entradas do site aguardando triagem/conversão.
+- **email_messages / email_campaigns** — histórico de comunicação e campanhas.
 - **tasks** — tarefas (título, vencimento, status, prioridade, vínculo opcional
   com um contato).
 - **activities** — linha do tempo por contato/negócio (nota, ligação, e-mail,
   reunião, mudança de estágio).
 
-Todas as tabelas usam **Row Level Security**: cada usuário acessa apenas os
-próprios dados.
+As tabelas usam **Row Level Security**, com políticas de proprietário e acessos
+administrativos explícitos. Dados de leads/clientes são privados; não exportar
+cadastros, dumps ou payloads em logs/issues.
 
 ## Scripts
 

@@ -48,6 +48,7 @@ import {
 } from '@/components/ui';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
 import { ContactEmails } from '@/components/ContactEmails';
+import { ClientDocuments } from '@/components/ClientDocuments';
 import { accountStatusMeta } from '@/lib/email-ledger';
 
 export default function ContactDetail() {
@@ -231,6 +232,7 @@ export default function ContactDetail() {
         {/* E-mails + Timeline */}
         <div className="space-y-6 lg:col-span-2">
           <ContactEmails contactId={id} />
+          <ClientDocuments key={id} contactId={id} ownerId={contact.user_id} />
           <Card>
             <CardHeader>
               <CardTitle>Linha do Tempo</CardTitle>
