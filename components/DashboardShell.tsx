@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Sidebar } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
+import { SectionTabs } from '@/components/SectionTabs';
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -17,6 +18,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Suspense fallback={<header className="h-16 shrink-0 border-b border-border bg-surface" />}>
           <Header onMenuClick={() => setMobileOpen(true)} />
         </Suspense>
+        <SectionTabs />
         <motion.main
           key={pathname}
           initial={{ opacity: 0, y: 8 }}
