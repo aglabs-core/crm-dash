@@ -20,7 +20,7 @@ relatórios — construído com **Next.js 15 (App Router)**, **React 19**,
 - **Relatórios** com win-rate e ciclo de vendas reais, gráficos por produto e
   exportação CSV.
 - **Dark mode**, layout responsivo e busca global.
-- **Visão operacional** em `/operations`: distribuição da carteira, qualidade da base e rotina de trabalho.
+- **Carteira** (seção Visão geral) em `/operations`: distribuição da carteira, qualidade da base e rotina de trabalho.
 - **Financeiro** em `/finance`: pagamentos por mês/produto, devoluções e pendências de conferência. Emissão/validação fiscal, despesas e conciliação bancária ainda não implementadas.
 - **Documentos privados** na ficha do cliente e em `/documents`: contratos, notas e comprovantes, com vínculo opcional ao pagamento. Requer a migration de [documentos privados](docs/client-documents.md).
 
