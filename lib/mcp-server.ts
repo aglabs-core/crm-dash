@@ -244,7 +244,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'crm_resumo', scope: 'leitura', readOnly: true, title: 'Resumo do CRM',
-    description: 'Funil por etapa (sem a base fria de prospecção), contas no produto, novos contatos, receita líquida do mês e do mês anterior e tarefas pendentes por responsável. Com produto, tudo filtrado por ele; sem produto, inclui a divisão por produto.',
+    description: 'Distribuição atual por etapa (sem a base fria), contas no produto, novos contatos, recebimentos após estornos do mês e anterior, antes de taxas e tributos, e tarefas pendentes por responsável. Etapas atuais não medem conversão histórica. Com produto, tudo filtrado por ele; sem produto, inclui a divisão por produto.',
     inputSchema: { type: 'object', properties: { produto: productProp }, additionalProperties: false },
     async run(args, { store, now }) {
       const today = localToday(now);

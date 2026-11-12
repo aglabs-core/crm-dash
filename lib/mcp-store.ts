@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { CrmStore, McpContact, McpEmailRow, McpFeedback, McpTask } from './mcp-server';
 import type { Contact, PaymentTransaction } from './types';
+import { readAllPages } from './pagination';
 
 // Implementação do CrmStore com a chave service_role.
 // Leitura: o mesmo que o administrador vê no painel. As políticas "admin manage
@@ -41,14 +42,7 @@ async function ownerId(client: SupabaseClient) {
   return (cachedOwner = admins[0].id);
 }
 
-async function paged<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
-  const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const page = check(await fetchPage(from, from + 999)) ?? [];
-    rows.push(...page);
-    if (page.length < 1000) return rows;
-  }
-}
+const paged = readAllPages;
 
 export function supabaseCrmStore(): CrmStore | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -93,7 +87,7 @@ export function supabaseCrmStore(): CrmStore | null {
         .order('created_at', { ascending: false }).limit(limit)) ?? [];
     },
     async contactPayments(id) {
-      return (check(await client.from('payment_transactions').select('*').eq('contact_id', id)) ?? []) as PaymentTransaction[];
+      return paged<PaymentTransaction>((from, to) => client.from('payment_transactions').select('*').eq('contact_id', id).order('id').range(from, to));
     },
     async task(id) {
       const row = check(await client.from('tasks').select(TASK_COLUMNS).eq('id', id).maybeSingle()) as TaskRow | null;

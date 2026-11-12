@@ -1,9 +1,10 @@
 import type { PaymentTransaction } from './types';
+import { businessMonth } from './financial-calendar';
 
 // Revenue is the net value of recorded payments. Chargebacks and canceled
 // payments are excluded even if their original amount remains on the row.
 export function paymentRevenue(payments: PaymentTransaction[]): number {
-  return payments.reduce((sum, payment) => sum + netRevenue(payment), 0);
+  return payments.reduce((sum, payment) => sum + Math.round(netRevenue(payment) * 100), 0) / 100;
 }
 
 export function netRevenue(payment: PaymentTransaction): number {
@@ -24,7 +25,7 @@ export function paymentProducts(payments: PaymentTransaction[]): { produto: stri
     if (!value) continue;
     const produto = payment.product?.trim() || 'Sem produto';
     const row = grouped.get(produto) ?? { produto, revenue: 0, count: 0 };
-    row.revenue += value;
+    row.revenue = (Math.round(row.revenue * 100) + Math.round(value * 100)) / 100;
     row.count += 1;
     grouped.set(produto, row);
   }
@@ -34,7 +35,6 @@ export function paymentProducts(payments: PaymentTransaction[]): { produto: stri
 export function paymentMonthRevenue(payments: PaymentTransaction[], year: number, month: number): number {
   return paymentRevenue(payments.filter((payment) => {
     if (!payment.paid_at) return false;
-    const paid = new Date(payment.paid_at);
-    return paid.getFullYear() === year && paid.getMonth() === month;
+    return businessMonth(payment.paid_at) === `${year}-${String(month + 1).padStart(2, '0')}`;
   }));
 }

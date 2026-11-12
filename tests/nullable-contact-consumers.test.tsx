@@ -15,12 +15,14 @@ const api = vi.hoisted(() => ({
   contextPending: false,
   contextFailure: false,
   refreshContext: undefined as undefined | (() => void),
+  refreshEmailContext: undefined as undefined | (() => void),
+  emailStatus: null as string | null,
   writes: [] as { table: string; payload: Record<string, unknown>; id?: unknown }[],
 }));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: 'synthetic-user' } } }) },
-    channel: () => { const channel = { on: (_event: string, filter: { table: string }, callback: () => void) => { if (filter.table === 'tasks') api.refreshContext = callback; return channel; }, subscribe: () => channel }; return channel; },
+    channel: () => { const channel = { on: (_event: string, filter: { table: string }, callback: () => void) => { if (filter.table === 'tasks') api.refreshContext = callback; if (filter.table === 'email_messages') api.refreshEmailContext = callback; return channel; }, subscribe: () => channel }; return channel; },
     removeChannel: vi.fn(),
     from: (table: string) => {
       let single = false;
@@ -49,9 +51,10 @@ vi.mock('@/lib/supabase', () => ({
         then: (resolve: (value: unknown) => unknown) => {
           if (context && api.contextFailure) return Promise.resolve({ data: null, error: { message: 'synthetic failure' } }).then(resolve);
           if (context && api.contextPending) return new Promise(() => {});
-          const row = { name: null, prospecting_pool: false, outreach_status: 'unreviewed', product_key: api.row.produto, ...api.row, ...write?.payload };
+          const row = { name: null, prospecting_pool: false, outreach_status: 'unreviewed', product_key: api.row.produto, ...api.row, ...write?.payload,
+            ...(context ? { emails: api.emailStatus ? [{id:'synthetic-email',category:'automacao',source_key:'barberias.trial.encerrado',status:api.emailStatus,sent_at:'2026-11-12T10:00:00Z'}] : [] } : {}) };
           const matchesFilters = Object.entries(filters).every(([key, value]) => row[key as keyof typeof row] === value);
-          const rows = table === 'contacts' ? (single ? row : context && after ? [] : [row])
+          const rows = table === 'contacts' ? (single ? row : (context && after) || offset > 0 ? [] : [row])
             : table === 'contact_directory' ? (matchesFilters && contactMatchesSearch(row as typeof api.row & { name: string | null }, term) ? [row] : [])
             : table === 'contact_workspace_summary' && offset === 0 ? [{ ...row, total: 1 }] : [];
           return Promise.resolve({ data: rows, count: Array.isArray(rows) ? rows.length : 1, error: null }).then(resolve);
@@ -78,6 +81,7 @@ beforeEach(() => {
   api.contextPending = false;
   api.contextFailure = false;
   api.refreshContext = undefined;
+  api.refreshEmailContext = undefined; api.emailStatus = null;
   // Fail closed if a consumer escapes the API mock.
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in consumer tests'); }));
 });
@@ -254,6 +258,15 @@ it('pipeline cards render while their context request is still pending', async (
   expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: /^Filtros/ }));
   expect((screen.getByRole('button', { name: 'Sem próxima tarefa' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('email delivery refreshes pipeline evidence without changing the contact stage', async () => {
+  api.emailStatus='accepted';
+  render(<ConfirmProvider><Deals /></ConfirmProvider>);
+  expect(await screen.findByText(/Último e-mail:.*Aceito/)).toBeTruthy();
+  api.emailStatus='delivered';api.refreshEmailContext?.();
+  expect(await screen.findByText(/Último e-mail:.*Entregue/)).toBeTruthy();
+  expect(api.writes).toHaveLength(0);
 });
 
 it('context failure leaves cards visible and lets the operator clear the task filter', async () => {

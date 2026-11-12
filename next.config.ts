@@ -1,7 +1,15 @@
 import type {NextConfig} from 'next';
+import { execFileSync } from 'node:child_process';
+
+function buildCommit(): string {
+  const configured = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+  if (configured && /^[a-f0-9]{40}$/.test(configured)) return configured;
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000 }).trim(); } catch { return ''; }
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: { CRM_BUILD_COMMIT: buildCommit() },
   eslint: {
     ignoreDuringBuilds: true,
   },

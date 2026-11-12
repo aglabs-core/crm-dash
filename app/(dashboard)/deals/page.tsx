@@ -133,6 +133,7 @@ function PipelineContent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, refreshContext)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, refreshContext)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_messages' }, refreshContext)
       .subscribe();
     return () => {
       requestVersion.value++;

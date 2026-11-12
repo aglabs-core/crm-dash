@@ -8,6 +8,7 @@
 import { toDate } from './format';
 import type { Contact, ContactStatus, PaymentTransaction, Task } from './types';
 import { netRevenue, paymentMonthRevenue } from './payment-analytics';
+import { businessMonth } from './financial-calendar';
 import { KANBAN_STATUSES, isClientStatus, isArchivedStatus, isActiveStatus, type Tone } from './constants';
 
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -72,8 +73,8 @@ export type MonthPoint = {
   rate: number | null; // win-rate % for the month
 };
 
-const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-const monthLabel = (d: Date) => `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
+const monthKey = (d: Date) => businessMonth(d) ?? '';
+const monthLabel = (d: Date) => { const [year, month] = monthKey(d).split('-').map(Number); return `${MONTHS_PT[month - 1]}/${String(year).slice(2)}`; };
 
 /**
  * Year-aware monthly series, strictly bounded to the last `months` months
@@ -83,9 +84,10 @@ export function monthlySeries(contacts: Contact[], months = 6, payments?: Paymen
   const buckets = new Map<string, MonthPoint>();
   const order: string[] = [];
   const now = new Date();
+  const [currentYear, currentMonth] = monthKey(now).split('-').map(Number);
 
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(Date.UTC(currentYear, currentMonth - 1 - i, 1, 12));
     const k = monthKey(d);
     order.push(k);
     buckets.set(k, {
@@ -127,7 +129,7 @@ export function monthlySeries(contacts: Contact[], months = 6, payments?: Paymen
   for (const p of points) {
     if (payments) {
       const [year, month] = p.key.split('-').map(Number);
-      p.revenue = paymentMonthRevenue(payments, year, month);
+      p.revenue = paymentMonthRevenue(payments, year, month - 1);
     }
     const closed = p.wonCount + p.lostCount;
     p.rate = closed ? Math.round((p.wonCount / closed) * 100) : null;
