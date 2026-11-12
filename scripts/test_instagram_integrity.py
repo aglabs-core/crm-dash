@@ -7,11 +7,16 @@ Never point this script at a shared or production database.
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
+import os
 import re
 import time
 import unittest
 from uuid import uuid4
 
+
+# These fixtures always use the local daemon, preserving registry configuration.
+for selector in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+    os.environ.pop(selector, None)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER = f"crm-instagram-integrity-{uuid4().hex[:12]}"
