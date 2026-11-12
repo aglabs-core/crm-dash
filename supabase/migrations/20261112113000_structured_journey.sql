@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS public.crm_journey_coverage (
   singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), started_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO public.crm_journey_coverage(singleton) VALUES(true) ON CONFLICT DO NOTHING;
+ALTER TABLE public.crm_journey_coverage ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS authenticated_coverage ON public.crm_journey_coverage;
+CREATE POLICY authenticated_coverage ON public.crm_journey_coverage FOR SELECT TO authenticated USING(true);
 CREATE TABLE IF NOT EXISTS public.contact_stage_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   contact_id uuid NOT NULL REFERENCES public.contacts(id) ON DELETE CASCADE,
