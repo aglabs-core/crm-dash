@@ -2,7 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const runner = fileURLToPath(new URL('../node_modules/vitest/vitest.mjs', import.meta.url));
-const result = spawnSync(process.execPath, [runner, 'run', ...process.argv.slice(2)], {
+const args = process.argv.slice(2);
+const workers = args.some(arg => arg.startsWith('--maxWorkers')) ? [] : ['--maxWorkers=2'];
+const result = spawnSync(process.execPath, [runner, 'run', ...workers, ...args], {
   stdio: 'inherit', env: { ...process.env, NODE_ENV: 'test' },
 });
 if (result.error) console.error('Não foi possível iniciar os testes de interface.');

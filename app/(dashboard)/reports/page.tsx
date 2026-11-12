@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -26,26 +26,11 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { loadContacts } from '@/lib/contact-data';
 import { productLabel } from '@/lib/product-label';
-import type { Contact, PaymentTransaction } from '@/lib/types';
-import { netRevenue, paymentProducts, paymentRevenue, paymentsByPeriod } from '@/lib/payment-analytics';
-import { loadPaymentTransactions } from '@/lib/payment-data';
+import { loadManagementReport, type ManagementReport } from '@/lib/management-report';
 import { csvFile } from '@/lib/csv';
 import { TONE_HEX, type Tone } from '@/lib/constants';
-import {
-  winRate,
-  winLossCounts,
-  monthlySeries,
-  conversionFunnel,
-  pipelineValue,
-  productPerformance,
-  leadsByProduct,
-  uniqueProducts,
-  filterByPeriod,
-  salesContacts,
-} from '@/lib/analytics';
-import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, formatDate } from '@/lib/format';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent } from '@/lib/format';
 import {
   CHART_AXIS_TICK,
   CHART_GRID,
@@ -55,7 +40,6 @@ import {
 } from '@/lib/chart';
 import { cn } from '@/lib/utils';
 import { Select, Button, PageLoader, BarList, MetricCard } from '@/components/ui';
-import { FunnelChart } from '@/components/ui/funnel-chart';
 
 const PERIODS: { label: string; value: number | null }[] = [
   { label: 'Últimos 30 dias', value: 30 },
@@ -110,85 +94,32 @@ function Panel({
 }
 
 export default function Reports() {
-  const [allContacts, setAllContacts] = useState<Contact[]>([]);
-  const [allPayments, setAllPayments] = useState<PaymentTransaction[]>([]);
+  const [report, setReport] = useState<ManagementReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [paymentError, setPaymentError] = useState(false);
   const [productFilter, setProductFilter] = useState('Todos');
   const [periodDays, setPeriodDays] = useState<number | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [contactRows, paymentRows] = await Promise.all([
-          loadContacts('created_at', true),
-          loadPaymentTransactions(),
-        ]);
-        setAllContacts(contactRows);
-        setAllPayments(paymentRows);
-      } catch (error) {
-        console.error('Error fetching report data:', error);
-        setPaymentError(true);
-      }
-      setIsLoading(false);
-    })();
-  }, []);
+    const controller = new AbortController();
+    loadManagementReport(productFilter === 'Todos' ? null : productFilter, periodDays, controller.signal)
+      .then(data => { if (!controller.signal.aborted) setReport(data); })
+      .catch(() => { if (!controller.signal.aborted) setPaymentError(true); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [productFilter, periodDays, version]);
 
-  const products = useMemo(() => [...new Set([
-    ...uniqueProducts(allContacts),
-    ...allPayments.map((payment) => payment.product?.trim()).filter((product): product is string => !!product),
-  ])].sort(), [allContacts, allPayments]);
-
-  const contacts = useMemo(() => {
-    const byPeriod = filterByPeriod(salesContacts(allContacts), periodDays);
-    return byPeriod.filter((c) => productFilter === 'Todos' || c.produto === productFilter);
-  }, [allContacts, productFilter, periodDays]);
-
-  const payments = useMemo(() => paymentsByPeriod(allPayments, periodDays)
-    .filter((payment) => productFilter === 'Todos' || payment.product === productFilter),
-  [allPayments, periodDays, productFilter]);
-
-  const monthsWindow = periodDays ? Math.min(12, Math.max(2, Math.round(periodDays / 30))) : 12;
-
-  const metrics = useMemo(() => {
-    const { won, lost } = winLossCounts(contacts);
-    const productsWithRevenue = paymentProducts(payments);
-    const paidCount = payments.filter((payment) => netRevenue(payment) > 0).length;
-    const perf = productPerformance(contacts);
-    for (const row of perf) row.wonValue = 0;
-    for (const payment of productsWithRevenue) {
-      const row = perf.find((candidate) => candidate.produto === payment.produto);
-      if (row) row.wonValue = payment.revenue;
-      else perf.push({ produto: payment.produto, deals: 0, open: 0, openValue: 0,
-        won: 0, wonValue: payment.revenue, lost: 0, rate: null });
-    }
-    perf.sort((a, b) => b.wonValue - a.wonValue || b.deals - a.deals);
-    return {
-      revenue: paymentRevenue(payments),
-      pipeline: pipelineValue(contacts),
-      avgDealSize: paidCount ? paymentRevenue(payments) / paidCount : 0,
-      winRate: winRate(contacts),
-      closed: won + lost,
-      series: monthlySeries(contacts, monthsWindow, payments),
-      funnel: conversionFunnel(contacts),
-      products: productsWithRevenue.slice(0, 8),
-      perf,
-      leadsProduct: leadsByProduct(contacts).slice(0, 8),
-    };
-  }, [contacts, payments, monthsWindow]);
-
-  const funnelTop = metrics.funnel[0]?.reached ?? 0;
+  const products = report?.products ?? [];
+  const metrics = report?.metrics ?? { revenue: 0, pipeline: 0, avgDealSize: 0, winRate: null, closed: 0, series: [], funnel: [], products: [], perf: [], leadsProduct: [] };
+  const funnelTop = metrics.funnel.reduce((sum, stage) => sum + stage.reached, 0);
   const hasFunnel = funnelTop > 0;
-  const funnelData = useMemo(
-    () =>
-      metrics.funnel.map((s) => ({
+  const funnelData = metrics.funnel.map((s) => ({
         label: s.label,
         value: s.reached,
         displayValue: formatNumber(s.reached),
         color: TONE_HEX[s.tone],
-      })),
-    [metrics.funnel],
-  );
+      }));
 
   const periodLabel = PERIODS.find((p) => p.value === periodDays)?.label ?? 'Todo o período';
 
@@ -202,40 +133,13 @@ export default function Reports() {
     URL.revokeObjectURL(url);
   };
 
-  const exportCommercialCSV = () => {
-    const headers = ['Nome', 'Empresa', 'Produto', 'Status', 'Origem', 'Valor', 'Prioridade', 'Criado', 'Fechado'];
-    const rows = contacts.map((c) => [
-      c.name,
-      c.company || '',
-      c.produto || '',
-      c.status,
-      c.origin || '',
-      Number(c.amount) || 0,
-      c.priority || '',
-      c.created_at ? formatDate(c.created_at) : '',
-      c.closed_at ? formatDate(c.closed_at) : '',
-    ]);
-    downloadCSV([headers, ...rows], `negocios-${new Date().toISOString().slice(0, 10)}.csv`);
-  };
-
-  const exportPaymentsCSV = () => {
-    const headers = ['Gateway', 'ID externo', 'Produto', 'Status', 'Moeda', 'Valor bruto', 'Estornado', 'Receita após estornos', 'Pago em'];
-    const rows = payments.map((payment) => [
-      payment.gateway,
-      payment.external_id,
-      payment.product || '',
-      payment.status,
-      payment.currency,
-      payment.amount,
-      payment.refunded_amount,
-      netRevenue(payment),
-      payment.paid_at || '',
-    ]);
-    downloadCSV([headers, ...rows], `pagamentos-${new Date().toISOString().slice(0, 10)}.csv`);
+  const exportSummaryCSV = () => {
+    downloadCSV([['Produto', 'Contatos', 'Pipeline', 'Recebimentos após estornos', 'Ganhos entre fechados (%)'],
+      ...metrics.perf.map(p => [p.produto, p.deals, p.openValue, p.wonValue, p.rate])], `resumo-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   if (isLoading) return <PageLoader />;
-  if (paymentError) return <p role="alert" className="p-6 text-red-600">Não foi possível carregar as transações. Os relatórios financeiros estão indisponíveis.</p>;
+  if (paymentError) return <div role="alert" className="space-y-3 p-6"><p>Não foi possível consultar os relatórios. Nenhum total parcial foi apresentado.</p><Button onClick={() => { setIsLoading(true); setPaymentError(false); setVersion(v => v + 1); }}>Tentar novamente</Button></div>;
 
   return (
     <div className="space-y-6">
@@ -243,7 +147,7 @@ export default function Reports() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg">Relatórios e Análises</h1>
           <p className="mt-0.5 text-sm text-muted">
-            {formatNumber(contacts.length)} no histórico comercial · <span className="text-fg/80">{periodLabel}</span>
+            {formatNumber(report?.contactsCount ?? 0)} no histórico comercial · <span className="text-fg/80">{periodLabel}</span>
             {productFilter !== 'Todos' && (
               <>
                 {' '}
@@ -253,7 +157,7 @@ export default function Reports() {
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="sm:w-44">
+          <Select aria-label="Produto do relatório" value={productFilter} onChange={(e) => { setIsLoading(true); setPaymentError(false); setProductFilter(e.target.value); }} className="sm:w-44">
             <option value="Todos">Todos os Produtos</option>
             {products.map((p) => (
               <option key={p} value={p}>
@@ -263,7 +167,8 @@ export default function Reports() {
           </Select>
           <Select
             value={periodDays === null ? '' : String(periodDays)}
-            onChange={(e) => setPeriodDays(e.target.value === '' ? null : Number(e.target.value))}
+            aria-label="Período do relatório"
+            onChange={(e) => { setIsLoading(true); setPaymentError(false); setPeriodDays(e.target.value === '' ? null : Number(e.target.value)); }}
             className="sm:w-44"
           >
             {PERIODS.map((p) => (
@@ -272,18 +177,26 @@ export default function Reports() {
               </option>
             ))}
           </Select>
-          <Button variant="secondary" onClick={exportPaymentsCSV}>
+          <Button variant="secondary" onClick={exportSummaryCSV}>
             <Download className="h-4 w-4" />
-            Exportar pagamentos
-          </Button>
-          <Button variant="secondary" onClick={exportCommercialCSV}>
-            <Download className="h-4 w-4" />
-            Exportar negócios
+            Exportar resumo agregado
           </Button>
         </div>
       </div>
 
+      <p className="text-xs text-muted">Calendário de São Paulo · {report && new Date(report.consultedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Contatos são selecionados pela criação; pagamentos, pelo recebimento. Valores após estornos, antes de taxas e tributos; não comprovam liquidação bancária.</p>
+      {report?.aggregation === 'compatibility' && <p role="status" className="rounded-xl border border-border p-4 text-sm text-muted">Modo de compatibilidade: a função de agregação e os indicadores avançados de qualidade aguardam a atualização do banco.</p>}
+      {report?.quality && <section className="rounded-xl border border-border bg-surface p-4" aria-label="Qualidade dos dados">
+        <h2 className="text-sm font-semibold">Qualidade dos dados</h2>
+        <p className="mt-2 text-sm text-muted">Base completa do produto: {report.quality.totalContacts} contatos · {report.quality.missingProduct} sem produto · {report.quality.missingChannel} sem canal · {report.quality.sharedIdentityGroups} grupos com identidade compartilhada · {report.quality.unassignedTasks} tarefas pendentes sem responsável.</p>
+        <p className="mt-2 text-xs text-muted">Pagamentos no período: {report.quality.paymentsWithoutContact} sem contato · {report.quality.paymentsWithoutDate} sem data. Identidades compartilhadas são sinais para revisão; nenhum cadastro é mesclado automaticamente.</p>
+      </section>}
+
       {/* KPIs */}
+      {report?.journey && <Panel title="Conversão observada da jornada" subtitle={`Leads criados nos últimos ${report.journey.days} dias, desde o início da cobertura`} icon={TrendingUp} tone="indigo">
+        <div className="grid gap-3 sm:grid-cols-3"><MetricCard icon={Users} label="Leads acompanhados" value={report.journey.leads} /><MetricCard icon={CheckCircle2} label="Tornaram-se clientes" value={report.journey.converted} /><MetricCard icon={TrendingUp} label="Conversão da coorte" value={formatPercent(report.journey.conversionRate)} /></div>
+        <p className="mt-3 text-xs text-muted">Cobertura desde {new Date(report.journey.trackedSince).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'})}. Só novas entradas em Lead com transições registradas entram nesta coorte; cadastros anteriores ficam fora. O resultado pode evoluir enquanto os negócios estão abertos. Tempo médio até Cliente: {report.journey.averageDaysToCustomer === null ? '—' : `${report.journey.averageDaysToCustomer.toFixed(1)} dias`}.</p>
+      </Panel>}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard label="Receita após estornos" value={formatCurrency(metrics.revenue)} icon={DollarSign} tone="emerald" hint="pagamentos" />
         <MetricCard label="Em Pipeline" value={formatCurrency(metrics.pipeline)} icon={Briefcase} tone="indigo" hint="em atendimento" />
@@ -293,8 +206,8 @@ export default function Reports() {
 
       {/* Conversion funnel — hero */}
       <Panel
-        title="Funil de Conversão"
-        subtitle="Estimativa pelo estágio atual; não representa o histórico de passagem"
+        title="Distribuição comercial"
+        subtitle="Etapa atual dos contatos; não representa conversão histórica"
         icon={Filter}
         tone="indigo"
         action={
@@ -306,21 +219,10 @@ export default function Reports() {
         {hasFunnel ? (
           <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-5">
             <div className="lg:col-span-3">
-              <FunnelChart
-                data={funnelData}
-                orientation="horizontal"
-                layers={3}
-                edges="curved"
-                gap={6}
-                labelLayout="grouped"
-                labelOrientation="vertical"
-                labelAlign="center"
-                formatValue={(v) => formatNumber(v)}
-                formatPercentage={(p) => `${Math.round(p)}%`}
-              />
+              <BarList items={funnelData.map(s => ({ label: s.label, value: s.value, display: s.displayValue, color: s.color }))} />
             </div>
             <div className="flex flex-col gap-2 lg:col-span-2">
-              {metrics.funnel.map((s, i) => {
+              {metrics.funnel.map((s) => {
                 const fromTop = funnelTop ? (s.reached / funnelTop) * 100 : 0;
                 return (
                   <div
@@ -335,7 +237,7 @@ export default function Reports() {
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted">
                         <span className="tabular-nums">{formatCurrencyCompact(s.value)}</span>
-                        <span className="tabular-nums">{i === 0 ? '100% · topo' : `${fromTop.toFixed(0)}% do topo`}</span>
+                        <span className="tabular-nums">{fromTop.toFixed(0)}% do total</span>
                       </div>
                     </div>
                   </div>
@@ -384,7 +286,7 @@ export default function Reports() {
           </div>
         </Panel>
 
-        <Panel title="Taxa de Conversão" subtitle="% de ganhos entre os fechados" icon={TrendingUp} tone="indigo">
+        <Panel title="Ganhos entre fechados" subtitle="Clientes / (clientes + arquivados), por mês de fechamento" icon={TrendingUp} tone="indigo">
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={metrics.series} margin={{ top: 16, right: 16, left: -8, bottom: 0 }}>
@@ -402,7 +304,7 @@ export default function Reports() {
                   contentStyle={chartTooltipStyle}
                   itemStyle={chartTooltipItemStyle}
                   labelStyle={chartTooltipLabelStyle}
-                  formatter={(value: any) => [value === null || value === undefined ? '—' : `${value}%`, 'Conversão']}
+                  formatter={(value: any) => [value === null || value === undefined ? '—' : `${value}%`, 'Ganhos entre fechados']}
                 />
                 <Area
                   type="monotone"
@@ -430,7 +332,7 @@ export default function Reports() {
                 label: productLabel(p.produto),
                 value: p.revenue,
                 display: formatCurrencyCompact(p.revenue),
-                sub: `${p.count} cliente${p.count === 1 ? '' : 's'}`,
+                sub: `${p.count} pagamento${p.count === 1 ? '' : 's'}`,
                 color: TONE_HEX.purple,
               }))}
             />
@@ -471,7 +373,7 @@ export default function Reports() {
                   <th className="px-3 py-3 text-right">Leads</th>
                   <th className="px-3 py-3 text-right">Aberto</th>
                   <th className="px-3 py-3 text-right">Receita</th>
-                  <th className="py-3 pl-3 pr-5 text-right">Conv.</th>
+                  <th className="py-3 pl-3 pr-5 text-right">Ganhos / fechados</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

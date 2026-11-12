@@ -51,7 +51,7 @@ vi.mock('@/lib/supabase', () => ({
           if (context && api.contextPending) return new Promise(() => {});
           const row = { name: null, prospecting_pool: false, outreach_status: 'unreviewed', product_key: api.row.produto, ...api.row, ...write?.payload };
           const matchesFilters = Object.entries(filters).every(([key, value]) => row[key as keyof typeof row] === value);
-          const rows = table === 'contacts' ? (single ? row : context && after ? [] : [row])
+          const rows = table === 'contacts' ? (single ? row : (context && after) || offset > 0 ? [] : [row])
             : table === 'contact_directory' ? (matchesFilters && contactMatchesSearch(row as typeof api.row & { name: string | null }, term) ? [row] : [])
             : table === 'contact_workspace_summary' && offset === 0 ? [{ ...row, total: 1 }] : [];
           return Promise.resolve({ data: rows, count: Array.isArray(rows) ? rows.length : 1, error: null }).then(resolve);

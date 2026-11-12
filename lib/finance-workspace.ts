@@ -1,4 +1,5 @@
 import type { PaymentTransaction } from './types';
+import { businessMonth } from './financial-calendar';
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentTransaction['status'], string> = {
   paid: 'Pago', partially_refunded: 'Devolução parcial', refunded: 'Devolvido',
@@ -8,10 +9,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentTransaction['status'], string>
 /** Payment month is a cash-receipt cohort, never the fiscal service competence. */
 export function receiptMonth(value: string | null): string | null {
   if (!value || !Number.isFinite(Date.parse(value))) return null;
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit',
-  }).formatToParts(new Date(value));
-  return `${parts.find((p) => p.type === 'year')!.value}-${parts.find((p) => p.type === 'month')!.value}`;
+  return businessMonth(value);
 }
 
 export function paymentIssues(payment: PaymentTransaction): string[] {
