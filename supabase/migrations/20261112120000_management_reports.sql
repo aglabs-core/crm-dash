@@ -81,5 +81,12 @@ END $$;
 REVOKE ALL ON FUNCTION public.crm_management_report(text,integer,integer) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.crm_management_report(text,integer,integer) TO authenticated, service_role;
 CREATE INDEX IF NOT EXISTS payment_transactions_report_paid_idx ON public.payment_transactions(paid_at,product);
+-- The pipeline subscription must receive email status changes even without a contact-stage change.
+DO $$ BEGIN
+  IF EXISTS(SELECT 1 FROM pg_catalog.pg_publication WHERE pubname='supabase_realtime')
+    AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='email_messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.email_messages;
+  END IF;
+END $$;
 NOTIFY pgrst, 'reload schema';
 COMMIT;

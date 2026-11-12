@@ -40,6 +40,8 @@ comparar com o commit aprovado após o deploy. Se a função ainda não existe (
 leitura anterior com projeção comercial mínima e avisa que está em modo de
 compatibilidade. Qualidade avançada e jornada ficam indisponíveis, nunca zero.
 Falhas de autorização, rede ou SQL não ativam esse fallback.
+A migration também inclui `email_messages` na publicação Realtime quando ela
+existe, preservando as tabelas já publicadas e as políticas de leitura existentes.
 
 ## Validação contínua
 
