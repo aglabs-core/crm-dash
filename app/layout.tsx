@@ -1,13 +1,16 @@
 import type {Metadata} from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css'; // Global styles
 import { AuthProvider } from '@/components/AuthProvider';
 import { ThemeProvider, themeInitScript } from '@/components/ThemeProvider';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { Toaster } from 'sonner';
 
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: './fonts/inter-latin-variable.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
   variable: '--font-sans',
 });
 

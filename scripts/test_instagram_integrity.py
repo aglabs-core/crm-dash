@@ -1,23 +1,28 @@
 """PostgreSQL integration tests for Instagram webhook and offer integrity.
 
-Uses only synthetic identities in the disposable ``crm-instagram-integrity-test``
-container. Never point this script at a shared or production database.
+Uses only synthetic identities in a uniquely named disposable local container.
+Never point this script at a shared or production database.
 """
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
+import re
 import time
 import unittest
+from uuid import uuid4
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTAINER = "crm-instagram-integrity-test"
+CONTAINER = f"crm-instagram-integrity-{uuid4().hex[:12]}"
+IMAGE = "postgres:17-alpine@sha256:e5d2edd28b1f8d40a0a6c0c9cdc545b19b56a0d5d88f94bc11a97d970d4700d0"
 OWNER = "0af00833-c1f7-42f4-9543-a5e0ff6f55fc"
 OTHER = "11111111-1111-4111-8111-111111111111"
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    if args[0] == "docker":
+        args = ("docker", "--host=unix:///var/run/docker.sock", *args[1:])
     result = subprocess.run(
         list(args), text=True, encoding="utf-8", capture_output=True
     )
@@ -30,6 +35,7 @@ def sql(statement: str, *, check: bool = True) -> subprocess.CompletedProcess[st
     result = subprocess.run(
         [
             "docker",
+            "--host=unix:///var/run/docker.sock",
             "exec",
             "-i",
             CONTAINER,
@@ -54,17 +60,18 @@ def sql(statement: str, *, check: bool = True) -> subprocess.CompletedProcess[st
 class InstagramIntegrity(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        run("docker", "rm", "-f", CONTAINER, check=False)
         run(
             "docker",
             "run",
             "--rm",
+            "--pull=never",
+            "--network=none",
             "-d",
             "--name",
             CONTAINER,
             "-e",
             "POSTGRES_PASSWORD=synthetic-only",
-            "postgres:17-alpine",
+            IMAGE,
         )
         for _ in range(30):
             if run(
@@ -124,10 +131,21 @@ class InstagramIntegrity(unittest.TestCase):
             )
         )
         sql(migration.read_text(encoding="utf-8"))
+        # The intake correction supersedes the original Lead classification.
+        # Test the function actually shipped today, not only its older definition.
+        current = None
+        pattern = re.compile(r"CREATE OR REPLACE FUNCTION public\.registrar_lead_instagram\((?P<params>.*?)\)\s*RETURNS[\s\S]+?AS\s+(?P<tag>\$[A-Za-z_0-9]*\$)[\s\S]+?(?P=tag);", re.I | re.S)
+        for correction in sorted((ROOT / "supabase/migrations").glob("*.sql")):
+            for candidate in pattern.finditer(correction.read_text(encoding="utf-8")):
+                if "p_event_id" in candidate.group("params"):
+                    current = candidate.group()
+        if current is None:
+            raise AssertionError("Current Instagram intake function not found")
+        sql(current)
 
     @classmethod
     def tearDownClass(cls) -> None:
-        run("docker", "rm", "-f", CONTAINER, check=False)
+        run("docker", "rm", "-f", "-v", CONTAINER)
 
     def setUp(self) -> None:
         sql(
@@ -160,6 +178,19 @@ class InstagramIntegrity(unittest.TestCase):
             .stdout.strip(),
             OWNER,
         )
+
+    def test_free_material_creates_contact_without_qualifying_lead(self) -> None:
+        result = self.register("evt-free-material")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sql("SELECT status FROM public.contacts WHERE instagram_id='123456789';").stdout.strip(), "Contato")
+
+    def test_replay_and_new_material_preserve_existing_customer(self) -> None:
+        self.assertEqual(self.register("evt-customer").returncode, 0)
+        sql("UPDATE public.contacts SET status='Cliente' WHERE instagram_id='123456789';")
+        self.assertEqual(self.register("evt-customer").returncode, 0)
+        self.assertEqual(self.register("evt-customer-new-material").returncode, 0)
+        self.assertEqual(sql("SELECT status FROM public.contacts WHERE instagram_id='123456789';").stdout.strip(), "Cliente")
+        self.assertEqual(sql("SELECT count(*) FROM public.contacts;").stdout.strip(), "1")
 
     def test_same_event_is_idempotent_under_concurrency(self) -> None:
         with ThreadPoolExecutor(max_workers=8) as pool:

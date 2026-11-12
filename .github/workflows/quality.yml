@@ -35,6 +35,10 @@ jobs:
         run: python3 scripts/test_payment_ledger.py
       - name: Testar conversão de formulários
         run: python3 scripts/test_institutional_conversion.py
+      - name: Preparar fixture do Instagram
+        run: docker pull postgres:17-alpine@sha256:e5d2edd28b1f8d40a0a6c0c9cdc545b19b56a0d5d88f94bc11a97d970d4700d0
+      - name: Testar classificação e idempotência do Instagram
+        run: python3 scripts/test_instagram_integrity.py
 
       # Portão de produção: este passo só roda se todos os anteriores passaram.
       # Passa a valer quando o secret DEPLOY_HOOK_URL existir (gatilho de deploy
