@@ -3,6 +3,19 @@ import { test } from 'node:test';
 import { productMetrics, validateSnapshot } from './product-metrics';
 const snapshot = () => ({ version: 1, product: 'barberias', generatedAt: new Date().toISOString(), window: { from: '2026-01-01T00:00:00Z', to: new Date().toISOString() }, metrics: { users: 3, accounts: 2, activeAccounts: 1, trialAccounts: 1, payingAccounts: 0, complimentaryAccounts: 0, canceledAccounts: 0, activatedAccounts: null } });
 
+test('product funnel crosses the CRM as a closed aggregate, preserving null and rejecting inconsistent units', () => {
+  const generatedAt = new Date().toISOString();
+  const base = { ...snapshot(), product: 'aglabs-app', generatedAt, window: { from: '2026-11-01T03:00:00Z', to: generatedAt }, metrics: { ...snapshot().metrics, accounts: null, activeAccounts: null, trialAccounts: null, payingAccounts: null, complimentaryAccounts: null, canceledAccounts: null }, productFunnel: {
+    version: 1, kind: 'credit_journey_users', from: '2026-11-01T03:00:00Z', to: generatedAt, unit: 'users', ordered: false,
+    series: [{ key: 'all', values: [1,3,null,0], email: 'private@example.test' }], email: 'private@example.test',
+  } };
+  const result = validateSnapshot(base, 'aglabs-app');
+  assert.deepEqual(result.productFunnel?.series[0].values,[1,3,null,0]);
+  assert.doesNotMatch(JSON.stringify(result.productFunnel),/private|email/);
+  assert.equal(validateSnapshot({ ...base, productFunnel: null }, 'aglabs-app').productFunnel,null);
+  assert.throws(()=>validateSnapshot({ ...base, productFunnel: { ...base.productFunnel, unit: 'events' } },'aglabs-app'));
+});
+
 test('optional cumulative activation funnel is bounded, consistent and explicitly projected', () => {
   const raw = { ...snapshot(), metrics: { ...snapshot().metrics, activatedAccounts: 1 }, activationFunnel: { professional: 2, catalog: 2, readyForBooking: 2, firstAppointment: 1, email: 'private@example.invalid' } };
   const projected = validateSnapshot(raw, 'barberias');
