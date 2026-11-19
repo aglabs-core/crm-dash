@@ -78,9 +78,12 @@ class InstagramIntegrity(unittest.TestCase):
             "POSTGRES_PASSWORD=synthetic-only",
             IMAGE,
         )
+        # The image starts a socket-only server to initialize the database.
+        # TCP on loopback becomes available only on the final server.
         for _ in range(30):
             if run(
-                "docker", "exec", CONTAINER, "pg_isready", "-U", "postgres", check=False
+                "docker", "exec", CONTAINER, "pg_isready", "-h", "127.0.0.1",
+                "-U", "postgres", check=False,
             ).returncode == 0:
                 break
             time.sleep(1)
