@@ -38,7 +38,7 @@ function fakeStore() {
     email({ sent_at: '2027-01-01T12:00:00Z', campaign_id: 'future-campaign', clicked_at: '2027-01-01T13:00:00Z' }),
     email({ sent_at: '2020-01-01T12:00:00Z', campaign_id: 'old-campaign' }),
   ];
-  const writes: { tasks: unknown[]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[]; feedback: string[] } = { tasks: [], activities: [], completed: [], feedback: [] };
+  const writes: { tasks: Parameters<CrmStore['insertTask']>[0][]; activities: { contact_id: string | null; type: string; channel: string | null; content: string }[]; completed: string[]; feedback: string[] } = { tasks: [], activities: [], completed: [], feedback: [] };
   const feedbacks: McpFeedback[] = [
     { id: F1, product: 'members', message: 'O Pix demorou para liberar o curso.', pathname: '/checkout/curso', status: 'novo', occurred_at: '2026-10-22T12:00:00Z',
       contact: { id: CONTACT, name: 'Barbearia Sintética', status: 'Proposta', account_status: 'trial' } },
@@ -104,6 +104,8 @@ test('protocolo: initialize, notificação, ping, método desconhecido e autenti
   const init = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } }), deps)).json();
   assert.equal(init.result.protocolVersion, '2025-06-18');
   assert.equal(init.result.serverInfo.name, 'crm-ag-labs');
+  assert.match(init.result.instructions, /Léo está pausado/);
+  assert.doesNotMatch(init.result.instructions, /E-mail para um contato é enviado pelo Léo/);
   assert.equal((await handleMcp(rpc({ jsonrpc: '2.0', method: 'notifications/initialized' }), deps)).status, 202);
   assert.deepEqual((await (await handleMcp(rpc({ jsonrpc: '2.0', id: 2, method: 'ping' }), deps)).json()).result, {});
   assert.equal((await (await handleMcp(rpc({ jsonrpc: '2.0', id: 3, method: 'resources/list' }), deps)).json()).error.code, -32601);
@@ -332,4 +334,40 @@ test('feedback: lista sem arquivados, filtra por produto e atualiza status com o
   assert.equal((await call('crm_atualizar_feedback', { feedback_id: F1, status: 'resolvido' }, TOKEN, store)).result!.isError, false);
   assert.deepEqual(writes.feedback, [`${F1}:resolvido:orbita`]);
   assert.equal((await call('crm_atualizar_feedback', { feedback_id: T1, status: 'lido' }, TOKEN, store)).result!.isError, true);
+});
+
+test('task deadlines reject impossible calendar dates before reaching the store', async () => {
+  const { store, writes } = fakeStore();
+  for (const prazo of ['2026-02-29', '2026-02-31', '2026-04-31', '2026-13-01', '0000-01-01']) {
+    const result = await call('crm_criar_tarefa', { titulo: 'Revisar atendimento', responsavel: 'maia', prazo }, TOKEN, store);
+    assert.equal(result.result?.isError, true, prazo);
+    assert.match(result.result?.content[0].text || '', /prazo.*data válida|prazo.*AAAA-MM-DD/, prazo);
+  }
+  assert.equal(writes.tasks.length, 0);
+});
+
+test('valid task calendar days survive leap years and server timezone differences', async () => {
+  const previous = process.env.TZ;
+  try {
+    for (const zone of ['UTC', 'America/Sao_Paulo', 'Asia/Tokyo']) {
+      process.env.TZ = zone;
+      const { store, writes } = fakeStore();
+      for (const prazo of ['2028-02-29', '2026-04-30', '2026-12-31']) {
+        const result = await call('crm_criar_tarefa', { titulo: 'Revisar atendimento', responsavel: 'maia', prazo }, TOKEN, store);
+        assert.equal(result.result?.isError, false, `${zone}: ${prazo}`);
+        assert.equal(writes.tasks.at(-1)?.due_date, prazo);
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous;
+  }
+});
+
+test('task tool guidance preserves legacy assignee without recommending a paused agent', async () => {
+  const { store } = fakeStore();
+  const list = await (await handleMcp(rpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }), { config, store: () => store, now: NOW })).json();
+  const tool = list.result.tools.find((t: { name: string }) => t.name === 'crm_criar_tarefa');
+  assert.match(tool.description, /Léo está pausado/);
+  assert.match(tool.description, /Respostas dos prospects seguem para a Maia/);
+  assert.ok(tool.inputSchema.properties.responsavel.enum.includes('leo'));
 });

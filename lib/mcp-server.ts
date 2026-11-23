@@ -145,7 +145,10 @@ function uuid(args: Args, key: string, required: boolean): string | null {
 function date(args: Args, key: string): string | null {
   const value = args[key];
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T12:00:00Z`))) throw new InvalidArgs(`${key} deve estar no formato AAAA-MM-DD`);
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) throw new InvalidArgs(`${key} deve ser uma data válida no formato AAAA-MM-DD`);
+  const parsed = new Date(`${value}T12:00:00Z`);
+  // Date.parse normalizes impossible days (e.g. 29/02 in a non-leap year).
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new InvalidArgs(`${key} deve ser uma data válida no formato AAAA-MM-DD`);
   return value;
 }
 function clean(text: string | null, key: string) {
@@ -218,6 +221,7 @@ type Tool = {
 };
 
 const assigneeProp = { type: 'string', enum: ASSIGNEES, description: 'Papel responsável: maia, leo, antonio ou tecnico' };
+const TASK_HANDOFF_GUIDANCE = 'Escolha o responsável conforme a disponibilidade no Vault. Léo está pausado; o identificador leo preserva o histórico e não deve receber novas tarefas por padrão. Respostas dos prospects seguem para a Maia. Uma tarefa não autoriza nem comprova envio de mensagem.';
 const productProp = { type: 'string', minLength: 2, maxLength: 60, description: 'Identificador do produto, ex.: barberias, mecard. Sem ele, o CRM inteiro.' };
 
 export const TOOLS: Tool[] = [
@@ -405,7 +409,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'crm_criar_tarefa', scope: 'tarefas', readOnly: false, title: 'Criar tarefa no CRM',
-    description: 'Cria uma tarefa com responsável (maia, leo, antonio ou tecnico). Para enviar um e-mail a um contato, crie a tarefa para o Léo com o contato e o que deve ser enviado. Atribuir não garante que o responsável recebeu.',
+    description: `Cria uma tarefa com responsável explícito (maia, leo, antonio ou tecnico). ${TASK_HANDOFF_GUIDANCE}`,
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['titulo', 'responsavel'],
       properties: {
@@ -522,7 +526,7 @@ const json = (status: number, body: unknown, extra?: Record<string, string>) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store', ...extra } });
 
 const INSTRUCTIONS = 'CRM da AG LABS. contacts é a ficha única e a posição no funil; activities é o que aconteceu; tasks é o que falta fazer, com responsável. '
-  + 'Procure o contato antes de criar tarefa ou interação. E-mail para um contato é enviado pelo Léo: crie a tarefa para leo com o contato e o conteúdo. '
+  + `Procure o contato antes de criar tarefa ou interação. ${TASK_HANDOFF_GUIDANCE} `
   + 'Não há exclusão, exportação nem mudança de etapa por aqui.';
 
 export async function dispatch(message: RpcRequest, ctx: { store: CrmStore; caller: McpCaller; now?: Date }) {

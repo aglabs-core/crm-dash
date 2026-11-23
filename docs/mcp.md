@@ -18,7 +18,9 @@
 | `crm_feedback` | `leitura` | Feedback enviado pelos apps (botão *Enviar feedback*), do mais recente ao mais antigo: produto, texto, tela de origem, status e o contato (nome, etapa, conta) quando o e-mail bate. Filtros `produto`, `status` e `limite` (até 100). Sem `status`, todos exceto arquivados. Sem e-mail ou telefone |
 | `crm_atualizar_feedback` | `atividades` | Marca um feedback como `novo`, `lido`, `resolvido` ou `arquivado`, registrando o nome do token |
 
-E-mail para um contato é enviado pelo Léo: a tarefa vai para `leo`, com o contato e o conteúdo. Atribuir não prova que ele recebeu (veja *Requisitos de integridade do CRM* no vault).
+Atribua tarefas conforme a disponibilidade e as responsabilidades no Vault. Léo está pausado: `leo` permanece no contrato para o histórico e compatibilidade, sem recomendação de novas atribuições. Respostas dos prospects seguem para a Maia. Criar uma tarefa não autoriza nem comprova envio de mensagem (veja *Requisitos de integridade do CRM* no vault).
+
+O prazo de uma tarefa deve ser um dia real no calendário, no formato `AAAA-MM-DD`; datas impossíveis são recusadas antes da escrita, sem normalizar para outro dia.
 
 ### Produto
 
@@ -59,7 +61,7 @@ Para revogar, tire a entrada e publique de novo.
 claude mcp add --transport http crm https://<endereço do CRM>/api/mcp --header "Authorization: Bearer <token>"
 ```
 
-Na Órbita: `CRM_MCP_URL=https://<endereço do CRM>/api/mcp` e `CRM_MCP_TOKEN=<token>` nas variáveis da Vercel.
+Na Órbita: configure `CRM_MCP_URL=https://<endereço do CRM>/api/mcp` e `CRM_MCP_TOKEN=<token>` nas variáveis do ambiente de publicação da central. Uma alteração exige publicar a nova configuração e conferir a consulta autenticada; o arquivo local não comprova conexão ativa.
 
 ## Código e testes
 
