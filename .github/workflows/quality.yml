@@ -23,7 +23,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # lint + typecheck + build. Sem variáveis de ambiente de propósito:
+      # lint + typecheck + testes + build. Sem variáveis de ambiente de propósito:
       # lib/supabase.ts cai no placeholder e o build precisa continuar passando.
       - run: npm run check
       # Avisos alto/crítico em dependências de produção. Exceções conscientes

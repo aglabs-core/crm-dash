@@ -14,7 +14,7 @@ Next.js 15 (App Router) + React 19 + TypeScript · Supabase (auth, Postgres, rea
 npm run check
 ```
 
-Roda `lint → typecheck → build`. É o mesmo comando do CI (`.github/workflows/quality.yml`), que executa também `npm run audit:gate`.
+Roda `lint → typecheck → testes → build`. É o mesmo comando do CI (`.github/workflows/quality.yml`), que executa também `npm run audit:gate`.
 
 O build **precisa passar sem variáveis de ambiente** — `lib/supabase.ts` cai num placeholder de propósito, e é assim que o CI roda. Se uma mudança quebrar isso, o problema é a mudança.
 
