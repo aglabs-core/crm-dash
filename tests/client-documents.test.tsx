@@ -18,7 +18,8 @@ it('administrative contact visibility does not enable file uploads for another o
   render(<ClientDocuments contactId="contact" ownerId="owner" />);
   await screen.findByText('Contrato sintético');
   expect(screen.queryByRole('button', { name: 'Anexar documento' })).toBeNull();
-  expect(screen.getByText(/visualização administrativa/)).toBeTruthy();
+  expect(screen.getByText(/Administradores podem consultar e baixar os arquivos privados/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Baixar original' })).toBeTruthy();
 });
 it('owner can attach originals and failures hide the old list instead of showing an empty folder', async () => {
   state.owner = true;

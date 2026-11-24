@@ -15,3 +15,19 @@ test('Asaas pending or inconsistent refund cannot silently become a paid replay'
   assert.throws(()=>mapAsaasPayment({value:17,status:'RECEIVED'},{...event,event:'PAYMENT_REFUNDED'},{}));
   assert.throws(()=>mapAsaasPayment({value:17,status:'RECEIVED',refunds:[{status:'DONE',value:20}]},event,{}));
 });
+
+test('Asaas calendar dates remain on the payment day in Sao Paulo', () => {
+  for (const field of ['paymentDate', 'confirmedDate']) {
+    const row = mapAsaasPayment({value:17,status:'RECEIVED',[field]:'2026-11-24'},event,{});
+    assert.equal(new Date(row.data).toISOString(),'2026-11-24T03:00:00.000Z');
+  }
+  const instant='2026-11-24T07:48:29-03:00';
+  assert.equal(mapAsaasPayment({value:17,status:'RECEIVED',paymentDate:instant},event,{}).data,instant);
+});
+
+test('Asaas generic Pix descriptions cannot replace a known service on replay', () => {
+  const payment={value:17,status:'RECEIVED'};
+  const row=mapAsaasPayment({...payment,description:'Cobrança gerada automaticamente a partir de Pix recebido. Mensagem: synthetic'},event,{});
+  assert.equal(row.produto,null);
+  assert.equal(mapAsaasPayment({...payment,description:'Atendente de IA'},event,{}).produto,'Atendente de IA');
+});

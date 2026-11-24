@@ -28,6 +28,8 @@ A ingestão calcula o relacionamento após o merge monotônico da transação. R
 
 Asaas: os eventos PAYMENT_REFUNDED e PAYMENT_PARTIALLY_REFUNDED passam a ser processados. A API do pagamento é reconsultada; somente refunds com status DONE compõem o total devolvido. PENDING e CANCELLED não são estorno concluído. Eventos inconsistentes falham em vez de voltar a paid. O mapeamento está em integrations/n8n/asaas-payment.js e os parâmetros publicados estão versionados em workflow-updates.json. Referências: https://docs.asaas.com/docs/refunds e https://docs.asaas.com/docs/payment-events.
 
+Datas Asaas sem horário são interpretadas no calendário brasileiro, para não aparecerem no dia anterior. A descrição automática de Pix recebido não identifica um produto e não substitui o serviço já registrado na ficha. O webhook Asaas precisa assinar os eventos de confirmação, recebimento e estorno aceitos pelo fluxo; somente CHECKOUT_PAID não cobre um Pix recebido diretamente na conta. A confirmação financeira exige reconsulta ao provedor e conciliação pela chave do pagamento, inclusive em reprocessamentos.
+
 ## Implantação e evidência
 
 Em 17/10/2026, após autorização explícita para implantação, foram aplicadas as migrations add_unqualified_contact_stage e correct_intake_qualification_and_refund_lifecycle. As funções foram comparadas às definições remotas antes da alteração; assinaturas, grants e isolamento de identidade foram preservados. Três workflows da VPS-03 foram publicados e conferidos ativos, sem persistência de payload em execuções manuais, bem-sucedidas ou com erro: intake WhatsApp, registro da Maia e ingestão de pagamentos. O workflow Instagram tem rascunho diferente da versão ativa; ele foi preservado, e a correção ocorreu na RPC compartilhada.

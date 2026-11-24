@@ -14,10 +14,18 @@ export function mapAsaasPayment(payment, event, customer) {
   if (status === 'paid' && (!['CONFIRMED', 'RECEIVED'].includes(payment.status) || ['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(event.event))) {
     throw new Error('Estado Asaas ainda não conciliável');
   }
+  // Asaas dates have no time zone; UTC midnight would appear on the previous day in Brazil.
+  const paidAt = payment.paymentDate || payment.confirmedDate;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(paidAt || '')
+    ? `${paidAt}T00:00:00-03:00` : paidAt || new Date().toISOString();
+  // An automatically generated Pix description does not identify the purchased service.
+  const description = String(payment.description || '').trim();
+  const product = /^Cobrança gerada automaticamente a partir de Pix recebido\b/i.test(description)
+    ? null : description || null;
   return { gateway: 'asaas', external_id: event.external_id,
     nome: customer.name || null, email: customer.email || null,
     telefone: customer.mobilePhone || customer.phone || null, documento: customer.cpfCnpj || null,
-    produto: payment.description || null, valor: amount, status, refunded_amount: refunded,
+    produto: product, valor: amount, status, refunded_amount: refunded,
     moeda: 'BRL', tipo: payment.subscription ? 'assinatura' : 'avulso',
-    data: payment.paymentDate || payment.confirmedDate || new Date().toISOString() };
+    data: date };
 }
