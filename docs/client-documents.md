@@ -9,12 +9,16 @@ O modelo de serviços/contratações ainda será um incremento separado: não h�
 ## Armazenamento e segurança
 
 - Bucket separado `crm-documents`, **privado**, com limite de 10 MiB por objeto, formatos PDF/XML/PNG/JPEG e MIME controlado. Nunca usar o bucket público de avatares.
-- Metadados em `client_documents`, RLS e grants SELECT/INSERT explícitos. Proprietário da ficha controla os arquivos; acesso administrativo preexistente a contatos não concede acesso automático aos documentos.
+- Metadados em `client_documents`, RLS e grants SELECT/INSERT explícitos. Proprietário da ficha anexa os originais. Administradores registrados em `admin_users` podem consultar metadados e baixar originais já registrados, com autenticação; não podem anexar em nome de outro proprietário, sobrescrever ou excluir arquivos.
 - FKs compostas impedem vincular dados entre proprietários; trigger confere existência, tamanho/MIME do original no Storage e pagamento do mesmo contato. Timestamp do cadastro é definido no banco.
 - Arquivos com paths `proprietario/contato/uuid.ext`, sem nome/CPF/CNPJ no caminho. Downloads autenticados como anexos; sem renderização de XML/PDF no domínio do CRM ou URL pública.
 - Hash SHA-256 calculado pelo cliente para deduplicação por contato; não constitui assinatura digital, prova de autenticidade ou verificação de conteúdo pelo servidor. Validação inicial de assinatura de arquivo e extensão na interface; Storage impõe tamanho/MIME. Não há antivírus ou análise de arquivos no servidor nesta etapa.
 - Originais e metadados sem UPDATE/DELETE para usuários autenticados. Contatos/usuários com evidências vinculadas não podem ser apagados em cascata; revisão de retenção/eliminação deve ocorrer por procedimento privilegiado, não por exclusão casual da ficha. Arquivamento comercial permanece independente.
 - Nenhum acesso novo pelo MCP, exportação de cadastros ou registro de conteúdo em log.
+
+A migration `20261124141416_admin_private_document_read.sql` concede a leitura administrativa explicitamente autorizada e qualifica `storage.objects.name` nas policies: o campo `contacts.name` não pode ser interpretado como caminho do objeto. O bucket permanece privado. A remoção do usuário de `admin_users` revoga a leitura administrativa sem depender de uma nova sessão. O download continua usando a sessão autenticada, sem criar URL pública ou assinada.
+
+Em 24/11/2026, a migration foi aplicada em produção e os papéis de administrador, proprietário, outro usuário e anônimo foram conferidos em transação com rollback. A listagem e o download autenticado na ficha foram verificados na sessão administrativa; o arquivo baixado manteve o mesmo SHA-256 do original. O teste local inclui `contacts.name`, leitura administrativa apenas de objetos indexados, revogação do administrador e bloqueio de escrita em nome de outro proprietário.
 
 ## Upload não é uma transação SQL com Storage
 
